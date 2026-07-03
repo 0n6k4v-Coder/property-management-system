@@ -1,0 +1,53 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "property-management-system-backend"
+version = "1.0.0"
+description = "Backend API for Property Management System"
+requires-python = ">=3.14"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "unit: Fast unit tests that mock external dependencies.",
+    "integration: Slow tests that exercise real DB, file I/O, or network.",
+    "contract: OpenAPI/Schemathesis contract validation tests.",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+branch = true
+parallel = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if 0:",
+    "if False:",
+]
+fail_under = 85
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM", "ARG", "LOG"]
+ignore = ["E501"]  # Line-length handled by formatter
+
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_unused_configs = true
+ignore_missing_imports = true
+no_implicit_optional = true

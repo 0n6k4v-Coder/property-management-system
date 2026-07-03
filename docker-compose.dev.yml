@@ -1,0 +1,436 @@
+# docker-compose.dev.yml
+# Property Management System — Development & Testing Environment
+# 2026 Docker Compose Best Practices + Project Context (SDD v1.4, AGENTS v1.1, SPRINT_1)
+#
+# Usage:
+#   Development:  docker compose -f docker-compose.dev.yml --profile dev up
+#   Testing:      docker compose -f docker-compose.dev.yml --profile test run --rm backend-test
+#   Full stack:   docker compose -f docker-compose.dev.yml --profile dev --profile test up
+#   Cleanup:      docker compose -f docker-compose.dev.yml down -v
+
+name: pms-dev
+
+# =============================================================================
+# 2026 Best Practice: Use Compose V2+ features (profiles, healthcheck deps)
+# =============================================================================
+services:
+  # -------------------------------------------------------------------------
+  # Backend Service — Multi-stage build with profile-based targeting
+  # -------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: ${BUILD_TARGET:-development}  # Override via env: BUILD_TARGET=testing
+      args:
+        # Build args for cache optimization (2026: separate pip cache layer)
+        PIP_CACHE_DIR: /tmp/pip-cache
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"  # Configurable host port
+    expose:
+      - "8000"  # Internal exposure for other services
+    environment:
+      # Load from .env file (2026: never hardcode secrets in compose)
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-pass}@db:5432/${DB_NAME:-pms_test}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:-minioadmin}
+      - SECRET_KEY=${SECRET_KEY:?Secret key required — set in .env}
+      - ID_CARD_ENCRYPTION_KEY=${ID_CARD_ENCRYPTION_KEY:?Encryption key required — set in .env}
+      - DEBUG=${DEBUG:-true}
+      - APP_DOMAIN=${APP_DOMAIN:-http://localhost:8000}
+      # Async tuning (SDD §3.1, §4.3.2)
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-20}
+      - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
+      - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-1800}
+    env_file:
+      - path: ./backend/.env
+        required: true  # 2026: fail fast if env missing
+    volumes:
+      # Hot-reload: mount source, exclude cache via .dockerignore
+      - ./backend:/app:cached  # `cached` for macOS, use `delegated` for Linux
+      # Persist pytest cache & coverage across container runs
+      - backend-pytest-cache:/app/.pytest_cache
+      - backend-coverage:/app/htmlcov
+      # Optional: mount docs for live reference (dev only)
+      - ./docs:/app/docs:ro  # read-only
+    depends_on:
+      db:
+        condition: service_healthy  # 2026: wait for DB ready, not just started
+        restart: true  # Restart backend if DB restarts
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    healthcheck:
+      # 2026: Use application-level health endpoint (SDD §10.2 health.py)
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s  # Allow time for app to initialize
+    restart: unless-stopped  # Auto-restart on crash (dev convenience)
+    # 2026 Security: Drop capabilities, read-only root FS (where possible)
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE  # Only if binding to port <1024 (not needed here)
+    security_opt:
+      - no-new-privileges:true  # Prevent privilege escalation
+    # Resource limits (prevent runaway dev processes)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    # Logging: JSON driver with rotation (prevent disk fill in long dev sessions)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+        tag: "{{.Name}}"
+    # Profile: only start with `--profile dev` or `--profile test`
+    profiles:
+      - dev
+      - test
+
+  # -------------------------------------------------------------------------
+  # Backend Test Runner — Ephemeral container for CI/local testing
+  # -------------------------------------------------------------------------
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: testing  # Always use testing stage for test runner
+    environment:
+      # Same env as backend, but with test-specific overrides
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-pass}@db:5432/${DB_NAME:-pms_test}
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=http://minio:9000
+      - SECRET_KEY=test-secret-key-for-testing-only-not-for-prod
+      - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
+      - DEBUG=true
+      - PYTEST_ADDOPTS=--color=yes  # Colored output in terminal
+    env_file:
+      - path: ./backend/.env.test  # Optional: override for testing
+        required: false
+    volumes:
+      # Mount source for live code updates during test development
+      - ./backend:/app:cached
+      # Persist test artifacts for inspection
+      - backend-pytest-cache:/app/.pytest_cache
+      - backend-coverage:/app/htmlcov
+      # Mount test reports for CI artifact collection
+      - ./backend/test-reports:/app/test-reports
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    # 2026: Test containers are ephemeral — no restart policy
+    restart: "no"
+    # Security: same hardening as backend
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    # Resource limits: tests can be memory-intensive
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'  # Allow more CPU for parallel test execution
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    # Profile: only start with `--profile test` (not dev)
+    profiles:
+      - test
+    # Default command overridden via `docker compose run --rm backend-test <command>`
+    command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html"]
+
+  # -------------------------------------------------------------------------
+  # Frontend Service — Vite dev server with hot-reload
+  # -------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"  # Vite dev server
+    environment:
+      - VITE_API_URL=/api/v1
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true  # Enable file watching in Docker
+    volumes:
+      - ./frontend:/app:cached
+      - frontend-node-modules:/app/node_modules
+    depends_on:
+      backend:
+        condition: service_started
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - dev
+
+  # -------------------------------------------------------------------------
+  # Frontend Test Runner — Ephemeral container for Vitest + Playwright E2E
+  # -------------------------------------------------------------------------
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - VITE_API_URL=/api/v1
+      - NODE_ENV=test
+      - CI=true
+    volumes:
+      - ./frontend:/app:cached
+      - frontend-node-modules:/app/node_modules
+      - frontend-coverage:/app/coverage
+      # Playwright reports and traces (Sprint 6)
+      - ./frontend/playwright-report:/app/playwright-report
+      - ./frontend/e2e-results:/app/e2e-results
+    depends_on:
+      backend:
+        condition: service_started
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    profiles:
+      - test
+    command: ["npx", "vitest", "run", "--coverage"]
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL 18.4 — Primary database with asyncpg-optimized config
+  # -------------------------------------------------------------------------
+  db:
+    image: postgres:18.4-alpine  # 2026: alpine OK for DB (no Python C-extensions)
+    ports:
+      - "${DB_HOST_PORT:-5432}:5432"  # Expose for local GUI tools (optional)
+    environment:
+      - POSTGRES_USER=${DB_USER:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-pass}
+      - POSTGRES_DB=${DB_NAME:-pms_test}
+      # Asyncpg-optimized settings (SDD §4.3.2)
+      - POSTGRES_MAX_CONNECTIONS=100
+      - POSTGRES_SHARED_BUFFERS=256MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=1GB
+      - POSTGRES_WORK_MEM=4MB
+      - POSTGRES_MAINTENANCE_WORK_MEM=64MB
+    volumes:
+      # Persistent data volume (named, not bind mount for portability)
+      - postgres-data:/var/lib/postgresql
+      # Tests are migration-driven via alembic; avoid double-creating schema here.
+    healthcheck:
+      # 2026: Use pg_isready with specific DB/user for accurate readiness
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-pms_test}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    # Security: DB runs as postgres user by default — no extra caps needed
+    # Resource limits: prevent DB from consuming all host resources in dev
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - dev
+      - test
+
+  # -------------------------------------------------------------------------
+  # Redis 7.4 — Cache, Celery broker, rate limiting
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --notify-keyspace-events
+      - "Ex"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      # 2026: Use redis-cli ping for accurate readiness
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    profiles:
+      - dev
+      - test
+
+  # -------------------------------------------------------------------------
+  # MinIO — S3-compatible object storage for file uploads (ID cards, slips)
+  # -------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"  # S3 API
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"  # Web console
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD:-minioadmin}
+      # 2026: Enable bucket versioning for audit compliance (SDD §4.5.2)
+      - MINIO_BROWSER=on
+      - MINIO_UPDATE=off  # Disable auto-update in dev
+    volumes:
+      - minio-data:/data
+      # Pre-create required buckets on startup (SDD §3.3 file upload endpoints)
+      - ./backend/scripts/init-minio-buckets.sh:/docker-entrypoint-initdb.d/init-buckets.sh:ro
+    healthcheck:
+      # 2026: Use mc (MinIO client) for accurate health check
+      test: >
+        /bin/sh -c "
+        mc alias set myminio http://localhost:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin} &&
+        mc ready myminio
+        "
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    # Security: MinIO runs as minio-user by default
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    profiles:
+      - dev
+      - test
+
+# =============================================================================
+# 2026 Best Practice: Named volumes with driver options for portability
+# =============================================================================
+volumes:
+  postgres-data:
+    driver: local
+    # Optional: use tmpfs for ephemeral test data (faster, auto-cleanup)
+    # driver_opts:
+    #   type: tmpfs
+    #   device: tmpfs
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+  # Cache volumes for dev/test persistence
+  backend-pytest-cache:
+    driver: local
+  backend-coverage:
+    driver: local
+  # Frontend volumes
+  frontend-node-modules:
+    driver: local
+  frontend-coverage:
+    driver: local
+
+# =============================================================================
+# 2026 Best Practice: Custom network for service isolation + DNS resolution
+# =============================================================================
+networks:
+  default:
+    name: pms-dev-network
+    driver: bridge
+    # Optional: enable IPv6 if needed (rare in dev)
+    # enable_ipv6: true
+    # ipam:
+    #   config:
+    #     - subnet: 172.28.0.0/16
+
+# =============================================================================
+# 2026 Best Practice: Secrets management (optional for local dev)
+# For production: use Docker Swarm secrets or external vault
+# =============================================================================
+# secrets:
+#   db_password:
+#     file: ./secrets/db_password.txt
+#   encryption_key:
+#     file: ./secrets/encryption_key.txt
+# Then reference in services:
+#   environment:
+#     - DB_PASSWORD_FILE=/run/secrets/db_password
+#   secrets:
+#     - db_password

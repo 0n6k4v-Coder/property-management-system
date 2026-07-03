@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+backend/.venv/
+.venv/
+
+# Build output
+dist/
+*.egg-info/
+
+# Test output
+coverage/
+htmlcov/
+.coverage
+.pytest_cache/
+playwright-report/
+e2e-results/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Docker volumes (dev)
+postgres-data/
+redis-data/
+minio-data/
+
+# Bundle analysis
+stats.html

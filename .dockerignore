@@ -1,0 +1,51 @@
+# =============================================================================
+# .dockerignore — Sprint 8 Production Docker Build
+# Property Management System Backend
+# =============================================================================
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+
+# Testing
+.pytest_cache/
+test-reports/
+htmlcov/
+*.coverage
+*.coverage.*
+
+# Git
+.git/
+.gitattributes
+.gitignore
+
+# Development
+.env
+.env.test
+*.md
+Makefile
+README.md
+docker-compose*.yml
+.dockerignore
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Node/Frontend (if bundled)
+node_modules/
+
+# OS files
+Thumbs.db
+.DS_Store

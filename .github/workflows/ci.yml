@@ -1,0 +1,255 @@
+# =============================================================================
+# .github/workflows/ci.yml — Sprint 8 CI/CD Pipeline
+# Property Management System Backend
+# Matrix: Python 3.14, Lint → Test → Build → Security Scan → Artifact
+# =============================================================================
+
+name: PMS Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/ci.yml"
+  workflow_dispatch:  # Manual trigger for v1.0.0 release
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.14"
+  DOCKER_IMAGE: pms-backend
+  REGISTRY: ghcr.io/${{ github.repository_owner }}
+  COMPOSE_FILE: docker-compose.dev.yml
+
+jobs:
+  # ===========================================================================
+  # Job 1: Code Quality — Lint, Type Check, Security Scan
+  # ===========================================================================
+  lint:
+    name: Lint & Security
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy bandit safety
+          pip install -r requirements.txt
+
+      - name: Lint with ruff
+        working-directory: ./backend
+        run: ruff check app --output-format=github
+
+      - name: Type check with mypy
+        working-directory: ./backend
+        run: mypy app --pretty --ignore-missing-imports
+        continue-on-error: true
+
+      - name: Security scan with bandit
+        working-directory: ./backend
+        run: bandit -r app -ll -ii -f json -o bandit-report.json || true
+
+      - name: Upload bandit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bandit-report
+          path: backend/bandit-report.json
+          retention-days: 7
+
+  # ===========================================================================
+  # Job 2: Tests — Run full test suite with coverage
+  # ===========================================================================
+  test:
+    name: Tests (${{ matrix.python-version }})
+    needs: lint
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.14"]
+    services:
+      postgres:
+        image: postgres:18.4-alpine
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: pass
+          POSTGRES_DB: pms_test
+        options: >-
+          --health-cmd "pg_isready -U user -d pms_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis:7.4-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 3
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: ./backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio pytest-cov factory-boy httpx
+
+      - name: Run tests with coverage
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/pms_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key
+          ID_CARD_ENCRYPTION_KEY: txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
+          DEBUG: true
+        run: |
+          pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing \
+            --junitxml=junit.xml -o junit_family=legacy
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          files: backend/coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: backend/junit.xml
+          retention-days: 7
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: backend/coverage.xml
+          retention-days: 7
+
+      - name: Enforce coverage gate (>=85%)
+        working-directory: ./backend
+        if: always()
+        env:
+          DATABASE_URL: postgresql+asyncpg://user:pass@localhost:5432/pms_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: ci-test-secret-key
+          ID_CARD_ENCRYPTION_KEY: txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
+          DEBUG: true
+        run: |
+          coverage report --fail-under=85
+
+  # ===========================================================================
+  # Job 3: Build — Multi-stage Docker build + size check
+  # ===========================================================================
+  build:
+    name: Build Docker Image
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        if: github.ref == 'refs/heads/main'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build production image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          file: backend/Dockerfile
+          target: production
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Check image size
+        run: |
+          IMAGE_SIZE=$(docker image inspect ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest --format='{{.Size}}' 2>/dev/null || echo 0)
+          echo "Image size: $(numfmt --to=si $IMAGE_SIZE)"
+          # Warn if > 350MB
+          if [ $IMAGE_SIZE -gt 367001600 ]; then
+            echo "::warning::Image size exceeds 350MB ($(numfmt --to=si $IMAGE_SIZE))"
+          fi
+
+      - name: Verify non-root user
+        run: |
+          RUNNING_USER=$(docker run --rm --entrypoint whoami ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest 2>/dev/null || echo "check-skipped")
+          echo "Container user: $RUNNING_USER"
+          if [ "$RUNNING_USER" != "appuser" ]; then
+            echo "::error::Container is not running as appuser! Got: $RUNNING_USER"
+            exit 1
+          fi
+
+      - name: Verify health endpoint
+        run: |
+          docker run -d --name pms-health-check -p 8000:8000 ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest
+          sleep 5
+          curl -f http://localhost:8000/health || echo "::warning::Health check failed"
+          docker stop pms-health-check && docker rm pms-health-check
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@0.29.0
+        if: always()
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.DOCKER_IMAGE }}:latest
+          format: sarif
+          output: trivy-results.sarif
+          severity: HIGH,CRITICAL
+          exit-code: 0  # Don't fail on vulnerabilities, just report
+
+      - name: Upload Trivy results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-report
+          path: trivy-results.sarif
+          retention-days: 7

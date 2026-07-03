@@ -1,0 +1,4499 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Property Management System",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "description": "Authenticate user and return JWT tokens (FR-USER-01).\n\nRequest body\n------------\n.. code-block:: json\n\n    {\"email\": \"...\", \"password\": \"...\"}\n\nResponses\n---------\n200\n    ``{\"data\": {\"access_token\": \"...\", \"refresh_token\": \"...\", \"user\": {...}}}``\n401\n    ``{\"error\": {\"code\": \"AUTH-001\", \"message\": \"Invalid email or password\"}}``\n403\n    ``{\"error\": {\"code\": \"AUTH-002\", \"message\": \"Account is not active\"}}``",
+        "operationId": "login_api_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Login Api V1 Auth Login Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/register": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Register",
+        "description": "Accept an invitation and create a new user account (FR-USER-02).\n\nRequest body\n------------\n.. code-block:: json\n\n    {\"invite_token\": \"...\", \"full_name\": \"...\", \"password\": \"...\", \"phone\": \"...\"}\n\nResponses\n---------\n201\n    ``{\"data\": {\"id\": \"...\", \"email\": \"...\", \"full_name\": \"...\", \"property_scopes\": [], \"is_active\": true}}``\n400\n    ``{\"error\": {\"code\": \"VAL-400\", \"message\": \"...\"}}`` (validation error)\n409\n    ``{\"error\": {\"code\": \"AUTH-004\", \"message\": \"Email already in use\"}}``",
+        "operationId": "register_api_v1_auth_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Register Api V1 Auth Register Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/invite": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Invite",
+        "description": "Send an invitation link to a new user (FR-USER-02).\n\nRequires the current user to have sufficient property scope\n(validated in the service layer).\n\nRequest body\n------------\n.. code-block:: json\n\n    {\"email\": \"...\", \"property_id\": \"...\"}\n\nResponses\n---------\n201\n    ``{\"data\": {\"invite_link\": \"...\"}}``\n403\n    ``{\"error\": {\"code\": \"AUTH-005\", \"message\": \"Insufficient property scope\"}}``\n409\n    ``{\"error\": {\"code\": \"AUTH-004\", \"message\": \"Email already in use\"}}``",
+        "operationId": "invite_api_v1_auth_invite_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Invite Api V1 Auth Invite Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh",
+        "description": "Issue a new access token from a valid refresh token (FR-USER-03).\n\nRequest body\n------------\n.. code-block:: json\n\n    {\"refresh_token\": \"...\"}\n\nResponses\n---------\n200\n    ``{\"data\": {\"access_token\": \"...\"}}``\n401\n    ``{\"error\": {\"code\": \"AUTH-007\", \"message\": \"Invalid or expired refresh token\"}}``",
+        "operationId": "refresh_api_v1_auth_refresh_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "type": "object",
+                "title": "Payload"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Refresh Api V1 Auth Refresh Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Me",
+        "description": "Return the authenticated user's profile (FR-USER-01).\n\nRequires a valid Bearer token in the ``Authorization`` header.\n\nResponses\n---------\n200\n    ``{\"data\": {\"id\": \"...\", \"email\": \"...\", \"full_name\": \"...\", \"property_scopes\": [], \"is_active\": true}}``\n401\n    ``{\"error\": {\"code\": \"AUTH-009\", \"message\": \"Invalid or expired access token\"}}``",
+        "operationId": "get_me_api_v1_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Get Me Api V1 Auth Me Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/meter-readings": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Record a meter reading (FR-METER-01, BR-07)",
+        "description": "Record a new electric/water meter reading for a room.\n\nEnforces BR-07: current meter values must be >= previous values.",
+        "operationId": "create_meter_reading_api_v1_meter_readings_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMeterReadingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterReadingCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/meter-readings/{room_id}/history": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Get meter reading history (FR-METER-02)",
+        "description": "Get paginated meter reading history for a room.",
+        "operationId": "get_meter_history_api_v1_meter_readings__room_id__history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Room UUID",
+              "title": "Room Id"
+            },
+            "description": "Room UUID"
+          },
+          {
+            "name": "start_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 12,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Month"
+            }
+          },
+          {
+            "name": "start_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 2020
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start Year"
+            }
+          },
+          {
+            "name": "end_month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 12,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Month"
+            }
+          },
+          {
+            "name": "end_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 2020
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End Year"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeterHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/generate": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Generate a monthly invoice (FR-METER-06, BR-12)",
+        "description": "Generate a monthly invoice with rent, utilities, and common fee.\n\nEnforces BR-10 (utility rate cascade) and BR-12 (calculation).",
+        "operationId": "generate_invoice_api_v1_invoices_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/invoices/{id}": {
+      "get": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Get invoice with line items (FR-METER-10)",
+        "description": "Retrieve an invoice with its line items.",
+        "operationId": "get_invoice_api_v1_invoices__id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Invoice UUID",
+              "title": "Id"
+            },
+            "description": "Invoice UUID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payments": {
+      "post": {
+        "tags": [
+          "billing"
+        ],
+        "summary": "Record a payment (FR-METER-09)",
+        "description": "Record a payment against an invoice.\n\nUpdates invoice paid amount and triggers status change if fully paid.",
+        "operationId": "record_payment_api_v1_payments_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordPaymentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/properties/{property_id}": {
+      "get": {
+        "tags": [
+          "property"
+        ],
+        "summary": "Get property by ID (FR-PROP-02)",
+        "description": "Retrieve a single property by its UUID.\n\nReturns 404 if the property does not exist.",
+        "operationId": "get_property_api_v1_properties__property_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Property Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/properties": {
+      "get": {
+        "tags": [
+          "property"
+        ],
+        "summary": "List all properties",
+        "description": "GET /api/v1/properties \u2014 list all properties.",
+        "operationId": "list_properties_api_v1_properties_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "property"
+        ],
+        "summary": "Create a new property (FR-PROP-01)",
+        "description": "Create a new property.\n\nThe caller becomes the owner of the property.\nAudit log is recorded automatically by the service.",
+        "operationId": "create_property_api_v1_properties_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePropertyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/properties/{property_id}/rooms": {
+      "get": {
+        "tags": [
+          "property"
+        ],
+        "summary": "Get property with all its rooms (FR-PROP-06)",
+        "description": "Retrieve a property with its full room list.",
+        "operationId": "get_property_rooms_api_v1_properties__property_id__rooms_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Property Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PropertyWithRoomsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/rooms/{room_id}/status": {
+      "patch": {
+        "tags": [
+          "property"
+        ],
+        "summary": "Update room status (FR-PROP-05)",
+        "description": "Update a room's current status (available/occupied/maintenance).\n\nAudit log is recorded automatically by the service.",
+        "operationId": "update_room_status_api_v1_rooms__room_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRoomStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Room Status Api V1 Rooms  Room Id  Status Patch"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tenants": {
+      "post": {
+        "tags": [
+          "tenant"
+        ],
+        "summary": "Create a new tenant (FR-TENANT-01, FR-TENANT-02)",
+        "description": "Register a new tenant with encrypted ID card.\n\nThe ID card number is encrypted with Fernet before storage\nand is **never** returned in the response.\nAudit log is recorded automatically.",
+        "operationId": "create_tenant_api_v1_tenants_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/tenants/search": {
+      "get": {
+        "tags": [
+          "tenant"
+        ],
+        "summary": "Search tenants (FR-TENANT-04)",
+        "description": "Search for tenants by name, phone, or email within a property.\n\nResponse follows SDD \u00a73.1 pagination format:\n``{\"data\": [...], \"meta\": {\"page\", \"limit\", \"total\", \"has_next\"}}``",
+        "operationId": "search_tenants_api_v1_tenants_search_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Scoping property UUID",
+              "title": "Property Id"
+            },
+            "description": "Scoping property UUID"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "description": "Search query (min 3 chars)",
+              "title": "Query"
+            },
+            "description": "Search query (min 3 chars)"
+          },
+          {
+            "name": "search_by",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Field to search: name, phone, or email",
+              "default": "name",
+              "title": "Search By"
+            },
+            "description": "Field to search: name, phone, or email"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 20,
+              "title": "Limit"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Search Tenants Api V1 Tenants Search Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts": {
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Create a new rental contract",
+        "description": "Creates an active contract for a room+tenant.  Enforces BR-01 (one active per room) and BR-02 (min deposit).",
+        "operationId": "create_contract_api_v1_contracts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateContractRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/contracts/active": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "List active contracts",
+        "description": "Returns all active contracts, optionally filtered by property_id.",
+        "operationId": "list_active_contracts_api_v1_contracts_active_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by property",
+              "title": "Property Id"
+            },
+            "description": "Filter by property"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Get a contract by ID",
+        "description": "Returns full contract details including termination and extensions.",
+        "operationId": "get_contract_api_v1_contracts__contract_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}/terminate": {
+      "patch": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Terminate an active contract",
+        "description": "Terminates an active contract (BR-04).  Requires reason.  Sets room to available.",
+        "operationId": "terminate_contract_api_v1_contracts__contract_id__terminate_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TerminateContractRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}/extend": {
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Extend a contract's lease",
+        "description": "Extends the end date of an active contract and records the extension.",
+        "operationId": "extend_lease_api_v1_contracts__contract_id__extend_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtendLeaseRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contracts/{contract_id}/renew": {
+      "post": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Renew a terminated/expired contract",
+        "description": "Creates a new contract from a terminated/expired original.  Same room/tenant, updated terms.",
+        "operationId": "renew_contract_api_v1_contracts__contract_id__renew_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contract_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Contract Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenewContractRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContractCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/leases/{room_id}/history": {
+      "get": {
+        "tags": [
+          "contracts"
+        ],
+        "summary": "Get lease history for a room",
+        "description": "Returns all contracts (past and present) for a given room, newest first.",
+        "operationId": "get_lease_history_api_v1_leases__room_id__history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "room_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Room Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeaseHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance-requests": {
+      "post": {
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Create a maintenance request",
+        "description": "POST /api/v1/maintenance-requests \u2014 SDD \u00a73.3.",
+        "operationId": "create_maintenance_request_api_v1_maintenance_requests_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/maintenance-requests/pending": {
+      "get": {
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "List pending maintenance requests by property",
+        "description": "GET /api/v1/maintenance-requests/pending \u2014 SDD \u00a73.3.",
+        "operationId": "list_pending_requests_api_v1_maintenance_requests_pending_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Filter by property",
+              "title": "Property Id"
+            },
+            "description": "Filter by property"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Get a maintenance request by ID",
+        "description": "GET /api/v1/maintenance-requests/{id} \u2014 SDD \u00a73.3.",
+        "operationId": "get_maintenance_request_api_v1_maintenance_requests__request_id__get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance-requests/{request_id}/status": {
+      "patch": {
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Update maintenance request status",
+        "description": "Updates status per BR-09 workflow: pending \u2192 in_progress \u2192 resolved/cancelled.",
+        "operationId": "update_maintenance_status_api_v1_maintenance_requests__request_id__status_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMaintenanceStatusRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/maintenance-requests/{request_id}/assign": {
+      "patch": {
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Assign a maintenance request to a user",
+        "description": "PATCH /api/v1/maintenance-requests/{id}/assign.",
+        "operationId": "assign_maintenance_request_api_v1_maintenance_requests__request_id__assign_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignMaintenanceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MaintenanceCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/summary": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get dashboard summary",
+        "description": "Returns occupancy, revenue, overdue, and maintenance counts for a property.",
+        "operationId": "get_dashboard_summary_api_v1_dashboard_summary_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Property to query",
+              "title": "Property Id"
+            },
+            "description": "Property to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSummaryWrapper"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/revenue": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get revenue report",
+        "description": "Monthly revenue aggregation for a date range.",
+        "operationId": "get_revenue_report_api_v1_dashboard_revenue_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Property to query",
+              "title": "Property Id"
+            },
+            "description": "Property to query"
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Start date (YYYY-MM-DD)",
+              "title": "Start Date"
+            },
+            "description": "Start date (YYYY-MM-DD)"
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "End date (YYYY-MM-DD)",
+              "title": "End Date"
+            },
+            "description": "End date (YYYY-MM-DD)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevenueReportResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/dashboard/occupancy": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Get occupancy snapshot",
+        "description": "Returns current occupancy rate and room counts.",
+        "operationId": "get_occupancy_api_v1_dashboard_occupancy_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Property to query",
+              "title": "Property Id"
+            },
+            "description": "Property to query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OccupancyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/test": {
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Send a test notification",
+        "description": "Creates and sends a test notification (mock). Fail-silent \u2014 always returns 201.",
+        "operationId": "send_test_notification_api_v1_notifications_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendNotificationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/notifications/history": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Get notification history",
+        "description": "GET /api/v1/notifications/history.",
+        "operationId": "get_notification_history_api_v1_notifications_history_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by property",
+              "title": "Property Id"
+            },
+            "description": "Filter by property"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/notifications/{notif_id}/resend": {
+      "patch": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Resend a failed notification",
+        "description": "PATCH /api/v1/notifications/{id}/resend.",
+        "operationId": "resend_notification_api_v1_notifications__notif_id__resend_patch",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "notif_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Notif Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationCreateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/audit-logs": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "View audit logs (paginated)",
+        "description": "Returns paginated audit logs for a property. Owner role required.",
+        "operationId": "get_audit_logs_api_v1_admin_audit_logs_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "property_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Filter by property",
+              "title": "Property Id"
+            },
+            "description": "Filter by property"
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by action type",
+              "title": "Action"
+            },
+            "description": "Filter by action type"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Page number",
+              "default": 1,
+              "title": "Page"
+            },
+            "description": "Page number"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "description": "Items per page",
+              "default": 50,
+              "title": "Limit"
+            },
+            "description": "Items per page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/admin/config": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "View system configuration",
+        "description": "Returns system settings with secrets masked. Owner role required.",
+        "operationId": "get_system_config_api_v1_admin_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemConfigListResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AssignMaintenanceRequest": {
+        "properties": {
+          "assigned_to": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Assigned To"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assigned_to"
+        ],
+        "title": "AssignMaintenanceRequest",
+        "description": "Request body for PATCH /api/v1/maintenance-requests/{id}/assign."
+      },
+      "AuditLogListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AuditLogResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "AuditLogListResponse"
+      },
+      "AuditLogResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "resource_type": {
+            "type": "string",
+            "title": "Resource Type"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "property_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Property Id"
+          },
+          "metadata": {
+            "title": "Metadata"
+          },
+          "ip_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ip Address"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "action",
+          "resource_type",
+          "timestamp"
+        ],
+        "title": "AuditLogResponse"
+      },
+      "AuthRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "format": "email",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "AuthRequest",
+        "description": "Payload for ``POST /api/v1/auth/login`` (SDD \u00a73.3).\n\nValidates that the password meets minimum length and complexity\nrequirements before reaching the service layer."
+      },
+      "ContractCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/ContractResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ContractCreateResponse",
+        "description": "Wrapper for 201 CREATED response (SDD \u00a73.1)."
+      },
+      "ContractListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ContractResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "ContractListResponse",
+        "description": "Paginated list response for contracts (SDD \u00a73.1)."
+      },
+      "ContractResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "monthly_rent": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Rent"
+          },
+          "deposit_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Deposit Amount"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContractStatus"
+          },
+          "special_conditions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Special Conditions"
+          },
+          "is_renewal": {
+            "type": "boolean",
+            "title": "Is Renewal",
+            "default": false
+          },
+          "renewed_from_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Renewed From Id"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "termination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContractTerminationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extensions": {
+            "items": {
+              "$ref": "#/components/schemas/LeaseExtensionResponse"
+            },
+            "type": "array",
+            "title": "Extensions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "room_id",
+          "tenant_id",
+          "property_id",
+          "start_date",
+          "end_date",
+          "monthly_rent",
+          "deposit_amount",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ContractResponse",
+        "description": "Response body for a single Contract resource (SDD \u00a73.1 format)."
+      },
+      "ContractStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "terminated",
+          "expired",
+          "draft"
+        ],
+        "title": "ContractStatus",
+        "description": "Possible states for a Contract (SDD \u00a76.2: State Machines).\n\nTransitions:\n    draft \u2500\u2500\u2192 active (via signing)\n    active \u2500\u2500\u2192 terminated (via terminate_contract, BR-04)\n    active \u2500\u2500\u2192 expired (auto via scheduler when end_date < today)\n    terminated \u2500\u2500\u2192 (immutable, new contract created for renew)\n    expired \u2500\u2500\u2192 (immutable)"
+      },
+      "ContractTerminationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "termination_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Termination Date"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "terminated_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Terminated By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "reason",
+          "termination_date",
+          "created_at"
+        ],
+        "title": "ContractTerminationResponse",
+        "description": "Termination record embedded in ContractResponse (SDD \u00a75.2)."
+      },
+      "CreateContractRequest": {
+        "properties": {
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "monthly_rent": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Monthly Rent"
+          },
+          "deposit_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Deposit Amount"
+          },
+          "special_conditions": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Special Conditions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room_id",
+          "tenant_id",
+          "property_id",
+          "start_date",
+          "end_date",
+          "monthly_rent",
+          "deposit_amount"
+        ],
+        "title": "CreateContractRequest",
+        "description": "Request body for POST /api/v1/contracts (SDD \u00a73.3).\n\nValidation:\n    - ``end_date`` must be after ``start_date``.\n    - ``monthly_rent`` must be positive.\n    - ``deposit_amount`` must be >= 0.\n    - ``start_date`` must not be in the past (service layer also checks).\n    - BR-01/BR-02 enforced in service layer (not here)."
+      },
+      "CreateMaintenanceRequest": {
+        "properties": {
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 10,
+            "title": "Description"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority",
+            "default": "medium"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room_id",
+          "property_id",
+          "title",
+          "description"
+        ],
+        "title": "CreateMaintenanceRequest",
+        "description": "Request body for POST /api/v1/maintenance-requests.\n\nValidation:\n    - ``title``: min 3 characters.\n    - ``description``: min 10 characters.\n    - ``priority``: must be a valid Priority enum value.\n    - ``room_id``: must be a valid UUID.\n    - ``images``: max 5 (future)."
+      },
+      "CreateMeterReadingRequest": {
+        "properties": {
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "billing_month": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Billing Month"
+          },
+          "billing_year": {
+            "type": "integer",
+            "minimum": 2020.0,
+            "title": "Billing Year"
+          },
+          "electric_previous": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Electric Previous",
+            "default": "0"
+          },
+          "electric_current": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Electric Current"
+          },
+          "water_previous": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Water Previous",
+            "default": "0"
+          },
+          "water_current": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Water Current"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "room_id",
+          "billing_month",
+          "billing_year",
+          "electric_current",
+          "water_current"
+        ],
+        "title": "CreateMeterReadingRequest",
+        "description": "Request body for POST /api/v1/meter-readings.\n\nValidation:\n    - BR-07: electric_current >= electric_previous, water_current >= water_previous\n    - billing_month: 1-12, billing_year: >= 2020"
+      },
+      "CreatePropertyRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "address": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Address"
+          },
+          "billing_due_day": {
+            "type": "integer",
+            "maximum": 28.0,
+            "minimum": 1.0,
+            "title": "Billing Due Day"
+          },
+          "min_deposit_months": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Min Deposit Months",
+            "default": 2
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "address",
+          "billing_due_day"
+        ],
+        "title": "CreatePropertyRequest",
+        "description": "Request body for POST /api/v1/properties.\n\nValidation:\n    - ``billing_due_day`` must be 1-28.\n    - ``min_deposit_months`` >= 1.\n    - ``name`` must not be empty."
+      },
+      "CreateTenantRequest": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Full Name"
+          },
+          "id_card_number": {
+            "type": "string",
+            "maxLength": 13,
+            "minLength": 13,
+            "title": "Id Card Number"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 10,
+            "minLength": 10,
+            "title": "Phone"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "emergency_contact_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergency Contact Name"
+          },
+          "emergency_contact_phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergency Contact Phone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "property_id",
+          "full_name",
+          "id_card_number",
+          "phone"
+        ],
+        "title": "CreateTenantRequest",
+        "description": "Request body for POST /api/v1/tenants.\n\nValidation:\n    - ``phone`` must be a valid Thai phone number (10 digits, starts with 0).\n    - ``id_card_number`` must be 13 digits (Thai national ID format).\n    - ``email`` is optional but must be valid if provided."
+      },
+      "DashboardSummaryResponse": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "total_rooms": {
+            "type": "integer",
+            "title": "Total Rooms"
+          },
+          "occupied_rooms": {
+            "type": "integer",
+            "title": "Occupied Rooms"
+          },
+          "occupancy_rate": {
+            "type": "number",
+            "title": "Occupancy Rate"
+          },
+          "monthly_revenue": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Revenue"
+          },
+          "overdue_count": {
+            "type": "integer",
+            "title": "Overdue Count"
+          },
+          "overdue_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Overdue Amount"
+          },
+          "pending_maintenance": {
+            "type": "integer",
+            "title": "Pending Maintenance"
+          },
+          "active_contracts": {
+            "type": "integer",
+            "title": "Active Contracts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property_id",
+          "total_rooms",
+          "occupied_rooms",
+          "occupancy_rate",
+          "monthly_revenue",
+          "overdue_count",
+          "overdue_amount",
+          "pending_maintenance",
+          "active_contracts"
+        ],
+        "title": "DashboardSummaryResponse",
+        "description": "Response for GET /api/v1/dashboard/summary."
+      },
+      "DashboardSummaryWrapper": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/DashboardSummaryResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "DashboardSummaryWrapper",
+        "description": "Wrapper for the summary endpoint."
+      },
+      "ExtendLeaseRequest": {
+        "properties": {
+          "new_end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "New End Date"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "new_end_date"
+        ],
+        "title": "ExtendLeaseRequest",
+        "description": "Request body for POST /api/v1/contracts/{id}/extend.\n\nValidation:\n    - ``new_end_date`` must be after the current end_date."
+      },
+      "GenerateInvoiceRequest": {
+        "properties": {
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "billing_month": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Billing Month"
+          },
+          "billing_year": {
+            "type": "integer",
+            "minimum": 2020.0,
+            "title": "Billing Year"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "property_id",
+          "billing_month",
+          "billing_year"
+        ],
+        "title": "GenerateInvoiceRequest",
+        "description": "Request body for POST /api/v1/invoices/generate.\n\nValidation:\n    - billing_month: 1-12, billing_year >= 2020"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "InviteRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 255,
+            "format": "email",
+            "title": "Email"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "property_id"
+        ],
+        "title": "InviteRequest",
+        "description": "Payload for ``POST /api/v1/auth/invite`` (SDD \u00a73.3).\n\nAn admin sends an invitation for a specific email address and property.\n\n.. note::\n   Not strict so that string-encoded UUIDs from JSON deserialisation\n   are automatically coerced to ``uuid.UUID``."
+      },
+      "InvoiceCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/InvoiceResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "InvoiceCreateResponse",
+        "description": "201 CREATED wrapper for invoice generation."
+      },
+      "InvoiceDetailResponse": {
+        "properties": {
+          "invoice": {
+            "$ref": "#/components/schemas/InvoiceResponse"
+          },
+          "line_items": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineItemResponse"
+            },
+            "type": "array",
+            "title": "Line Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "invoice",
+          "line_items"
+        ],
+        "title": "InvoiceDetailResponse",
+        "description": "Response for GET /api/v1/invoices/{id} \u2014 includes line items."
+      },
+      "InvoiceLineItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Invoice Id"
+          },
+          "line_type": {
+            "type": "string",
+            "title": "Line Type"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "quantity": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Quantity"
+          },
+          "unit_price": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Unit Price"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_id",
+          "line_type",
+          "description",
+          "quantity",
+          "unit_price",
+          "amount"
+        ],
+        "title": "InvoiceLineItemResponse",
+        "description": "Response body for a single InvoiceLineItem."
+      },
+      "InvoiceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "invoice_number": {
+            "type": "string",
+            "title": "Invoice Number"
+          },
+          "contract_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Contract Id"
+          },
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "billing_month": {
+            "type": "integer",
+            "title": "Billing Month"
+          },
+          "billing_year": {
+            "type": "integer",
+            "title": "Billing Year"
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Due Date"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "total_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Amount"
+          },
+          "paid_amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Paid Amount"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_number",
+          "contract_id",
+          "room_id",
+          "tenant_id",
+          "property_id",
+          "billing_month",
+          "billing_year",
+          "due_date",
+          "status",
+          "total_amount",
+          "paid_amount"
+        ],
+        "title": "InvoiceResponse",
+        "description": "Response body for a single Invoice resource."
+      },
+      "LeaseExtensionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "previous_end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Previous End Date"
+          },
+          "extended_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Extended To"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "extended_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Extended By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "previous_end_date",
+          "extended_to",
+          "created_at"
+        ],
+        "title": "LeaseExtensionResponse",
+        "description": "Lease extension record embedded in ContractResponse."
+      },
+      "LeaseHistoryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "tenant_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Tenant Id"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "monthly_rent": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Monthly Rent"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ContractStatus"
+          },
+          "is_renewal": {
+            "type": "boolean",
+            "title": "Is Renewal"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "termination_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Termination Reason"
+          },
+          "termination_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Termination Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "tenant_id",
+          "start_date",
+          "end_date",
+          "monthly_rent",
+          "status",
+          "is_renewal",
+          "created_at"
+        ],
+        "title": "LeaseHistoryItem",
+        "description": "A single lease history entry for a room."
+      },
+      "LeaseHistoryResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/LeaseHistoryItem"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "LeaseHistoryResponse",
+        "description": "Response for GET /api/v1/leases/{room_id}/history."
+      },
+      "MaintenanceCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MaintenanceResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "MaintenanceCreateResponse",
+        "description": "Wrapper for 201 CREATED response (SDD \u00a73.1)."
+      },
+      "MaintenanceListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "MaintenanceListResponse",
+        "description": "List wrapper for maintenance requests (SDD \u00a73.1)."
+      },
+      "MaintenanceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "priority": {
+            "$ref": "#/components/schemas/Priority"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MaintenanceStatus"
+          },
+          "assigned_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "room_id",
+          "title",
+          "description",
+          "priority",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MaintenanceResponse",
+        "description": "Response body for a single MaintenanceRequest resource (SDD \u00a73.1)."
+      },
+      "MaintenanceStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "in_progress",
+          "resolved",
+          "cancelled"
+        ],
+        "title": "MaintenanceStatus",
+        "description": "Possible states for a MaintenanceRequest (BR-09 workflow).\n\nValid transitions:\n    pending \u2500\u2500\u2192 in_progress\n    in_progress \u2500\u2500\u2192 resolved\n    in_progress \u2500\u2500\u2192 cancelled\n    pending \u2500\u2500\u2192 cancelled"
+      },
+      "MeterHistoryResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/MeterReadingResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "MeterHistoryResponse",
+        "description": "Paginated response for meter reading history."
+      },
+      "MeterReadingCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/MeterReadingResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "MeterReadingCreateResponse",
+        "description": "201 CREATED wrapper for meter readings."
+      },
+      "MeterReadingResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "room_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Room Id"
+          },
+          "billing_month": {
+            "type": "integer",
+            "title": "Billing Month"
+          },
+          "billing_year": {
+            "type": "integer",
+            "title": "Billing Year"
+          },
+          "electric_previous": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Electric Previous"
+          },
+          "electric_current": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Electric Current"
+          },
+          "electric_used": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Electric Used"
+          },
+          "water_previous": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Water Previous"
+          },
+          "water_current": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Water Current"
+          },
+          "water_used": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Water Used"
+          },
+          "read_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Read Date"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "room_id",
+          "billing_month",
+          "billing_year",
+          "electric_previous",
+          "electric_current",
+          "electric_used",
+          "water_previous",
+          "water_current",
+          "water_used",
+          "read_date"
+        ],
+        "title": "MeterReadingResponse",
+        "description": "Response body for a single MeterReading resource."
+      },
+      "NotificationChannel": {
+        "type": "string",
+        "enum": [
+          "email",
+          "line",
+          "sms"
+        ],
+        "title": "NotificationChannel"
+      },
+      "NotificationCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/NotificationResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "NotificationCreateResponse"
+      },
+      "NotificationListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/NotificationResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "NotificationListResponse"
+      },
+      "NotificationResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "channel": {
+            "type": "string",
+            "title": "Channel"
+          },
+          "subject": {
+            "type": "string",
+            "title": "Subject"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "channel",
+          "subject",
+          "body",
+          "status",
+          "created_at"
+        ],
+        "title": "NotificationResponse"
+      },
+      "OccupancyResponse": {
+        "properties": {
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "OccupancyResponse",
+        "description": "Response for GET /api/v1/dashboard/occupancy."
+      },
+      "PaymentCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PaymentResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "PaymentCreateResponse",
+        "description": "201 CREATED wrapper for payment recording."
+      },
+      "PaymentMethod": {
+        "type": "string",
+        "enum": [
+          "bank_transfer",
+          "cash",
+          "promptpay",
+          "qr_code",
+          "credit_card"
+        ],
+        "title": "PaymentMethod",
+        "description": "Payment methods accepted by the system."
+      },
+      "PaymentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Invoice Id"
+          },
+          "amount": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount"
+          },
+          "payment_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Payment Date"
+          },
+          "method": {
+            "type": "string",
+            "title": "Method"
+          },
+          "reference_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Number"
+          },
+          "slip_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slip Image Url"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "invoice_id",
+          "amount",
+          "payment_date",
+          "method"
+        ],
+        "title": "PaymentResponse",
+        "description": "Response body for a single Payment resource."
+      },
+      "Priority": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "urgent"
+        ],
+        "title": "Priority",
+        "description": "Priority level for a maintenance request."
+      },
+      "PropertyCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/PropertyResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "PropertyCreateResponse",
+        "description": "Wrapper for 201 CREATED response (SDD \u00a73.1)."
+      },
+      "PropertyListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PropertyResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "PropertyListResponse",
+        "description": "Response for GET /api/v1/properties \u2014 list all properties."
+      },
+      "PropertyResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "address": {
+            "type": "string",
+            "title": "Address"
+          },
+          "billing_due_day": {
+            "type": "integer",
+            "title": "Billing Due Day"
+          },
+          "min_deposit_months": {
+            "type": "integer",
+            "title": "Min Deposit Months"
+          },
+          "created_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "address",
+          "billing_due_day",
+          "min_deposit_months",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "PropertyResponse",
+        "description": "Response body for a single Property resource (SDD \u00a73.1 format)."
+      },
+      "PropertyWithRoomsResponse": {
+        "properties": {
+          "property": {
+            "$ref": "#/components/schemas/PropertyResponse"
+          },
+          "rooms": {
+            "items": {
+              "$ref": "#/components/schemas/RoomResponse"
+            },
+            "type": "array",
+            "title": "Rooms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "property",
+          "rooms"
+        ],
+        "title": "PropertyWithRoomsResponse",
+        "description": "Response for GET /api/v1/properties/{id}/rooms."
+      },
+      "RecordPaymentRequest": {
+        "properties": {
+          "invoice_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Invoice Id"
+          },
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "Amount"
+          },
+          "method": {
+            "$ref": "#/components/schemas/PaymentMethod"
+          },
+          "reference_number": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Number"
+          },
+          "slip_image_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slip Image Url"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invoice_id",
+          "amount",
+          "method"
+        ],
+        "title": "RecordPaymentRequest",
+        "description": "Request body for POST /api/v1/payments.\n\nValidation:\n    - amount > 0\n    - method must be a valid PaymentMethod enum value"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "invite_token": {
+            "type": "string",
+            "title": "Invite Token"
+          },
+          "full_name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 2,
+            "title": "Full Name"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "title": "Password"
+          },
+          "phone": {
+            "type": "string",
+            "maxLength": 15,
+            "minLength": 10,
+            "title": "Phone"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "invite_token",
+          "full_name",
+          "password",
+          "phone"
+        ],
+        "title": "RegisterRequest",
+        "description": "Payload for ``POST /api/v1/auth/register`` (SDD \u00a73.3).\n\nCarries the invite token alongside the new user's profile data."
+      },
+      "RenewContractRequest": {
+        "properties": {
+          "new_start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "New Start Date"
+          },
+          "new_end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "New End Date"
+          },
+          "new_monthly_rent": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "New Monthly Rent"
+          },
+          "new_deposit_amount": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$"
+              }
+            ],
+            "title": "New Deposit Amount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "new_start_date",
+          "new_end_date",
+          "new_monthly_rent",
+          "new_deposit_amount"
+        ],
+        "title": "RenewContractRequest",
+        "description": "Request body for POST /api/v1/contracts/{id}/renew.\n\nCreates a new contract record based on the original.  The original\ncontract must be in ``terminated`` or ``expired`` state (CONT-005)."
+      },
+      "RevenueMetric": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "collected": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Collected"
+          },
+          "outstanding": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Outstanding"
+          },
+          "total_billed": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Total Billed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "collected",
+          "outstanding",
+          "total_billed"
+        ],
+        "title": "RevenueMetric",
+        "description": "Single revenue data point for a period."
+      },
+      "RevenueReportResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/RevenueMetric"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "RevenueReportResponse",
+        "description": "Response for GET /api/v1/dashboard/revenue."
+      },
+      "RoomResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "building_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Building Id"
+          },
+          "floor_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Floor Id"
+          },
+          "room_number": {
+            "type": "string",
+            "title": "Room Number"
+          },
+          "room_type": {
+            "type": "string",
+            "title": "Room Type"
+          },
+          "base_rent": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Base Rent"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "images": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Images"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "building_id",
+          "room_number",
+          "room_type",
+          "base_rent",
+          "status"
+        ],
+        "title": "RoomResponse",
+        "description": "Response body for a single Room resource (SDD \u00a73.1 format).\n\nNote: ``images`` is omitted from the response if ``None``."
+      },
+      "RoomStatus": {
+        "type": "string",
+        "enum": [
+          "available",
+          "occupied",
+          "maintenance"
+        ],
+        "title": "RoomStatus",
+        "description": "Possible states for a room (SDD \u00a76: State Machines)."
+      },
+      "SendNotificationRequest": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "channel": {
+            "$ref": "#/components/schemas/NotificationChannel",
+            "default": "email"
+          },
+          "subject": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Subject"
+          },
+          "body": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Body"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "user_id",
+          "property_id",
+          "subject",
+          "body"
+        ],
+        "title": "SendNotificationRequest"
+      },
+      "SystemConfigListResponse": {
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SystemConfigResponse"
+            },
+            "type": "array",
+            "title": "Data"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "SystemConfigListResponse"
+      },
+      "SystemConfigResponse": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "masked": {
+            "type": "boolean",
+            "title": "Masked",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "value"
+        ],
+        "title": "SystemConfigResponse"
+      },
+      "TenantCreateResponse": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/TenantResponse"
+          },
+          "meta": {
+            "type": "null",
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "TenantCreateResponse",
+        "description": "Wrapper for 201 CREATED response (SDD \u00a73.1)."
+      },
+      "TenantResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "property_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Property Id"
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "emergency_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergency Contact Name"
+          },
+          "emergency_contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Emergency Contact Phone"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "property_id",
+          "full_name",
+          "phone",
+          "created_at"
+        ],
+        "title": "TenantResponse",
+        "description": "Response body for a single Tenant resource (SDD \u00a73.1 format).\n\n**Security:** ``id_card_number_encrypted`` is deliberately omitted.\nSensitive personal data is never returned through the API."
+      },
+      "TerminateContractRequest": {
+        "properties": {
+          "reason": {
+            "$ref": "#/components/schemas/TerminationReason"
+          },
+          "termination_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Termination Date"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "reason"
+        ],
+        "title": "TerminateContractRequest",
+        "description": "Request body for POST /api/v1/contracts/{id}/terminate (SDD \u00a73.3).\n\nValidation:\n    - ``reason`` is required and must be non-empty.\n    - ``termination_date`` defaults to today if not provided."
+      },
+      "TerminationReason": {
+        "type": "string",
+        "enum": [
+          "tenant_moved_out",
+          "owner_terminated",
+          "breach_of_contract",
+          "mutual_agreement",
+          "other"
+        ],
+        "title": "TerminationReason",
+        "description": "Standardised reasons for contract termination (SDD \u00a75.2)."
+      },
+      "UpdateMaintenanceStatusRequest": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/MaintenanceStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "UpdateMaintenanceStatusRequest",
+        "description": "Request body for PATCH /api/v1/maintenance-requests/{id}/status.\n\nValidation:\n    - ``status``: must be a valid MaintenanceStatus enum value.\n    - BR-09 enforced in service layer."
+      },
+      "UpdateRoomStatusRequest": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/RoomStatus"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "UpdateRoomStatusRequest",
+        "description": "Request body for PATCH /api/v1/rooms/{id}/status."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

@@ -1,0 +1,286 @@
+# =============================================================================
+# docker-compose.prod.yml — Sprint 8 Production Environment
+# Property Management System Backend
+# 3 Deployment Modes: Self-hosted / On-premise / Cloud
+# =============================================================================
+#
+# Usage:
+#   Production:  docker compose -f docker-compose.prod.yml up -d
+#   Down:        docker compose -f docker-compose.prod.yml down
+#   Logs:        docker compose -f docker-compose.prod.yml logs -f backend
+#   Backup:      bash scripts/backup.sh
+#   Restore:     bash scripts/restore.sh <backup-file>
+
+name: pms-prod
+
+services:
+  # ---------------------------------------------------------------------------
+  # Backend API — FastAPI, multi-stage production build
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+      args:
+        PIP_CACHE_DIR: /tmp/pip-cache
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    expose:
+      - "8000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?error}
+      - REDIS_URL=${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?error}
+      - SECRET_KEY=${SECRET_KEY:?error}
+      - ID_CARD_ENCRYPTION_KEY=${ID_CARD_ENCRYPTION_KEY:?error}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - APP_DOMAIN=${APP_DOMAIN:-http://localhost:3000}
+      - DEBUG=${DEBUG:-false}
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-20}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-40}
+      - APP_NAME=${APP_NAME:-Property Management System}
+      - APP_VERSION=${APP_VERSION:-1.0.0}
+      - DB_PRE_PING=${DB_PRE_PING:-true}
+    volumes:
+      - backend-logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - pms-prod-network
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 18 — Primary database
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:18.4-alpine
+    ports:
+      - "${DB_HOST_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_USER=${DB_USER:-user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?error}
+      - POSTGRES_DB=${DB_NAME:-pms_prod}
+      - POSTGRES_MAX_CONNECTIONS=${DB_POSTGRES_MAX_CONNECTIONS:-200}
+      - POSTGRES_SHARED_BUFFERS=${DB_SHARED_BUFFERS:-512MB}
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=${DB_EFFECTIVE_CACHE_SIZE:-2GB}
+      - POSTGRES_WORK_MEM=${DB_WORK_MEM:-8MB}
+      - POSTGRES_MAINTENANCE_WORK_MEM=${DB_MAINTENANCE_WORK_MEM:-128MB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/scripts/init-prod-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-pms_prod}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    networks:
+      - pms-prod-network
+
+  # ---------------------------------------------------------------------------
+  # Redis 7.4 — Cache, Celery broker, rate limiting
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --requirepass
+      - "${REDIS_PASSWORD}"
+      - --maxmemory
+      - "${REDIS_MAX_MEMORY:-512mb}"
+      - --maxmemory-policy
+      - "allkeys-lru"
+      - --notify-keyspace-events
+      - "Ex"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - pms-prod-network
+
+  # ---------------------------------------------------------------------------
+  # MinIO — S3-compatible object storage (ID cards, payment slips, backups)
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER:-minioadmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:?error}
+      - MINIO_BROWSER=${MINIO_BROWSER:-on}
+      - MINIO_UPDATE=off
+    volumes:
+      - minio-data:/data
+      - ./scripts/init-minio-buckets.sh:/docker-entrypoint-initdb.d/init-buckets.sh:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - |
+          mc alias set myminio http://localhost:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_SECRET_KEY} &&
+          mc ready myminio
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - pms-prod-network
+
+  # ---------------------------------------------------------------------------
+  # Celery Worker — Background task processing (profile: celery)
+  # ---------------------------------------------------------------------------
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: production
+    environment:
+      - DATABASE_URL=${DATABASE_URL:?error}
+      - REDIS_URL=${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-minioadmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:?error}
+      - SECRET_KEY=${SECRET_KEY:?error}
+      - DEBUG=${DEBUG:-false}
+    depends_on:
+      redis:
+        condition: service_started
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    read_only: true
+    tmpfs:
+      - /tmp
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - pms-prod-network
+    profiles:
+      - celery
+    entrypoint: ["celery", "-A", "app.workers.celery_app", "worker", "-l", "info", "--concurrency=4"]
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+  minio-data:
+    driver: local
+  backend-logs:
+    driver: local
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  pms-prod-network:
+    driver: bridge
+    internal: false
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

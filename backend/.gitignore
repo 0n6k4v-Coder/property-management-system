@@ -1,0 +1,58 @@
+# =============================================================================
+# Backend .gitignore — Property Management System
+# =============================================================================
+
+# ── Environment ───────────────────────────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ── Python cached artifacts ───────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── Virtual environment ───────────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── IDE and editor files ──────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.orig
+
+# ── Testing artifacts ─────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.coverage
+test-reports/
+.coverage-report/
+
+# ── Type checking ──────────────────────────────────────────────────────
+.mypy_cache/
+.ruff_cache/
+.stubs/
+
+# ── Alembic / migration artifacts ─────────────────────────────────────
+alembic/versions/*.pyc
+
+# ── Docker / container artifacts ──────────────────────────────────────
+.docker/
+.dockerignore
+
+# ── OS files ───────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log
