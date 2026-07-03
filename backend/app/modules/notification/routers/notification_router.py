@@ -12,17 +12,19 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.notification.schemas import (
-    SendNotificationRequest, NotificationCreateResponse,
-    NotificationListResponse, NotificationResponse,
+    SendNotificationRequest,
+    NotificationCreateResponse,
+    NotificationListResponse,
+    NotificationResponse,
 )
 from app.modules.notification.services.notification_service import NotificationService
 from app.shared.deps import get_current_user, get_db
 
-router = APIRouter(prefix="/api/v1", tags=["notifications"])
+router = APIRouter(tags=["notifications"], redirect_slashes=False)
 
 
 @router.post(
-    "/notifications/test",
+    "/test",
     response_model=NotificationCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Send a test notification",
@@ -36,15 +38,18 @@ async def send_test_notification(
     """POST /api/v1/notifications/test."""
     service = NotificationService(db)
     notif = await service.send_test(
-        user_id=body.user_id, property_id=body.property_id,
-        channel=body.channel, subject=body.subject, body=body.body,
+        user_id=body.user_id,
+        property_id=body.property_id,
+        channel=body.channel,
+        subject=body.subject,
+        body=body.body,
         sent_by=uuid.UUID(current_user["user_id"]),
     )
     return {"data": NotificationResponse.model_validate(notif), "meta": None}
 
 
 @router.get(
-    "/notifications/history",
+    "/history",
     response_model=NotificationListResponse,
     summary="Get notification history",
 )
@@ -64,7 +69,7 @@ async def get_notification_history(
 
 
 @router.patch(
-    "/notifications/{notif_id}/resend",
+    "/{notif_id}/resend",
     response_model=NotificationCreateResponse,
     summary="Resend a failed notification",
 )

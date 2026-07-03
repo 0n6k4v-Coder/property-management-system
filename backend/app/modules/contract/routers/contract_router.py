@@ -26,22 +26,28 @@ from app.modules.contract.schemas import (
 from app.modules.contract.services.contract_service import ContractService
 from app.shared.deps import get_current_user, get_db
 
-router = APIRouter(prefix="/api/v1", tags=["contracts"])
+router = APIRouter(tags=["contracts"], redirect_slashes=False)
 
 
 @router.post(
-    "/contracts",
+    "/",
     response_model=ContractCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new rental contract",
     description="Creates an active contract for a room+tenant.  Enforces BR-01 (one active per room) and BR-02 (min deposit).",
+)
+@router.post(
+    "",
+    response_model=ContractCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False,
 )
 async def create_contract(
     body: CreateContractRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[dict, Depends(get_current_user)],
 ) -> dict:
-    """POST /api/v1/contracts — SDD §3.3."""
+    """POST /api/v1/contracts/ — SDD §3.3."""
     service = ContractService(db)
     contract = await service.create_contract(
         room_id=body.room_id,
@@ -58,7 +64,7 @@ async def create_contract(
 
 
 @router.get(
-    "/contracts/active",
+    "/active",
     response_model=ContractListResponse,
     summary="List active contracts",
     description="Returns all active contracts, optionally filtered by property_id.",
@@ -78,7 +84,7 @@ async def list_active_contracts(
 
 
 @router.get(
-    "/contracts/{contract_id}",
+    "/{contract_id}",
     response_model=ContractCreateResponse,
     summary="Get a contract by ID",
     description="Returns full contract details including termination and extensions.",
@@ -95,7 +101,7 @@ async def get_contract(
 
 
 @router.patch(
-    "/contracts/{contract_id}/terminate",
+    "/{contract_id}/terminate",
     response_model=ContractCreateResponse,
     summary="Terminate an active contract",
     description="Terminates an active contract (BR-04).  Requires reason.  Sets room to available.",
@@ -119,7 +125,7 @@ async def terminate_contract(
 
 
 @router.post(
-    "/contracts/{contract_id}/extend",
+    "/{contract_id}/extend",
     response_model=ContractCreateResponse,
     summary="Extend a contract's lease",
     description="Extends the end date of an active contract and records the extension.",
@@ -142,7 +148,7 @@ async def extend_lease(
 
 
 @router.post(
-    "/contracts/{contract_id}/renew",
+    "/{contract_id}/renew",
     response_model=ContractCreateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Renew a terminated/expired contract",
@@ -172,6 +178,11 @@ async def renew_contract(
     response_model=LeaseHistoryResponse,
     summary="Get lease history for a room",
     description="Returns all contracts (past and present) for a given room, newest first.",
+)
+@router.get(
+    "/leases/{room_id}/history",
+    response_model=LeaseHistoryResponse,
+    include_in_schema=False,
 )
 async def get_lease_history(
     room_id: uuid.UUID,

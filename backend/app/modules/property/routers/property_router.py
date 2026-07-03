@@ -24,11 +24,11 @@ from app.modules.property.schemas import (
 from app.modules.property.services.property_service import PropertyService
 from app.shared.deps import get_db, get_current_user
 
-router = APIRouter(prefix="/api/v1", tags=["property"])
+router = APIRouter(tags=["property"], redirect_slashes=False)
 
 
 @router.get(
-    "/properties/{property_id}",
+    "/{property_id}",
     response_model=PropertyCreateResponse,
     status_code=HTTPStatus.OK,
     summary="Get property by ID (FR-PROP-02)",
@@ -53,16 +53,22 @@ async def get_property(
 
 
 @router.get(
-    "/properties",
+    "/",
     response_model=PropertyListResponse,
     status_code=HTTPStatus.OK,
     summary="List all properties",
+)
+@router.get(
+    "",
+    response_model=PropertyListResponse,
+    status_code=HTTPStatus.OK,
+    include_in_schema=False,
 )
 async def list_properties(
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ) -> PropertyListResponse:
-    """GET /api/v1/properties — list all properties."""
+    """GET /api/v1/properties/ — list all properties."""
     service = PropertyService(db)
     properties = await service.list_properties()
     from app.modules.property.schemas import PropertyResponse as _PR
@@ -72,7 +78,7 @@ async def list_properties(
 
 
 @router.post(
-    "/properties",
+    "/",
     response_model=PropertyCreateResponse,
     status_code=HTTPStatus.CREATED,
     summary="Create a new property (FR-PROP-01)",
@@ -110,7 +116,7 @@ async def create_property(
 
 
 @router.get(
-    "/properties/{property_id}/rooms",
+    "/{property_id}/rooms",
     response_model=PropertyWithRoomsResponse,
     status_code=HTTPStatus.OK,
     summary="Get property with all its rooms (FR-PROP-06)",

@@ -21,11 +21,11 @@ from app.modules.dashboard.schemas import (
 from app.modules.dashboard.services.dashboard_service import DashboardService
 from app.shared.deps import get_current_user, get_db
 
-router = APIRouter(prefix="/api/v1", tags=["dashboard"])
+router = APIRouter(tags=["dashboard"], redirect_slashes=False)
 
 
 @router.get(
-    "/dashboard/summary",
+    "/summary",
     response_model=DashboardSummaryWrapper,
     summary="Get dashboard summary",
     description="Returns occupancy, revenue, overdue, and maintenance counts for a property.",
@@ -42,7 +42,7 @@ async def get_dashboard_summary(
 
 
 @router.get(
-    "/dashboard/revenue",
+    "/revenue",
     response_model=RevenueReportResponse,
     summary="Get revenue report",
     description="Monthly revenue aggregation for a date range.",
@@ -64,7 +64,7 @@ async def get_revenue_report(
 
 
 @router.get(
-    "/dashboard/occupancy",
+    "/occupancy",
     response_model=OccupancyResponse,
     summary="Get occupancy snapshot",
     description="Returns current occupancy rate and room counts.",

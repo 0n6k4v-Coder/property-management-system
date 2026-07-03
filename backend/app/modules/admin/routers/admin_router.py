@@ -10,18 +10,20 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.admin.schemas import (
-    AuditLogListResponse, SystemConfigListResponse,
-    SystemConfigResponse, UpdateSystemConfigRequest,
+    AuditLogListResponse,
+    SystemConfigListResponse,
+    SystemConfigResponse,
+    UpdateSystemConfigRequest,
 )
 from app.modules.admin.services.admin_service import AdminService
 from app.middleware.rbac import require_role
 from app.shared.deps import get_current_user, get_db
 
-router = APIRouter(prefix="/api/v1", tags=["admin"])
+router = APIRouter(tags=["admin"], redirect_slashes=False)
 
 
 @router.get(
-    "/admin/audit-logs",
+    "/audit-logs",
     response_model=AuditLogListResponse,
     summary="View audit logs (paginated)",
     description="Returns paginated audit logs for a property. Owner role required.",
@@ -48,7 +50,7 @@ async def get_audit_logs(
 
 
 @router.get(
-    "/admin/config",
+    "/config",
     response_model=SystemConfigListResponse,
     summary="View system configuration",
     description="Returns system settings with secrets masked. Owner role required.",

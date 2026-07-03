@@ -48,7 +48,7 @@ async def _seed_data(db_session: AsyncSession) -> dict:
 
 
 class TestCreateMaintenanceEndpoint:
-    """POST /api/v1/maintenance-requests."""
+    """POST /api/v1/maintenance/."""
 
     async def test_create_success(
         self, async_client: AsyncClient, db_session: AsyncSession,
@@ -61,7 +61,7 @@ class TestCreateMaintenanceEndpoint:
             "property_scopes": [], "token_type": "access",
         }
         response = await async_client.post(
-            "/api/v1/maintenance-requests",
+            "/api/v1/maintenance/",
             json={
                 "room_id": str(data["room"].id),
                 "property_id": str(data["property"].id),
@@ -83,7 +83,7 @@ class TestCreateMaintenanceEndpoint:
             "property_scopes": [], "token_type": "access",
         }
         response = await async_client.post(
-            "/api/v1/maintenance-requests",
+            "/api/v1/maintenance/",
             json={
                 "room_id": str(uuid.uuid4()),
                 "property_id": str(uuid.uuid4()),
@@ -95,7 +95,7 @@ class TestCreateMaintenanceEndpoint:
 
 
 class TestGetMaintenanceEndpoint:
-    """GET /api/v1/maintenance-requests/{id}."""
+    """GET /api/v1/maintenance/{id}."""
 
     async def test_get_success(
         self, async_client: AsyncClient, db_session: AsyncSession,
@@ -114,7 +114,7 @@ class TestGetMaintenanceEndpoint:
             title="Fix light", description="Light bulb is broken in room 101.",
             created_by=data["user_id"],
         )
-        response = await async_client.get(f"/api/v1/maintenance-requests/{req.id}")
+        response = await async_client.get(f"/api/v1/maintenance/{req.id}")
         assert response.status_code == 200
         assert response.json()["data"]["title"] == "Fix light"
 
@@ -125,12 +125,12 @@ class TestGetMaintenanceEndpoint:
             "user_id": str(uuid.uuid4()), "email": "admin@test.com",
             "property_scopes": [], "token_type": "access",
         }
-        response = await async_client.get(f"/api/v1/maintenance-requests/{uuid.uuid4()}")
+        response = await async_client.get(f"/api/v1/maintenance/{uuid.uuid4()}")
         assert response.status_code == 404
 
 
 class TestUpdateStatusEndpoint:
-    """PATCH /api/v1/maintenance-requests/{id}/status."""
+    """PATCH /api/v1/maintenance/{id}/status."""
 
     async def test_update_success(
         self, async_client: AsyncClient, db_session: AsyncSession,
@@ -150,7 +150,7 @@ class TestUpdateStatusEndpoint:
             created_by=data["user_id"],
         )
         response = await async_client.patch(
-            f"/api/v1/maintenance-requests/{req.id}/status",
+            f"/api/v1/maintenance/{req.id}/status",
             json={"status": "in_progress"},
         )
         assert response.status_code == 200
@@ -174,7 +174,7 @@ class TestUpdateStatusEndpoint:
             created_by=data["user_id"],
         )
         response = await async_client.patch(
-            f"/api/v1/maintenance-requests/{req.id}/status",
+            f"/api/v1/maintenance/{req.id}/status",
             json={"status": "resolved"},
         )
         assert response.status_code == 400
@@ -182,7 +182,7 @@ class TestUpdateStatusEndpoint:
 
 
 class TestListPendingEndpoint:
-    """GET /api/v1/maintenance-requests/pending."""
+    """GET /api/v1/maintenance/pending."""
 
     async def test_list_pending(
         self, async_client: AsyncClient, db_session: AsyncSession,
@@ -202,7 +202,7 @@ class TestListPendingEndpoint:
             created_by=data["user_id"],
         )
         response = await async_client.get(
-            f"/api/v1/maintenance-requests/pending?property_id={data['property'].id}",
+            f"/api/v1/maintenance/pending?property_id={data['property'].id}",
         )
         assert response.status_code == 200
         assert len(response.json()["data"]) >= 1

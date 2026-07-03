@@ -21,11 +21,11 @@ from app.modules.tenant.schemas import (
 from app.modules.tenant.services.tenant_service import TenantService
 from app.shared.deps import get_db, get_current_user
 
-router = APIRouter(prefix="/api/v1", tags=["tenant"])
+router = APIRouter(tags=["tenant"], redirect_slashes=False)
 
 
 @router.post(
-    "/tenants",
+    "/",
     response_model=TenantCreateResponse,
     status_code=HTTPStatus.CREATED,
     summary="Create a new tenant (FR-TENANT-01, FR-TENANT-02)",
@@ -61,7 +61,7 @@ async def create_tenant(
 
 
 @router.get(
-    "/tenants/search",
+    "/search",
     status_code=HTTPStatus.OK,
     summary="Search tenants (FR-TENANT-04)",
 )

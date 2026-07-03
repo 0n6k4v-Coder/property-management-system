@@ -28,7 +28,7 @@ from app.modules.auth.services.invite_service import InviteService
 from app.shared.deps import CurrentUser as CurrentUserDep
 from app.shared.deps import get_db
 
-router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 
 @router.post("/login", status_code=status.HTTP_200_OK)

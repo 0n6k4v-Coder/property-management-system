@@ -173,3 +173,7 @@ def create_app() -> FastAPI:
     app.include_router(admin_router, prefix="/api/v1/admin", tags=["Admin"])
 
     return app
+
+
+# Module-level app instance for ASGI servers (uvicorn, gunicorn)
+app = create_app()

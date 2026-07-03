@@ -21,7 +21,7 @@ from app.modules.billing.schemas import (
 )
 from app.modules.billing.services import BillingService
 
-router = APIRouter(prefix="/api/v1/billing", tags=["billing"])
+router = APIRouter(tags=["billing"], redirect_slashes=False)
 
 
 @router.post(
