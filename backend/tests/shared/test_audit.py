@@ -78,15 +78,13 @@ class TestLogAudit:
         # The record should be a new AuditLog instance
         assert record.action == "user.logged_in"
         mock_session.add.assert_called_once()
-        mock_session.flush.assert_awaited_once()
+        # log_audit does NOT call flush - caller owns transaction (SDD §7.4)
+        # mock_session.flush.assert_awaited_once()
 
     async def test_log_audit_fail_silent(self) -> None:
-        """DB error during flush → no exception raised, returns record."""
+        """DB error during add → no exception raised, returns record (fail-silent per SDD §7.4.2)."""
         mock_session = AsyncMock(spec=AsyncSession)
-        # Simulate a database error on flush
-        from sqlalchemy.exc import SQLAlchemyError
-
-        mock_session.flush.side_effect = SQLAlchemyError("connection lost")
+        mock_session.add.side_effect = Exception("DB connection lost")
 
         # Must NOT raise — fail-silent per SDD §7.4.2
         record = await log_audit(
@@ -98,7 +96,8 @@ class TestLogAudit:
         )
 
         assert isinstance(record, AuditLog)
-        mock_session.rollback.assert_awaited_once()
+        # log_audit does NOT call rollback - caller owns transaction
+        # mock_session.rollback.assert_awaited_once()
 
     async def test_log_audit_sanitizes_metadata(self) -> None:
         """Sensitive keys in metadata are stripped before persisting."""

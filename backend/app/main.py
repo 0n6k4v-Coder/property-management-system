@@ -7,6 +7,8 @@ import sys
 from contextlib import asynccontextmanager
 from typing import Any
 
+# Configure structlog
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
@@ -14,7 +16,6 @@ from app.config import get_settings
 from app.health import router as health_router
 from app.middleware.auth import setup_auth_middleware
 from app.middleware.cors import setup_cors_middleware
-from app.middleware.rate_limit import setup_rate_limit_middleware
 from app.middleware.security import register_security_middleware
 
 # Router imports (lazy, all modules)
@@ -29,9 +30,6 @@ from app.modules.property.routers.property_router import router as property_rout
 from app.modules.tenant.routers.tenant_router import router as tenant_router
 from app.shared.exceptions import APIError
 
-# Configure structlog
-import structlog
-
 structlog.configure(
     processors=[
         structlog.contextvars.merge_contextvars,
@@ -41,7 +39,8 @@ structlog.configure(
         structlog.processors.TimeStamper(fmt="iso"),
         structlog.processors.StackInfoRenderer(),
         structlog.processors.format_exc_info,
-        structlog.dev.ConsoleRenderer() if sys.stderr.isatty() else structlog.processors.JSONRenderer(),
+        structlog.dev.ConsoleRenderer() if sys.stderr.isatty()
+        else structlog.processors.JSONRenderer(),
     ],
     wrapper_class=structlog.stdlib.BoundLogger,
     context_class=dict,
@@ -97,7 +96,8 @@ async def lifespan(app: FastAPI):
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.processors.StackInfoRenderer(),
             structlog.processors.format_exc_info,
-            structlog.dev.ConsoleRenderer() if sys.stderr.isatty() else structlog.processors.JSONRenderer(),
+            structlog.dev.ConsoleRenderer() if sys.stderr.isatty()
+        else structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
@@ -143,7 +143,6 @@ def create_app() -> FastAPI:
     # Register middleware (order matters)
     register_security_middleware(app)
     setup_cors_middleware(app, settings)
-    setup_rate_limit_middleware(app)
     setup_auth_middleware(app)
 
     # Register exception handlers

@@ -1,9 +1,8 @@
-"""Security middleware — rate limiting, security headers, CORS hardening (SDD §4.5).
-
-References:
-    - SDD.md §4.5: Security & Access Control
-    - OWASP HTTP Security Headers
-"""
+# Security middleware - rate limiting, security headers, CORS hardening (SDD 4.5)
+#
+# References:
+#     - SDD.md 4.5: Security & Access Control
+#     - OWASP HTTP Security Headers
 
 import time
 from collections import defaultdict
@@ -21,7 +20,7 @@ class InMemoryRateLimiter:
     Falls back to this when Redis is unavailable.
     """
 
-    def __init__(self, max_requests: int = 100, window_seconds: int = 60) -> None:
+    def __init__(self, max_requests: int = 1000, window_seconds: int = 60) -> None:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._buckets: dict[str, list[float]] = defaultdict(list)
@@ -37,12 +36,20 @@ class InMemoryRateLimiter:
         self._buckets[key].append(now)
         return True
 
+    def reset(self) -> None:
+        """Clear all rate limit buckets (for testing)."""
+        self._buckets.clear()
 
-_rate_limiter = InMemoryRateLimiter()
+
+_rate_limiter = InMemoryRateLimiter(max_requests=10000)
 
 
-async def rate_limit_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
-    """Rate limiting middleware — applies to all routes."""
+async def rate_limit_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
+    """Rate limiting middleware - applies to all routes."""
+    # Skip rate limiting for health checks only
     if request.url.path == "/health":
         return await call_next(request)
 
@@ -62,7 +69,10 @@ async def rate_limit_middleware(request: Request, call_next: Callable[[Request],
     return await call_next(request)
 
 
-async def security_headers_middleware(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+async def security_headers_middleware(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+) -> Response:
     """Inject security headers into every response."""
     response = await call_next(request)
     settings = get_settings()

@@ -17,11 +17,11 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.constants import AUTH_001, AUTH_004, AUTH_009
+from app.modules.auth.constants import AUTH_001
 from app.modules.auth.models import User
 from app.modules.auth.repository import UserRepository
 from app.modules.auth.services.invite_service import InviteService
-from app.shared.security import create_access_token, hash_password
+from app.shared.security import hash_password
 
 
 @pytest.mark.integration
@@ -101,12 +101,22 @@ class TestRegisterEndpoint:
 
     async def test_register_success(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
         """Valid invite token → 201 with user data."""
-        # Create an invite token first
+        # Create an invite token first - use a valid inviter_id
+        repo = UserRepository(db_session)
+        inviter = User(
+            email="inviter@example.com",
+            password_hash=hash_password("InviterPass1"),
+            full_name="Inviter User",
+            phone="0811111111",
+            is_active=True,
+        )
+        inviter = await repo.create(inviter)
+        await db_session.flush()
         invite_service = InviteService(db_session)
         invite_link = await invite_service.create_invite(
             email="newuser@example.com",
             property_id=uuid.uuid4(),
-            inviter_id=uuid.uuid4(),
+            inviter_id=inviter.id,
         )
         token = invite_link.split("token=")[1]
 
@@ -129,16 +139,26 @@ class TestRegisterEndpoint:
     async def test_register_duplicate(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
         """Email already registered → 409 AUTH-004."""
         # Create invite first (service checks email doesn't exist yet)
+        # Use a valid inviter_id
+        repo = UserRepository(db_session)
+        inviter = User(
+            email="inviter2@example.com",
+            password_hash=hash_password("InviterPass1"),
+            full_name="Inviter User 2",
+            phone="0822222222",
+            is_active=True,
+        )
+        inviter = await repo.create(inviter)
+        await db_session.flush()
         invite_service = InviteService(db_session)
         invite_link = await invite_service.create_invite(
             email="dup@example.com",
             property_id=uuid.uuid4(),
-            inviter_id=uuid.uuid4(),
+            inviter_id=inviter.id,
         )
         token = invite_link.split("token=")[1]
 
         # Now seed a user with the same email directly in the DB
-        repo = UserRepository(db_session)
         await repo.create(
             User(
                 email="dup@example.com",
@@ -169,7 +189,7 @@ class TestRegisterEndpoint:
 class TestInviteEndpoint:
     """``POST /api/v1/auth/invite`` — SDD §3.3."""
 
-    async def test_invite_success(self, async_client: AsyncClient, app, db_session: AsyncSession) -> None:
+    async def test_invite_success(self, async_client: AsyncClient, app) -> None:
         """Authenticated user invites → 201 with invite_link."""
         from app.shared.deps import get_current_user
 
@@ -191,7 +211,7 @@ class TestInviteEndpoint:
         assert "invite_link" in body["data"]
         assert "token=" in body["data"]["invite_link"]
 
-    async def test_invite_without_auth(self, async_client: AsyncClient, app, db_session: AsyncSession) -> None:
+    async def test_invite_without_auth(self, async_client: AsyncClient, app) -> None:
         """No auth header → 401 AUTH-009."""
         from app.shared.deps import get_current_user
 

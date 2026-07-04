@@ -6,16 +6,16 @@ References:
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User
-from app.modules.billing.models import Invoice, InvoiceLineItem
+from app.modules.billing.models import Invoice
 from app.modules.contract.models import Contract
-from app.modules.property.constants import RoomStatus, RoomType
+from app.modules.property.constants import RoomStatus
 from app.modules.property.models import Building, Property, Room
 from app.modules.tenant.models import Tenant
 from app.shared.security import encrypt_sensitive
@@ -66,7 +66,7 @@ async def _seed_full_data(db_session: AsyncSession, uid: uuid.UUID) -> dict:
                   invoice_number=f"INV-{uuid.uuid4().hex[:8]}",
                   billing_month=5, billing_year=2026,
                   due_date=date(2026, 5, 5),  # past due
-                  status="sent", total_amount=Decimal("7000"), paid_amount=Decimal("0"),
+                  status="issued", total_amount=Decimal("7000"), paid_amount=Decimal("0"),
                   created_by=uid)
     db_session.add(inv)
     await db_session.flush()
@@ -92,7 +92,7 @@ class TestDashboardSummary:
 
     async def test_data_scoping_enforced(self, db_session: AsyncSession, any_user_id: uuid.UUID) -> None:
         """Another property's data should not affect this property's summary."""
-        data = await _seed_full_data(db_session, any_user_id)
+        await _seed_full_data(db_session, any_user_id)
 
         other_prop_id = uuid.uuid4()
 

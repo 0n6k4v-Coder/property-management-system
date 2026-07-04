@@ -7,10 +7,10 @@ References:
 """
 
 import uuid
-from datetime import date
+from datetime import UTC, date
 from decimal import Decimal
 
-from sqlalchemy import func, select, case
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.billing.models import Invoice
@@ -58,16 +58,18 @@ class DashboardRepository:
 
     async def get_monthly_revenue(self, property_id: uuid.UUID) -> Decimal:
         """Sum of paid amounts for invoices this month (Data Scoping)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc)
+        from app.modules.billing.models import InvoiceStatus
+
+        now = datetime.now(UTC)
         stmt = (
             select(
                 func.coalesce(func.sum(Invoice.paid_amount), Decimal("0"))
             )
             .where(
                 Invoice.property_id == property_id,
-                Invoice.status.in_(["paid", "sent", "overdue"]),
+                Invoice.status.in_([InvoiceStatus.PAID, InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE]),
                 Invoice.billing_year == now.year,
                 Invoice.billing_month == now.month,
             )
@@ -83,9 +85,11 @@ class DashboardRepository:
         tuple[int, Decimal]
             (overdue_count, overdue_total_amount)
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        now = datetime.now(timezone.utc)
+        from app.modules.billing.models import InvoiceStatus
+
+        now = datetime.now(UTC)
         stmt = (
             select(
                 func.count(Invoice.id),
@@ -93,7 +97,7 @@ class DashboardRepository:
             )
             .where(
                 Invoice.property_id == property_id,
-                Invoice.status.in_(["sent", "overdue"]),
+                Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.OVERDUE]),
                 Invoice.due_date < now.date(),
             )
         )

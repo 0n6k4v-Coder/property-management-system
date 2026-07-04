@@ -20,8 +20,6 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User
-from app.modules.contract.models import Contract
-from app.modules.contract.repository import ContractRepository
 from app.modules.property.constants import RoomStatus, RoomType
 from app.modules.property.models import Building, Property, Room
 from app.modules.tenant.models import Tenant
@@ -306,7 +304,7 @@ class TestLeaseHistoryEndpoint:
             created_by=data["user_id"],
         )
 
-        response = await async_client.get(f"/api/v1/leases/{data['room'].id}/history")
+        response = await async_client.get(f"/api/v1/contracts/leases/{data['room'].id}/history")
 
         assert response.status_code == 200
         assert len(response.json()["data"]) >= 1

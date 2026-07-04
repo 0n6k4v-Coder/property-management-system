@@ -1,12 +1,13 @@
 """Audit logging — Async SQLAlchemy 2.0 model + helper function (SDD §4.1.1, §4.2, §7.4)."""
 
+import contextlib
 import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import String, Text, DateTime, ForeignKey, Index, func, text
-from sqlalchemy.dialects.postgresql import UUID, JSONB, INET
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func, text
+from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -74,7 +75,7 @@ _SENSITIVE_KEYS = frozenset({
 
 def _sanitize_metadata(raw: dict[str, Any] | None) -> dict[str, Any]:
     """Strip sensitive keys before persisting to audit log (SDD §7.4.3).
-    
+
     Also converts Decimal values to JSON-serializable types (float for Decimal).
     """
     if not raw:
@@ -153,5 +154,7 @@ async def log_audit(
     )
     # Add to session but DO NOT flush - let caller's transaction handle commit/rollback
     # This avoids PendingRollbackError from nested savepoints
-    db.add(record)
+    # Fail-silent: catch any exception so audit never interrupts business flow (SDD §7.4.2)
+    with contextlib.suppress(Exception):
+        db.add(record)
     return record

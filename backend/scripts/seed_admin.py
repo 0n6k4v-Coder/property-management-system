@@ -1,9 +1,4 @@
-"""Seed the first admin user — bypasses service layer to avoid event/audit side effects.
-
-Usage:
-    docker compose -f docker-compose.dev.yml exec -e PYTHONPATH=/app backend \
-        python3 /app/scripts/seed_admin.py
-"""
+"""Seed admin user for manual E2E testing."""
 
 import asyncio
 import sys
@@ -11,32 +6,31 @@ import sys
 from sqlalchemy import text
 
 from app.modules.auth.models import User
-from app.shared.database import async_session
+from app.shared.database import async_session_maker
 from app.shared.security import hash_password
 
 
-EMAIL = "admin@example.com"
-PASSWORD = "Admin123!"
-FULL_NAME = "System Admin"
-PHONE = "0812345678"
-
-
 async def seed_admin() -> None:
-    session = async_session()
-    try:
-        # Check if already exists
+    """Create admin user for E2E testing."""
+    email = "admin@example.com"
+    password = "Admin123!"
+    full_name = "Admin User"
+    phone = "0812345678"
+
+    async with async_session_maker() as session:
+        # Check if admin already exists
         result = await session.execute(
-            text("SELECT id FROM users WHERE email = :e"), {"e": EMAIL}
+            text("SELECT id FROM users WHERE email = :e"), {"e": email}
         )
         if result.fetchone():
-            print(f"⚠️  Admin '{EMAIL}' already exists — skipping.")
+            print(f"⚠️  Admin user '{email}' already exists — skipping.")
             return
 
         user = User(
-            email=EMAIL,
-            password_hash=hash_password(PASSWORD),
-            full_name=FULL_NAME,
-            phone=PHONE,
+            email=email,
+            password_hash=hash_password(password),
+            full_name=full_name,
+            phone=phone,
             is_active=True,
         )
         session.add(user)
@@ -44,22 +38,16 @@ async def seed_admin() -> None:
 
         # Verify
         result = await session.execute(
-            text("SELECT id, email FROM users WHERE email = :e"), {"e": EMAIL}
+            text("SELECT id, email FROM users WHERE email = :e"), {"e": email}
         )
         row = result.fetchone()
         if row:
-            print(f"✅ Admin user created and verified:")
-            print(f"   Email:    {EMAIL}")
-            print(f"   Password: {PASSWORD}")
-            print(f"   Name:     {FULL_NAME}")
-            print(f"   ID:       {row[0]}")
+            print("✅ Admin user created successfully!")
+            print(f"   Email:    {email}")
+            print(f"   Password: {password}")
         else:
-            print("❌ User not found after commit — something went wrong.")
-    except Exception:
-        await session.rollback()
-        raise
-    finally:
-        await session.close()
+            print("❌ Admin user creation failed!", file=sys.stderr)
+            sys.exit(1)
 
 
 if __name__ == "__main__":
