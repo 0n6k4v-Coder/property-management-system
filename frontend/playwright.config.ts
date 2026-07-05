@@ -6,17 +6,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = !!process.env.CI;
+const OUTPUT_DIR = process.env.PLAYWRIGHT_OUTPUT_DIR || './test-results';
 
 export default defineConfig({
   testDir: './e2e',
-  outputDir: './e2e-results',
+  outputDir: OUTPUT_DIR,
   fullyParallel: CI,
   forbidOnly: CI,
   retries: 2,
   workers: CI ? 1 : undefined,
   reporter: CI
-    ? [['html', { outputFolder: 'playwright-report', open: 'never' }], ['list']]
-    : [['html', { outputFolder: 'playwright-report', open: 'on-failure' }], ['list']],
+    ? [['html', { outputFolder: OUTPUT_DIR + '/playwright-report', open: 'never' }], ['list']]
+    : [['html', { outputFolder: OUTPUT_DIR + '/playwright-report', open: 'on-failure' }], ['list']],
 
   use: {
     baseURL: 'http://localhost:5173',
@@ -28,10 +29,10 @@ export default defineConfig({
   },
 
   webServer: {
-    command: 'npm run preview',
+    command: 'npm run dev',
     port: 5173,
     timeout: 120_000,
-    reuseExistingServer: !CI,
+    reuseExistingServer: true,
   },
 
   projects: [

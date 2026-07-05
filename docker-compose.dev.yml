@@ -211,6 +211,7 @@ services:
       - VITE_API_URL=/api/v1
       - NODE_ENV=test
       - CI=true
+      - PLAYWRIGHT_OUTPUT_DIR=/app/test-results
     volumes:
       - ./frontend:/app:cached
       - frontend-node-modules:/app/node_modules
@@ -218,12 +219,14 @@ services:
       # Playwright reports and traces (Sprint 6)
       - ./frontend/playwright-report:/app/playwright-report
       - ./frontend/e2e-results:/app/e2e-results
+      - frontend-test-results:/app/test-results
     depends_on:
       backend:
         condition: service_started
     restart: "no"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    user: "root"
     deploy:
       resources:
         limits:
@@ -405,6 +408,8 @@ volumes:
   frontend-node-modules:
     driver: local
   frontend-coverage:
+    driver: local
+  frontend-test-results:
     driver: local
 
 # =============================================================================

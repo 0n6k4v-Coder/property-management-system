@@ -12,7 +12,7 @@ const MOCK_LOGIN_SUCCESS = {
     refresh_token: 'mock-refresh-token',
     user: {
       id: '00000000-0000-0000-0000-000000000001',
-      email: 'test@example.com',
+      email: 'admin@example.com',
       full_name: 'Test User',
       property_scopes: [],
       is_active: true,
@@ -185,8 +185,8 @@ async function loginAsTestUser(page: Page): Promise<void> {
   const emailInput = page.getByPlaceholder('you@example.com');
   const passwordInput = page.getByPlaceholder('Enter your password');
 
-  await emailInput.fill('test@example.com');
-  await passwordInput.fill('Password1');
+  await emailInput.fill('admin@example.com');
+  await passwordInput.fill('Admin123!');
   await page.getByRole('button', { name: /sign in/i }).click();
 
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });

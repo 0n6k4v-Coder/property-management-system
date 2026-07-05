@@ -1,10 +1,9 @@
 # AGENTS.md — Property Management System
 
 **คู่มือสำหรับ AI Agent ที่ทำงานในโปรเจกต์นี้ อ่านก่อนเริ่มทำงานทุกครั้ง**
-
 **Last Updated:** 2026-07-06  
-**Version:** 3.0  
-**Status:** Backend v1.0.0 Complete — Frontend v1.0.0 Complete (Sprint 1–6)  
+**Version:** 3.1  
+**Status:** Backend v1.0.0 Complete — Frontend v1.0.0 Complete — **Phase 1: E2E Campaign (pms-e2e Profile)**
 
 ---
 
@@ -261,11 +260,12 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 ### ก่อนเริ่มงานทุกครั้ง
 ```
 1. อ่านไฟล์นี้ (AGENTS.md) → เข้าใจกฎและสถานะปัจจุบัน
-2. อ่าน backend/docs/02-design/SDD/_index.md → เลือกไฟล์ที่เกี่ยวข้องกับงาน
-3. อ่าน docs/ARCHITECTURE.md → เข้าใจภาพรวมระบบ
-4. ตรวจสอบ frontend/docs/ (ถ้าทำ Frontend) → เข้าใจ integration patterns
-5. เริ่มงานตาม Sprint Plan → Propose → Implement → Test → PR
-6. รัน `make dev-down` เมื่อเสร็จ
+2. อ่าน INDEX.md → เข้าใจโครงสร้างโปรเจกต์และคำสั่งเร็ว
+3. อ่าน backend/docs/02-design/SDD/_index.md → เลือกไฟล์ที่เกี่ยวข้องกับงาน
+4. อ่าน docs/ARCHITECTURE.md → เข้าใจภาพรวมระบบ
+5. ตรวจสอบ frontend/docs/ (ถ้าทำ Frontend) → เข้าใจ integration patterns
+6. เริ่มงานตาม Sprint Plan → Propose → Implement → Test → PR
+7. รัน `make dev-down` เมื่อเสร็จ
 ```
 
 ### เมื่อเจอปัญหา
@@ -287,10 +287,23 @@ infra: add health check endpoint + middleware stubs
 
 ---
 
+## 🔗 Cross-References
+
+| Document | Purpose | Cross-Reference |
+|----------|---------|-----------------|
+| **AGENTS.md** | Rules, workflow, global policies (SSOT for rules) | See `INDEX.md` for project map & commands |
+| **INDEX.md** | Project map, commands, phase status (Navigation) | See `AGENTS.md` for rules & workflow |
+| **DECISIONS/** | Architecture Decision Records (Immutable) | See `docs/DECISIONS/README.md` |
+
+> **Rule:** When in doubt about rules → `AGENTS.md` | When lost about structure/commands → `INDEX.md`
+
+---
+
 ## 📚 References (Verified Paths)
 
 | เอกสาร | ที่อยู่ | วัตถุประสงค์ |
 |--------|--------|-------------|
+| **Project Index & Commands** | `INDEX.md` | Project map, quick commands, phase status |
 | **System Architecture** | `docs/ARCHITECTURE.md` | C4 diagrams, Tech stack, ADRs |
 | **Implementation Blueprint** | `backend/docs/02-design/SDD/` | Module specs (02-module-specs.md), API Contract (03-api-contract.md), DB schema (04-database-schema.md), traceability (07-traceability.md) |
 | **Coding Standards** | `backend/docs/CODE_STYLE.md` | Python patterns, async fixtures, testing guidelines |
@@ -300,6 +313,7 @@ infra: add health check endpoint + middleware stubs
 | **Domain Model** | `docs/DOMAIN_MODEL.md` | Entities, aggregates, domain events |
 | **Frontend Spec** | `frontend/docs/SDD.md` | Frontend architecture, integration patterns |
 | **API Contract (SSOT)** | `http://localhost:8000/openapi.json` | Auto-generated from FastAPI — source of truth for types |
+| **Decision Records** | `docs/DECISIONS/README.md` | Architecture Decision Records index |
 
 ---
 

@@ -68,8 +68,8 @@ async function mockMeterApis(page: Page): Promise<void> {
 
 async function loginAsTestUser(page: Page): Promise<void> {
   await page.goto('/login');
-  await page.getByPlaceholder('Username').fill('testuser');
-  await page.getByPlaceholder('Password').fill('Testpass123!');
+  await page.locator('input[placeholder="you@example.com"]').first().fill('admin@example.com');
+  await page.locator('input[placeholder="Enter your password"]').first().fill('Admin123!');
   await page.getByRole('button', { name: /sign in|log in|login|submit/i }).click();
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
 }

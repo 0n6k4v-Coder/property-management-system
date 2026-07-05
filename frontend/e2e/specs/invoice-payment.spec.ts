@@ -64,9 +64,18 @@ async function mockInvoiceApis(page: Page): Promise<void> {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        access_token: 'mock-token',
-        refresh_token: 'mock-refresh',
-        token_type: 'bearer',
+        data: {
+          access_token: 'mock-token',
+          refresh_token: 'mock-refresh',
+          token_type: 'bearer',
+          user: {
+            id: '00000000-0000-0000-0000-000000000001',
+            email: 'admin@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        },
       }),
     }),
   );
@@ -110,22 +119,53 @@ async function mockInvoiceApis(page: Page): Promise<void> {
     }),
   );
 
-  // Catch-all for remaining API routes
-  await page.route('**/api/**', (route) =>
+  // Catch-all for actual API v1 routes only - exclude Vite dev server paths
+  await page.route('**/api/v1/**', (route) => {
+    const url = route.request().url();
+    // Skip Vite dev server internal routes
+    if (url.includes('/@vite/') || url.includes('/@react-refresh') || url.includes('/@fs/') || url.includes('/src/')) {
+      return route.continue();
+    }
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ data: {} }),
-    }),
-  );
+    });
+  });
 }
 
 async function loginAndNavigateToInvoices(page: Page): Promise<void> {
   await page.goto('/login');
-  await page.getByPlaceholder('Username').fill('testuser');
-  await page.getByPlaceholder('Password').fill('Testpass123!');
-  await page.getByRole('button', { name: /sign in|log in|login|submit/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+
+  // Wait for React app to hydrate and form to be visible
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(5000);
+
+  // Debug: log page content
+  const html = await page.content();
+  console.log('Page HTML length:', html.length);
+  console.log('Has you@example.com:', html.includes('you@example.com'));
+  console.log('Has Enter your password:', html.includes('Enter your password'));
+
+  // Try multiple selectors
+  const usernameInput = page.locator('input[placeholder="you@example.com"]').first();
+  const passwordInput = page.locator('input[placeholder="Enter your password"]').first();
+  const submitButton = page.getByRole('button', { name: /sign in|log in|login|submit/i });
+
+  await expect(usernameInput).toBeVisible({ timeout: 30000 });
+  await expect(passwordInput).toBeVisible({ timeout: 30000 });
+
+  await usernameInput.fill('admin@example.com');
+  await passwordInput.fill('Admin123!');
+  await submitButton.click();
+
+  // Debug: check if login API was called
+  await page.waitForTimeout(2000);
+  console.log('Current URL after submit:', page.url());
+
+  // Wait for redirect to dashboard
+  await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
 
   // Navigate to invoices page
   await page.goto('/invoices');
