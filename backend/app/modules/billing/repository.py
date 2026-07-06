@@ -204,6 +204,15 @@ class BillingRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def list_invoices(self, property_id: Optional[uuid.UUID] = None) -> List[Invoice]:
+        """List invoices, optionally filtered by property, newest due date first."""
+        stmt = select(Invoice).options(selectinload(Invoice.line_items))
+        if property_id is not None:
+            stmt = stmt.where(Invoice.property_id == property_id)
+        stmt = stmt.order_by(Invoice.due_date.desc())
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
     # ── Invoice Line Items ─────────────────────────────────────────────────
 
     async def create_line_item(self, line_item: InvoiceLineItem) -> InvoiceLineItem:

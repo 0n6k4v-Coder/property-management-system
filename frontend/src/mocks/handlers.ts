@@ -261,7 +261,7 @@ const handlers = [
 
   // ── Meter Reading Handlers ─────────────────────────────────────────
 
-  http.post('*/api/v1/meter-readings', async ({ request }) => {
+  http.post('*/api/v1/billing/meter-readings', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
 
     // Mock network failure when room_id is 'fail' or 'offline-room'
@@ -294,7 +294,7 @@ const handlers = [
 
   // ── Invoice & Payment Handlers ─────────────────────────────────────
 
-  http.post('*/api/v1/invoices/generate', () => {
+  http.post('*/api/v1/billing/invoices/generate', () => {
     return HttpResponse.json(
       {
         data: {
@@ -318,7 +318,7 @@ const handlers = [
     );
   }),
 
-  http.get('*/api/v1/invoices/:id', () => {
+  http.get('*/api/v1/billing/invoices/:id', () => {
     return HttpResponse.json({
       data: {
         invoice: {
@@ -379,7 +379,7 @@ const handlers = [
     });
   }),
 
-  http.post('*/api/v1/payments', () => {
+  http.post('*/api/v1/billing/payments', () => {
     return HttpResponse.json(
       {
         data: {
@@ -441,7 +441,7 @@ const handlers = [
 
   // ── Maintenance Request Handlers ─────────────────────────────────────
 
-  http.get('*/api/v1/maintenance-requests/pending', ({ request }) => {
+  http.get('*/api/v1/maintenance/pending', ({ request }) => {
     const url = new URL(request.url);
     const propertyId = url.searchParams.get('property_id');
     const requests = [
@@ -478,7 +478,7 @@ const handlers = [
     return HttpResponse.json({ data: filtered, meta: null });
   }),
 
-  http.get('*/api/v1/maintenance-requests/:id', () => {
+  http.get('*/api/v1/maintenance/:id', () => {
     return HttpResponse.json({
       data: {
         id: 'maint-1',
@@ -496,7 +496,7 @@ const handlers = [
     });
   }),
 
-  http.post('*/api/v1/maintenance-requests', async ({ request }) => {
+  http.post('*/api/v1/maintenance', async ({ request }) => {
     const body = (await request.json()) as Record<string, unknown>;
     return HttpResponse.json(
       {
@@ -518,7 +518,7 @@ const handlers = [
     );
   }),
 
-  http.patch('*/api/v1/maintenance-requests/:id/status', async ({ request }) => {
+  http.patch('*/api/v1/maintenance/:id/status', async ({ request }) => {
     const body = (await request.json()) as { status: string };
     return HttpResponse.json({
       data: {
@@ -537,7 +537,7 @@ const handlers = [
     });
   }),
 
-  http.patch('*/api/v1/maintenance-requests/:id/assign', async ({ request }) => {
+  http.patch('*/api/v1/maintenance/:id/assign', async ({ request }) => {
     const body = (await request.json()) as { assigned_to: string };
     return HttpResponse.json({
       data: {

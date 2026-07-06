@@ -1,170 +1,108 @@
 // File: frontend/e2e/specs/meter-offline-sync.spec.ts
-// E2E Test: Meter Reading Offline Sync — Sprint 6 Frozen Contract
+// E2E Test: Meter Reading Offline Sync — Fullstack (real backend + real database, no mocks)
 // Flow: navigate /meter-reading → fill form → setOffline(true) → submit →
-//        assert queued → setOffline(false) → assert sync success toast
-// Uses page.route() for API mocking + context.setOffline() for network toggle
+//        assert queued → setOffline(false) → assert no error state
+// Uses: State Verification Engine (E2E_TEST_STRATEGY.md Article 1.1)
+//       Shared Helpers (test-helpers.ts, state-capture.ts)
+//       Seeded fixtures (frontend/e2e/fixtures/seeded-ids.ts) — run
+//       `./scripts/reset-e2e-db.sh` before this suite.
+// Component Audit: Verified against MeterReadingPage.tsx, useMeterForm.ts, meter/api.ts
+//
+// Fullstack notes:
+//   - Both room 101 and 102 already have a seeded July 2026 meter reading —
+//     tests below submit for August 2026 instead to avoid BR-07's
+//     duplicate-reading-per-room-per-month conflict (409).
+//   - Real bugs found and fixed while converting this file:
+//     1. MeterReadingPage.tsx's four Electric/Water "Previous Reading" /
+//        "Current Reading" inputs shared auto-generated ids (Input.tsx
+//        derives `id` from `label` text), so <label for> collided and both
+//        Water inputs silently lost their values. Fixed by passing explicit
+//        unique `id`s.
+//     2. useRecordMeterMutation() had no `networkMode: 'always'`, so
+//        TanStack Query's default 'online' mode paused the mutation
+//        indefinitely while offline — mutationFn (which contains the
+//        IndexedDB fallback) never ran, so offline submission hung forever.
+//        Fixed in features/meter/api.ts.
+//     3. registerMeterSync() awaited `navigator.serviceWorker.ready`, which
+//        never resolves because the app never calls
+//        `navigator.serviceWorker.register()` anywhere — a permanent hang
+//        in production too. Fixed to use `getRegistration()` instead.
+//   - The offline→online sync relies on the browser's Background Sync API,
+//     which is best-effort and not deterministically observable in a
+//     headless Playwright run. The offline-queue test below only asserts
+//     the deterministic, synchronous part (the form queues the reading and
+//     shows the "pending sync" state) rather than waiting for the
+//     background sync to actually complete.
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
+import { login } from '../utils/test-helpers';
+import { captureAllStates, type CapturedStates } from '../utils/state-capture';
+import { SEEDED } from '../fixtures/seeded-ids';
 
-const MOCK_METER_READING_RESPONSE = {
-  data: {
-    id: 1,
-    room_id: 1,
-    previous_reading: 100.0,
-    current_reading: 123.45,
-    reading_date: '2026-07-06',
-    created_at: '2026-07-06T10:00:00Z',
-  },
-};
-
-const MOCK_ROOM_OPTIONS = {
-  data: [
-    { id: 1, room_number: '101', building_name: 'A' },
-    { id: 2, room_number: '102', building_name: 'A' },
-  ],
-};
-
-async function mockMeterApis(page: Page): Promise<void> {
-  // Mock login first (auth required before meter reading page)
-  await page.route('**/api/v1/auth/login', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: 'mock-token',
-        refresh_token: 'mock-refresh',
-        token_type: 'bearer',
-      }),
-    }),
-  );
-
-  // Mock room/building list for form dropdown
-  await page.route('**/api/v1/rooms*', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(MOCK_ROOM_OPTIONS),
-    }),
-  );
-
-  // Mock meter reading submission — will be intercepted when offline
-  await page.route('**/api/v1/meter-readings', (route) =>
-    route.fulfill({
-      status: 201,
-      contentType: 'application/json',
-      body: JSON.stringify(MOCK_METER_READING_RESPONSE),
-    }),
-  );
-
-  // Catch-all for any other API requests
-  await page.route('**/api/**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: {} }),
-    }),
-  );
+async function navigateToMeterReading(page: import('@playwright/test').Page): Promise<void> {
+  await page.goto('/meter-reading');
+  await page.waitForLoadState('domcontentloaded');
+  await page.waitForLoadState('networkidle');
+  await expect(page.locator('h1').first()).toContainText(/meter reading/i, { timeout: 30000 });
 }
 
-async function loginAsTestUser(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.locator('input[placeholder="you@example.com"]').first().fill('admin@example.com');
-  await page.locator('input[placeholder="Enter your password"]').first().fill('Admin123!');
-  await page.getByRole('button', { name: /sign in|log in|login|submit/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
+async function fillMeterForm(
+  page: import('@playwright/test').Page,
+  roomId: string,
+  billingMonth: number
+): Promise<void> {
+  await page.getByLabel('Room ID').fill(roomId);
+  await page.getByLabel('Billing Month').fill(String(billingMonth));
+  await page.getByLabel('Billing Year').fill('2026');
+  await page.getByLabel('Previous Reading').first().fill('0');
+  await page.getByLabel('Current Reading').first().fill('100');
+  await page.getByLabel('Previous Reading').last().fill('0');
+  await page.getByLabel('Current Reading').last().fill('50');
 }
 
 test.describe('Meter Reading Offline Sync', () => {
-  test('should queue meter reading offline and sync when back online', async ({
-    context,
-    page,
-  }) => {
-    await mockMeterApis(page);
-    await loginAsTestUser(page);
+  let states: CapturedStates;
 
-    // Navigate to meter reading page
-    await page.goto('/meter-reading');
-    await expect(page.locator('body')).toContainText(/meter reading/i);
-
-    // Fill in the form with valid data
-    // NOTE: Form selectors depend on actual UI — using generic placeholders
-    const meterIdInput = page.getByPlaceholder(/meter id|meter/i);
-    const readingInput = page.getByPlaceholder(/reading|current/i);
-
-    // If form fields exist, fill them; otherwise the page may use a different layout
-    const meterIdVisible = await meterIdInput.isVisible().catch(() => false);
-    if (meterIdVisible) {
-      await meterIdInput.fill('METER001');
-      await readingInput.fill('123.45');
-    }
-
-    // Go offline BEFORE submitting
-    await context.setOffline(true);
-
-    // Submit the form (this should fail network → go to offline queue)
-    const submitBtn = page.getByRole('button', { name: /submit|save|record/i });
-    if (await submitBtn.isVisible().catch(() => false)) {
-      await submitBtn.click();
-    }
-
-    // Assert offline/queued state is indicated
-    // Could be a toast, banner, or status indicator
-    const offlineIndicator = page.locator(
-      'text=/saved for offline|queued|offline|pending sync/i',
-    );
-    const indicatorVisible = await offlineIndicator.isVisible().catch(() => false);
-    if (indicatorVisible) {
-      await expect(offlineIndicator).toBeVisible();
-    }
-
-    // Go back online
-    await context.setOffline(false);
-
-    // Wait for sync to complete — check for success toast
-    const successToast = page.locator(
-      'text=/sync successful|synced|uploaded|submitted successfully/i',
-    );
-    const toastVisible = await successToast.isVisible({ timeout: 10_000 }).catch(() => false);
-    if (toastVisible) {
-      await expect(successToast).toBeVisible({ timeout: 10_000 });
-    }
-
-    // Final assertion: page should not show error states
-    const errorBanner = page.locator('[role="alert"]');
-    if (await errorBanner.isVisible().catch(() => false)) {
-      await expect(errorBanner).not.toContainText(/error|failed/i);
-    }
+  test.beforeEach(async ({ page }) => {
+    states = await captureAllStates(page);
   });
 
-  test('should handle meter reading form submission successfully when online', async ({
-    page,
-  }) => {
-    await mockMeterApis(page);
-    await loginAsTestUser(page);
+  test('should queue meter reading offline when submitted without network', async ({ context, page }) => {
+    await login(page);
+    await navigateToMeterReading(page);
 
-    await page.goto('/meter-reading');
-    await expect(page.locator('body')).toContainText(/meter reading/i);
+    await fillMeterForm(page, SEEDED.room101Id, 8);
 
-    // Fill and submit while online — should succeed
-    const meterIdInput = page.getByPlaceholder(/meter id|meter/i);
-    const readingInput = page.getByPlaceholder(/reading|current/i);
+    await context.setOffline(true);
+    await page.getByRole('button', { name: /Save Reading|Save Offline/ }).click();
 
-    const meterIdVisible = await meterIdInput.isVisible().catch(() => false);
-    if (meterIdVisible) {
-      await meterIdInput.fill('METER002');
-      await readingInput.fill('200.00');
+    await expect(page.getByText(/saved.*pending sync|saved offline/i).first()).toBeVisible({ timeout: 10_000 });
 
-      const submitBtn = page.getByRole('button', { name: /submit|save|record/i });
-      await submitBtn.click();
+    await context.setOffline(false);
 
-      // Assert success toast
-      await expect(
-        page.locator('text=/success|saved|submitted/i'),
-      ).toBeVisible({ timeout: 5_000 });
-    }
+    // No error state should be showing once back online.
+    const errorBanner = page.locator('[role="alert"]').filter({ hasText: /error|failed/i });
+    await expect(errorBanner).toHaveCount(0);
+
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  test('should record a meter reading successfully when online', async ({ page }) => {
+    await login(page);
+    await navigateToMeterReading(page);
+
+    await fillMeterForm(page, SEEDED.room102Id, 8);
+    await page.getByRole('button', { name: /Save Reading|Save Offline/ }).click();
+
+    await expect(page.getByRole('alert').filter({ hasText: /recorded|success/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('✓ Recorded')).toBeVisible();
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 });
 
 // Verification:
-//   cd frontend && npx playwright test e2e/specs/meter-offline-sync.spec.ts --reporter=list
-//   Expected: 2/2 tests pass — offline queue + online submission
+//   ./scripts/reset-e2e-db.sh && cd frontend && npx playwright test e2e/specs/meter-offline-sync.spec.ts --reporter=list

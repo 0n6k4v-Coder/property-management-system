@@ -250,10 +250,10 @@ export default function ContractDetailPage() {
               className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500"
             >
               <option value="">Select a reason…</option>
-              <option value="tenant_request">Tenant Request</option>
-              <option value="non_payment">Non-Payment</option>
-              <option value="lease_violation">Lease Violation</option>
-              <option value="property_sale">Property Sale</option>
+              <option value="tenant_moved_out">Tenant Moved Out</option>
+              <option value="owner_terminated">Owner Terminated</option>
+              <option value="breach_of_contract">Breach of Contract</option>
+              <option value="mutual_agreement">Mutual Agreement</option>
               <option value="other">Other</option>
             </select>
           </div>

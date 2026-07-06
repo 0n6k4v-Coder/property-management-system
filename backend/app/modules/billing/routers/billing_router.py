@@ -5,19 +5,29 @@ References:
 - SDD.md §2.3: Billing Module Specification
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import uuid
+from decimal import Decimal
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
 
 from app.shared.database import get_db
+from app.shared.deps import get_current_user
+from app.shared.exceptions import APIError
 from app.modules.billing.schemas import (
     MeterReadingRequest,
     GenerateInvoiceRequest,
     RecordPaymentRequest,
-    InvoiceResponse,
-    InvoiceLineItemResponse,
     MeterReadingResponse,
-    InvoiceListResponse,
+    MeterReadingCreateResponse,
+    MeterReadingHistoryWrapperResponse,
+    InvoiceResponse,
+    InvoiceCreateResponse,
+    InvoiceListWrapperResponse,
+    InvoiceDetailWrapperResponse,
+    PaymentResponse,
+    PaymentCreateResponse,
 )
 from app.modules.billing.services import BillingService
 
@@ -26,11 +36,12 @@ router = APIRouter(tags=["billing"], redirect_slashes=False)
 
 @router.post(
     "/meter-readings",
-    response_model=MeterReadingResponse,
+    response_model=MeterReadingCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def create_meter_reading(
     request: MeterReadingRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
     """Create a new meter reading."""
@@ -44,130 +55,122 @@ async def create_meter_reading(
             electric_current=request.electric_current,
             water_previous=request.water_previous,
             water_current=request.water_current,
+            recorded_by=uuid.UUID(current_user["user_id"]),
         )
-        return MeterReadingResponse(
-            id=reading.id,
-            room_id=reading.room_id,
-            billing_month=reading.billing_month,
-            billing_year=reading.billing_year,
-            electric_previous=reading.electric_previous,
-            electric_current=reading.electric_current,
-            water_previous=reading.water_previous,
-            water_current=reading.water_current,
-            created_at=reading.created_at.isoformat() if reading.created_at else "",
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        return {"data": MeterReadingResponse.from_model(reading), "meta": None}
+    except APIError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
 
 @router.get(
     "/meter-readings/{room_id}/history",
-    response_model=List[MeterReadingResponse],
+    response_model=MeterReadingHistoryWrapperResponse,
 )
 async def get_meter_reading_history(
-    room_id: int,
+    room_id: uuid.UUID,
     limit: int = 12,
     db: AsyncSession = Depends(get_db),
 ):
     """Get meter reading history for a room."""
     service = BillingService(db)
     readings = await service.get_meter_reading_history(room_id, limit)
-    return [
-        MeterReadingResponse(
-            id=r.id,
-            room_id=r.room_id,
-            billing_month=r.billing_month,
-            billing_year=r.billing_year,
-            electric_previous=r.electric_previous,
-            electric_current=r.electric_current,
-            water_previous=r.water_previous,
-            water_current=r.water_current,
-            created_at=r.created_at.isoformat() if r.created_at else "",
-        )
-        for r in readings
-    ]
+    return {
+        "data": [MeterReadingResponse.from_model(r) for r in readings],
+        "meta": None,
+    }
 
 
 @router.post(
     "/invoices/generate",
-    response_model=InvoiceResponse,
+    response_model=InvoiceCreateResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def generate_invoice(
     request: GenerateInvoiceRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
-    """Generate monthly invoice for a room."""
+    """Generate monthly invoices for all occupied rooms in a property (BR-12)."""
     try:
         service = BillingService(db)
         invoice = await service.generate_monthly_invoice(
-            room_id=request.room_id,
+            property_id=request.property_id,
             billing_month=request.billing_month,
             billing_year=request.billing_year,
+            created_by=uuid.UUID(current_user["user_id"]),
         )
-        return InvoiceResponse(
-            id=invoice.id,
-            tenant_id=invoice.tenant_id,
-            invoice_month=invoice.invoice_month,
-            invoice_year=invoice.invoice_year,
-            total_amount=float(invoice.total_amount),
-            status=invoice.status,
-            line_items=[
-                InvoiceLineItemResponse(
-                    description=item.description,
-                    amount=float(item.amount),
-                )
-                for item in invoice.line_items
+        return {"data": InvoiceResponse.from_model(invoice), "meta": None}
+    except APIError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.get(
+    "/invoices",
+    response_model=InvoiceListWrapperResponse,
+)
+async def list_invoices(
+    property_id: uuid.UUID | None = Query(None, description="Filter by property"),
+    db: AsyncSession = Depends(get_db),
+):
+    """List invoices, optionally filtered by property."""
+    service = BillingService(db)
+    invoices = await service.list_invoices(property_id)
+    return {"data": [InvoiceResponse.from_model(inv) for inv in invoices], "meta": None}
+
+
+@router.get(
+    "/invoices/{invoice_id}",
+    response_model=InvoiceDetailWrapperResponse,
+)
+async def get_invoice_detail(
+    invoice_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get a single invoice with its line items."""
+    service = BillingService(db)
+    invoice = await service.get_invoice_by_id(invoice_id)
+    if invoice is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return {
+        "data": {
+            "invoice": InvoiceResponse.from_model(invoice),
+            "line_items": [
+                {
+                    "id": li.id,
+                    "invoice_id": li.invoice_id,
+                    "line_type": li.line_type,
+                    "description": li.description,
+                    "quantity": float(li.quantity),
+                    "unit_price": float(li.unit_price),
+                    "amount": float(li.amount),
+                }
+                for li in invoice.line_items
             ],
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        },
+        "meta": None,
+    }
 
 
 @router.post(
     "/payments",
-    response_model=InvoiceResponse,
+    response_model=PaymentCreateResponse,
     status_code=status.HTTP_200_OK,
 )
 async def record_payment(
     request: RecordPaymentRequest,
+    current_user: Annotated[dict, Depends(get_current_user)],
     db: AsyncSession = Depends(get_db),
 ):
     """Record payment for an invoice."""
     try:
         service = BillingService(db)
-        updated_invoice = await service.record_payment(
+        payment = await service.record_payment(
             invoice_id=request.invoice_id,
-            amount=request.amount,
+            amount=Decimal(str(request.amount)),
             method=request.method,
+            recorded_by=uuid.UUID(current_user["user_id"]),
+            reference_number=request.reference_number,
         )
-        return InvoiceResponse(
-            id=updated_invoice.id,
-            tenant_id=updated_invoice.tenant_id,
-            invoice_month=updated_invoice.invoice_month,
-            invoice_year=updated_invoice.invoice_year,
-            total_amount=float(updated_invoice.total_amount),
-            status=updated_invoice.status,
-            line_items=[
-                InvoiceLineItemResponse(
-                    description=item.description,
-                    amount=float(item.amount),
-                )
-                for item in updated_invoice.line_items
-            ],
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-@router.get(
-    "/invoices",
-    response_model=List[InvoiceListResponse],
-)
-async def list_invoices(
-    db: AsyncSession = Depends(get_db),
-):
-    """List all invoices."""
-    # TODO: Add pagination and filtering
-    # For now, return empty list
-    return []
+        return {"data": PaymentResponse.from_model(payment), "meta": None}
+    except APIError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e

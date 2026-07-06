@@ -53,7 +53,7 @@ export function useCreateProperty() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: API.PropertyRequest) => {
-      const res = await apiFetch<API.SuccessResponse<API.PropertyResponse>>('/properties', {
+      const res = await apiFetch<API.SuccessResponse<API.PropertyResponse>>('/properties/', {
         method: 'POST',
         body: JSON.stringify(data),
       });

@@ -373,3 +373,7 @@ class BillingService:
     async def get_overdue_invoices(self) -> list[Invoice]:
         """Get all overdue invoices."""
         return await self.repo.get_overdue_invoices()
+
+    async def list_invoices(self, property_id: uuid.UUID | None = None) -> list[Invoice]:
+        """List invoices, optionally filtered by property."""
+        return await self.repo.list_invoices(property_id)

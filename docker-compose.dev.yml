@@ -211,7 +211,7 @@ services:
       - VITE_API_URL=/api/v1
       - NODE_ENV=test
       - CI=true
-      - PLAYWRIGHT_OUTPUT_DIR=/app/test-results
+      - PLAYWRIGHT_OUTPUT_DIR=/app/test-results/playwright
     volumes:
       - ./frontend:/app:cached
       - frontend-node-modules:/app/node_modules
@@ -219,10 +219,17 @@ services:
       # Playwright reports and traces (Sprint 6)
       - ./frontend/playwright-report:/app/playwright-report
       - ./frontend/e2e-results:/app/e2e-results
-      - frontend-test-results:/app/test-results
+      # Use tmpfs for test-results to avoid permission issues.
+      # 1G: trace:'on' in playwright.config.ts records a trace for every
+      # test (not just failures), so a full-suite run (80+ tests) can
+      # exceed a couple hundred MB and hit ENOSPC on a small tmpfs.
+      - type: tmpfs
+        target: /app/test-results
+        tmpfs:
+          size: 1G
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy  # wait for real backend readiness, not just container start
     restart: "no"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -242,6 +249,11 @@ services:
         max-file: "2"
     profiles:
       - test
+      - dev
+    # Default: unit tests (vitest). For fullstack Playwright E2E against the
+    # real backend+db, override the command, e.g.:
+    #   ./scripts/reset-e2e-db.sh
+    #   docker compose --profile dev run --rm frontend-test npx playwright test --reporter=list
     command: ["npx", "vitest", "run", "--coverage"]
 
   # -------------------------------------------------------------------------

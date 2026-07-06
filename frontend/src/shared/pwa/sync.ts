@@ -12,7 +12,10 @@ export async function registerMeterSync(): Promise<boolean> {
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration || !registration.active) {
+      return false;
+    }
     await (registration as unknown as { sync: { register: (tag: string) => Promise<void> } }).sync.register('meter-sync');
     return true;
   } catch {
@@ -43,7 +46,7 @@ export async function checkNetworkAndSync(): Promise<{
       }
 
       const res = await apiFetch<API.SuccessResponse<API.MeterReadingResponse>>(
-        '/meter-readings',
+        '/billing/meter-readings',
         {
           method: 'POST',
           body: JSON.stringify(item.payload),

@@ -1,284 +1,121 @@
 // File: frontend/e2e/specs/invoice-payment.spec.ts
-// E2E Test: Invoice Payment Flow — Sprint 6 Frozen Contract
-// Flow: visit /invoices → click detail → record payment → validate → submit
-//        → assert status updated + success toast
-// Uses page.route() for all API mocking
+// E2E Test: Invoice Payment Flow — Fullstack (real backend + real database, no mocks)
+// Flow: visit /invoices → view list → click detail → record payment → assert updated balance
+// Uses: State Verification Engine (E2E_TEST_STRATEGY.md Article 1.1)
+//       Shared Helpers (test-helpers.ts, state-capture.ts)
+//       Seeded fixtures (frontend/e2e/fixtures/seeded-ids.ts) — run
+//       `./scripts/reset-e2e-db.sh` before this suite.
+// Component Audit: Verified against InvoiceListPage.tsx, InvoiceDetailPage.tsx, billing/api.ts
+//
+// Fullstack notes:
+//   - Real route is `/invoices/:id` (the previous mocked version incorrectly
+//     navigated to a nonexistent `/invoices/detail/1` as a fallback).
+//   - MAJOR FINDING: both InvoiceListPage.tsx and InvoiceDetailPage.tsx call
+//     useToast(), but `<ToastProvider>` was never mounted anywhere in the
+//     real app tree (App.tsx) — only in isolated component unit tests. This
+//     meant every real visit to /invoices crashed immediately with
+//     "useToast must be used within ToastProvider" (an uncaught React
+//     error), which is what the earlier mocked test's mysterious "renders
+//     Dashboard content instead of invoices" symptom actually was. Fixed by
+//     adding <ToastProvider> to App.tsx — see docs/LOG/E2E_TEST.md. The same
+//     missing-provider bug also affected MaintenanceFormPage, SettingsPage,
+//     TenantListPage, ContractDetailPage/ContractFormPage, and
+//     MeterReadingPage (all call useToast()).
+//   - The PaymentModal's method <select> options ("cash", "transfer", "qr",
+//     "credit") do NOT match the real backend's accepted pattern
+//     (`cash|bank_transfer|credit_card|qr_code|wallet`) — only "cash"
+//     matches on both sides. Selecting any other option would 422. Tests
+//     below stick to the default "cash" method, which is what the form
+//     pre-selects anyway.
+//   - "Generate Invoice" posts a hardcoded placeholder
+//     `property_id: '00000000-0000-0000-0000-000000000001'` (same
+//     SAMPLE_PROPERTY pattern as the Dashboard) — bulk generation via the
+//     UI can never target a real seeded property. Not exercised here.
 
-import { test, expect, type Page } from '@playwright/test';
-
-const MOCK_INVOICES = {
-  data: [
-    {
-      id: 1,
-      invoice_number: 'INV-2026-001',
-      room_number: '101',
-      tenant_name: 'John Doe',
-      total_amount: 8500,
-      status: 'unpaid',
-      due_date: '2026-07-15',
-    },
-    {
-      id: 2,
-      invoice_number: 'INV-2026-002',
-      room_number: '202',
-      tenant_name: 'Jane Smith',
-      total_amount: 7200,
-      status: 'partial',
-      due_date: '2026-07-20',
-    },
-  ],
-};
-
-const MOCK_INVOICE_DETAIL = {
-  data: {
-    id: 1,
-    invoice_number: 'INV-2026-001',
-    room_number: '101',
-    tenant_name: 'John Doe',
-    total_amount: 8500,
-    paid_amount: 0,
-    status: 'unpaid',
-    due_date: '2026-07-15',
-    items: [
-      { description: 'Rent', amount: 7000 },
-      { description: 'Water', amount: 500 },
-      { description: 'Electricity', amount: 1000 },
-    ],
-  },
-};
-
-const MOCK_PAYMENT_RESPONSE = {
-  data: {
-    id: 1,
-    invoice_id: 1,
-    amount: 8500,
-    payment_date: '2026-07-06',
-    status: 'success',
-  },
-};
-
-async function mockInvoiceApis(page: Page): Promise<void> {
-  // Mock auth
-  await page.route('**/api/v1/auth/login', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        data: {
-          access_token: 'mock-token',
-          refresh_token: 'mock-refresh',
-          token_type: 'bearer',
-          user: {
-            id: '00000000-0000-0000-0000-000000000001',
-            email: 'admin@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        },
-      }),
-    }),
-  );
-
-  // Mock invoice list
-  await page.route('**/api/v1/invoices', (route) => {
-    if (route.request().method() === 'GET') {
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(MOCK_INVOICES),
-      });
-    }
-    return route.fallback();
-  });
-
-  // Mock invoice detail
-  await page.route('**/api/v1/invoices/1', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(MOCK_INVOICE_DETAIL),
-    }),
-  );
-
-  // Mock payment recording
-  await page.route('**/api/v1/payments', (route) =>
-    route.fulfill({
-      status: 201,
-      contentType: 'application/json',
-      body: JSON.stringify(MOCK_PAYMENT_RESPONSE),
-    }),
-  );
-
-  // Mock dashboard endpoints (for login redirect)
-  await page.route('**/api/v1/dashboard/**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: { total_properties: 5 } }),
-    }),
-  );
-
-  // Catch-all for actual API v1 routes only - exclude Vite dev server paths
-  await page.route('**/api/v1/**', (route) => {
-    const url = route.request().url();
-    // Skip Vite dev server internal routes
-    if (url.includes('/@vite/') || url.includes('/@react-refresh') || url.includes('/@fs/') || url.includes('/src/')) {
-      return route.continue();
-    }
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: {} }),
-    });
-  });
-}
-
-async function loginAndNavigateToInvoices(page: Page): Promise<void> {
-  await page.goto('/login');
-
-  // Wait for React app to hydrate and form to be visible
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(5000);
-
-  // Debug: log page content
-  const html = await page.content();
-  console.log('Page HTML length:', html.length);
-  console.log('Has you@example.com:', html.includes('you@example.com'));
-  console.log('Has Enter your password:', html.includes('Enter your password'));
-
-  // Try multiple selectors
-  const usernameInput = page.locator('input[placeholder="you@example.com"]').first();
-  const passwordInput = page.locator('input[placeholder="Enter your password"]').first();
-  const submitButton = page.getByRole('button', { name: /sign in|log in|login|submit/i });
-
-  await expect(usernameInput).toBeVisible({ timeout: 30000 });
-  await expect(passwordInput).toBeVisible({ timeout: 30000 });
-
-  await usernameInput.fill('admin@example.com');
-  await passwordInput.fill('Admin123!');
-  await submitButton.click();
-
-  // Debug: check if login API was called
-  await page.waitForTimeout(2000);
-  console.log('Current URL after submit:', page.url());
-
-  // Wait for redirect to dashboard
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
-
-  // Navigate to invoices page
-  await page.goto('/invoices');
-  await expect(page.locator('body')).toContainText(/invoice/i);
-}
+import { test, expect } from '@playwright/test';
+import { login } from '../utils/test-helpers';
+import { captureAllStates, type CapturedStates } from '../utils/state-capture';
+import { SEEDED, SEEDED_DATA } from '../fixtures/seeded-ids';
 
 test.describe('Invoice Payment Flow', () => {
+  let states: CapturedStates;
+
   test.beforeEach(async ({ page }) => {
-    await mockInvoiceApis(page);
+    states = await captureAllStates(page);
   });
 
   test('should display invoice list with correct data', async ({ page }) => {
-    await loginAndNavigateToInvoices(page);
+    await login(page);
+    await page.goto('/invoices');
+    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
 
-    // Verify invoice list renders
-    await expect(page.locator('body')).toContainText('INV-2026-001');
-    await expect(page.locator('body')).toContainText('INV-2026-002');
-    await expect(page.locator('body')).toContainText('8,500');
+    await expect(page.getByText(SEEDED_DATA.invoice.number)).toBeVisible();
+    await expect(page.getByText(/8,500/).first()).toBeVisible();
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.networkErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('should navigate to invoice detail and record payment', async ({ page }) => {
-    await loginAndNavigateToInvoices(page);
+  test('should navigate to invoice detail and show real invoice data', async ({ page }) => {
+    await login(page);
+    await page.goto('/invoices');
+    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
 
-    // Click on first invoice detail link/button
-    const detailLink = page
-      .getByRole('link', { name: /view|detail|INV-2026-001/i })
-      .or(page.getByRole('button', { name: /view|detail/i }));
+    await page.getByRole('link', { name: new RegExp(`View invoice ${SEEDED_DATA.invoice.number}`, 'i') }).click();
+    await expect(page).toHaveURL(new RegExp(`/invoices/${SEEDED.invoice20260001Id}`));
 
-    if (await detailLink.isVisible().catch(() => false)) {
-      await detailLink.click();
-    } else {
-      // Fallback: navigate directly
-      await page.goto('/invoices/detail/1');
-    }
+    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number);
+    await expect(page.getByText(/8,500/).first()).toBeVisible(); // total
+    await expect(page.getByText(/remaining/i)).toBeVisible();
 
-    // Verify invoice detail loaded
-    await expect(page.locator('body')).toContainText('INV-2026-001');
-    await expect(page.locator('body')).toContainText(/8[,.]?500/);
-
-    // Click Record Payment button
-    const payButton = page.getByRole('button', {
-      name: /record payment|pay|payment/i,
-    });
-
-    if (await payButton.isVisible().catch(() => false)) {
-      await payButton.click();
-    }
-
-    // Fill payment form
-    const amountInput = page.getByPlaceholder(/amount/i);
-    const dateInput = page.getByPlaceholder(/date/i).or(page.getByLabel(/date/i));
-
-    if (await amountInput.isVisible().catch(() => false)) {
-      await amountInput.fill('8500');
-    }
-    if (await dateInput.isVisible().catch(() => false)) {
-      await dateInput.fill('2026-07-06');
-    }
-
-    // Submit payment
-    const submitBtn = page.getByRole('button', {
-      name: /submit|confirm|save|record/i,
-    });
-
-    if (await submitBtn.isVisible().catch(() => false)) {
-      await submitBtn.click();
-    }
-
-    // Assert success toast
-    await expect(
-      page.locator('text=/payment recorded|success|paid/i'),
-    ).toBeVisible({ timeout: 10_000 });
-
-    // Assert invoice status updated to paid/partial
-    await expect(
-      page.locator('text=/paid|partial/i'),
-    ).toBeVisible({ timeout: 5_000 });
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.networkErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('should validate required fields before submission', async ({ page }) => {
-    await loginAndNavigateToInvoices(page);
+  test('should record a payment and update the remaining balance', async ({ page }) => {
+    await login(page);
+    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
+    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
 
-    // Navigate to detail
-    await page.goto('/invoices/detail/1');
+    await page.getByRole('button', { name: 'Record Payment' }).click();
+    await expect(page.getByRole('dialog', { name: 'Record Payment' })).toBeVisible();
 
-    // Try to submit payment without filling form
-    const payButton = page.getByRole('button', {
-      name: /record payment|pay|payment/i,
-    });
-    if (await payButton.isVisible().catch(() => false)) {
-      await payButton.click();
-    }
+    // Pay a partial amount so the invoice stays payable for repeated test runs.
+    await page.getByLabel('Amount').fill('1000');
+    // Method left as default "cash" — see file header note on the real
+    // backend's accepted method values.
+    await page.getByRole('button', { name: 'Record Payment' }).last().click();
 
-    const submitBtn = page.getByRole('button', {
-      name: /submit|confirm|save|record/i,
-    });
-    if (await submitBtn.isVisible().catch(() => false)) {
-      await submitBtn.click();
-    }
+    await expect(page.getByRole('alert').filter({ hasText: /payment recorded|success/i })).toBeVisible({ timeout: 10_000 });
 
-    // Assert validation error messages appear (required field)
-    const validationError = page.locator(
-      '[class*="error"], [role="alert"], text=/required|invalid|must/i',
-    );
-    const hasValidation = await validationError.isVisible().catch(() => false);
-    // If form has client-side validation, error should appear
-    // If no validation visible, the form may handle it server-side (acceptable)
-    if (hasValidation) {
-      await expect(validationError.first()).toBeVisible();
-    }
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  test('should validate that payment amount must be positive', async ({ page }) => {
+    await login(page);
+    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
+    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+
+    await page.getByRole('button', { name: 'Record Payment' }).click();
+    await expect(page.getByRole('dialog', { name: 'Record Payment' })).toBeVisible();
+
+    await page.getByLabel('Amount').fill('0');
+    await page.getByRole('button', { name: 'Record Payment' }).last().click();
+
+    await expect(page.getByText(/must be positive/i)).toBeVisible();
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.networkErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 });
 
 // Verification:
-//   cd frontend && npx playwright test e2e/specs/invoice-payment.spec.ts --reporter=list
-//   Expected: 3/3 tests pass — list display, payment recording, form validation
+//   ./scripts/reset-e2e-db.sh && cd frontend && npx playwright test e2e/specs/invoice-payment.spec.ts --reporter=list

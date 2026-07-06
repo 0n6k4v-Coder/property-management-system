@@ -62,7 +62,7 @@ export function MainLayout() {
 
       {/* Footer */}
       <footer className="border-t border-surface-200 bg-white py-4">
-        <div className="mx-auto max-w-7xl px-4 text-center text-xs text-surface-400 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 text-center text-xs text-surface-600 sm:px-6 lg:px-8">
           &copy; {year} Property Management System
         </div>
       </footer>

@@ -1,191 +1,72 @@
 // File: frontend/e2e/specs/maintenance-flow.spec.ts
-// E2E Test: Maintenance Request Flow — Phase 4
-// Flow: visit /maintenance → view list → create new → assert created
-// Uses page.route() for all API mocking
+// E2E Test: Maintenance Request Flow — Fullstack (real backend + real database, no mocks)
+// Flow: visit /maintenance → filter by property → view list → create new → assert created
+// Uses: State Verification Engine (E2E_TEST_STRATEGY.md Article 1.1)
+//       Shared Helpers (test-helpers.ts, state-capture.ts)
+//       Seeded fixtures (frontend/e2e/fixtures/seeded-ids.ts) — run
+//       `./scripts/reset-e2e-db.sh` before this suite.
+// Component Audit: Verified against MaintenanceListPage.tsx, MaintenanceFormPage.tsx, maintenance/api.ts
+//
+// Fullstack notes:
+//   - The real backend requires `property_id` on GET /maintenance/pending
+//     (see docs/LOG/E2E_TEST.md) and the list page defaults to "All
+//     properties" (empty filter) — the query is disabled until a property
+//     is explicitly selected in the filter dropdown. Tests below select
+//     "Sunset Tower" before expecting any rows to appear.
 
-import { test, expect, type Page } from '@playwright/test';
-
-const MOCK_MAINTENANCE = {
-  data: [
-    {
-      id: 'maint-1',
-      property_id: 'p1',
-      room_id: 'r1',
-      title: 'Leaking faucet',
-      description: 'Kitchen faucet has been dripping for 3 days',
-      priority: 'medium',
-      status: 'pending',
-      assigned_to: null,
-      created_by: 'user-1',
-      created_at: '2026-06-15T10:00:00Z',
-      updated_at: '2026-06-15T10:00:00Z',
-    },
-  ],
-};
-
-const MOCK_CREATED = {
-  data: {
-    id: 'maint-new',
-    property_id: 'p1',
-    room_id: 'r1',
-    title: 'Broken window',
-    description: 'Window in living room will not close properly',
-    priority: 'high',
-    status: 'pending',
-    assigned_to: null,
-    created_by: 'user-1',
-    created_at: '2026-07-06T00:00:00Z',
-    updated_at: '2026-07-06T00:00:00Z',
-  },
-};
-
-async function mockMaintenanceApis(page: Page): Promise<void> {
-  await page.route('**/api/v1/auth/login', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: 'mock-token',
-        refresh_token: 'mock-refresh',
-        token_type: 'bearer',
-      }),
-    }),
-  );
-
-  await page.route('**/api/v1/auth/me', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          data: {
-            id: 'user-1',
-            email: 'admin@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        }),
-      })),
-  );
-
-  await page.route('**/api/v1/maintenance-requests/pending', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(MOCK_MAINTENANCE),
-    }),
-  );
-
-  await page.route('**/api/v1/maintenance-requests', (route) => {
-    if (route.request().method() === 'POST') {
-      return route.fulfill({
-        status: 201,
-        contentType: 'application/json',
-        body: JSON.stringify(MOCK_CREATED),
-      });
-    }
-    return route.fallback();
-  });
-
-  await page.route('**/api/v1/properties', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        data: [
-          { id: 'p1', name: 'Sunset Tower', address: '123 Main St', billing_due_day: 5, min_deposit_months: 2, created_by: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
-        ],
-      }),
-    }),
-  );
-
-  await page.route('**/api/v1/properties/*/rooms', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        property: { id: 'p1', name: 'Sunset Tower', address: '123 Main St', billing_due_day: 5, min_deposit_months: 2, created_by: null, created_at: '2026-01-01T00:00:00Z', updated_at: '2026-01-01T00:00:00Z' },
-        rooms: [
-          { id: 'r1', property_id: 'p1', building_id: 'b1', floor_id: null, room_number: '101', room_type: 'studio', base_rent: 5000, status: 'available', images: null },
-        ],
-      }),
-    }),
-  );
-
-  await page.route('**/api/v1/dashboard/**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: { total_rooms: 50 } }),
-    }),
-  );
-
-  await page.route('**/api/**', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ data: {} }),
-    }),
-  );
-}
-
-async function loginAndNavigateToMaintenance(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.locator('input[placeholder="you@example.com"]').first().fill('admin@example.com');
-  await page.locator('input[placeholder="Enter your password"]').first().fill('Admin123!');
-  await page.getByRole('button', { name: /sign in|log in|login|submit/i }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 10_000 });
-  await page.goto('/maintenance');
-  await expect(page.locator('body')).toContainText(/maintenance/i);
-}
+import { test, expect } from '@playwright/test';
+import { login } from '../utils/test-helpers';
+import { captureAllStates, type CapturedStates } from '../utils/state-capture';
+import { SEEDED_DATA } from '../fixtures/seeded-ids';
 
 test.describe('Maintenance Request Flow', () => {
+  let states: CapturedStates;
+
   test.beforeEach(async ({ page }) => {
-    await mockMaintenanceApis(page);
+    states = await captureAllStates(page);
   });
 
-  test('should display pending maintenance requests', async ({ page }) => {
-    await loginAndNavigateToMaintenance(page);
-    await expect(page.locator('body')).toContainText('Leaking faucet');
+  test('should display pending maintenance requests for the selected property', async ({ page }) => {
+    await login(page);
+    await page.goto('/maintenance');
+    await expect(page.locator('h1').first()).toContainText(/maintenance/i, { timeout: 30000 });
+
+    await page.getByLabel('Filter by property:').selectOption({ label: 'Sunset Tower' });
+
+    await expect(page.getByText(SEEDED_DATA.maintenance.title)).toBeVisible({ timeout: 10_000 });
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.networkErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 
   test('should create a new maintenance request', async ({ page }) => {
-    await loginAndNavigateToMaintenance(page);
+    await login(page);
+    await page.goto('/maintenance/new');
+    await expect(page.locator('h1').first()).toContainText(/new maintenance request/i, { timeout: 30000 });
 
-    const newButton = page.getByRole('link', { name: /new request/i });
-    if (await newButton.isVisible().catch(() => false)) {
-      await newButton.click();
+    await page.getByLabel('Property').selectOption({ label: 'Sunset Tower' });
+    await page.getByLabel('Room').selectOption({ index: 1 });
+    await page.getByLabel('Title').fill('Broken window');
+    await page.getByLabel('Description').fill('Window in living room will not close properly');
+    await page.getByRole('radio', { name: 'high' }).check();
 
-      const propertySelect = page.locator('select').first();
-      if (await propertySelect.isVisible().catch(() => false)) {
-        await propertySelect.selectOption({ index: 1 });
-      }
+    await page.getByRole('button', { name: 'Submit Request' }).click();
 
-      await page.waitForTimeout(500);
+    await expect(page.getByRole('alert').filter({ hasText: /created|success/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/maintenance$/);
 
-      const roomSelect = page.locator('select').nth(1);
-      if (await roomSelect.isVisible().catch(() => false)) {
-        await roomSelect.selectOption({ index: 1 });
-      }
+    // Confirm it actually persisted — reselect the property filter and
+    // check the new request appears in the real list.
+    await page.getByLabel('Filter by property:').selectOption({ label: 'Sunset Tower' });
+    await expect(page.getByText('Broken window')).toBeVisible({ timeout: 10_000 });
 
-      const titleInput = page.getByPlaceholder(/faucet|title/i).or(page.getByLabel(/title/i));
-      if (await titleInput.isVisible().catch(() => false)) {
-        await titleInput.fill('Broken window');
-      }
-
-      const descTextarea = page.locator('textarea').first();
-      if (await descTextarea.isVisible().catch(() => false)) {
-        await descTextarea.fill('Window in living room will not close properly');
-      }
-
-      const submitBtn = page.getByRole('button', { name: /submit|create|save/i });
-      if (await submitBtn.isVisible().catch(() => false)) {
-        await submitBtn.click();
-      }
-
-      await expect(
-        page.locator('text=/created|success/i'),
-      ).toBeVisible({ timeout: 10_000 });
-    }
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 });
+
+// Verification:
+//   ./scripts/reset-e2e-db.sh && cd frontend && npx playwright test e2e/specs/maintenance-flow.spec.ts --reporter=list

@@ -29,7 +29,7 @@ export function OverdueTable({ items, isLoading }: OverdueTableProps) {
   }
 
   if (items.length === 0) {
-    return <p className="text-sm text-surface-400 text-center py-4">No overdue invoices</p>;
+    return <p className="text-sm text-surface-600 text-center py-4">No overdue invoices</p>;
   }
 
   return (

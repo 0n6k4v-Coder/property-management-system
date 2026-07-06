@@ -19,7 +19,7 @@ export function useInvoiceDetail(id: string | undefined) {
     queryKey: invoiceKeys.detail(id ?? ''),
     queryFn: async () => {
       const res = await apiFetch<API.SuccessResponse<API.InvoiceDetailResponse>>(
-        `/invoices/${id}`,
+        `/billing/invoices/${id}`,
       );
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
       return res.data;
@@ -29,15 +29,18 @@ export function useInvoiceDetail(id: string | undefined) {
   });
 }
 
-// ── Invoice List (placeholder) ──────────────────────────────────────
-// Backend doesn't expose GET /invoices — this uses the detail pattern.
-// In Sprint 5+, implement GET /invoices with query params via a new endpoint.
+// ── Invoice List ──────────────────────────────────────────────────
 
-export function useInvoices() {
+export function useInvoices(propertyId?: string) {
   return useQuery({
-    queryKey: invoiceKeys.list(),
+    queryKey: invoiceKeys.list({ propertyId }),
     queryFn: async () => {
-      return [] as API.InvoiceResponse[];
+      const query = propertyId ? `?property_id=${propertyId}` : '';
+      const res = await apiFetch<API.SuccessResponse<API.InvoiceResponse[]>>(
+        `/billing/invoices${query}`,
+      );
+      if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
+      return res.data;
     },
     staleTime: 30_000,
   });
@@ -50,7 +53,7 @@ export function useGenerateInvoice() {
   return useMutation({
     mutationFn: async (data: API.GenerateInvoiceRequest) => {
       const res = await apiFetch<API.SuccessResponse<API.InvoiceResponse>>(
-        '/invoices/generate',
+        '/billing/invoices/generate',
         {
           method: 'POST',
           body: JSON.stringify(data),
@@ -72,7 +75,7 @@ export function useRecordPayment() {
   return useMutation({
     mutationFn: async (data: API.PaymentRequest) => {
       const res = await apiFetch<API.SuccessResponse<API.PaymentResponse>>(
-        '/payments',
+        '/billing/payments',
         {
           method: 'POST',
           body: JSON.stringify(data),

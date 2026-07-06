@@ -23,9 +23,10 @@ RUN apk add --no-cache \
     harfbuzz \
     ttf-freefont \
     font-noto-cjk \
-    dbus
+    dbus \
+    gcompat
 
-# Install Playwright Chromium browser binary
+# Install Playwright Chromium browser binary (use regular chromium, not headless_shell for musl compatibility)
 RUN npx playwright install chromium
 
 COPY tsconfig.json tsconfig.e2e.json vite.config.ts tailwind.config.js postcss.config.js index.html ./

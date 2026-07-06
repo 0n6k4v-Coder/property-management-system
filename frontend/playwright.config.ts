@@ -6,7 +6,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = !!process.env.CI;
-const OUTPUT_DIR = process.env.PLAYWRIGHT_OUTPUT_DIR || './test-results';
+const OUTPUT_DIR = process.env.PLAYWRIGHT_OUTPUT_DIR || './test-results/playwright';
+
+// Use system chromium on Alpine (musl libc compatibility)
+const chromiumPath = process.env.PLAYWRIGHT_CHROMIUM_PATH || '/usr/bin/chromium-browser';
 
 export default defineConfig({
   testDir: './e2e',
@@ -17,7 +20,7 @@ export default defineConfig({
   workers: CI ? 1 : undefined,
   reporter: CI
     ? [['html', { outputFolder: OUTPUT_DIR + '/playwright-report', open: 'never' }], ['list']]
-    : [['html', { outputFolder: OUTPUT_DIR + '/playwright-report', open: 'on-failure' }], ['list']],
+    : [['html', { outputFolder: './playwright-report', open: 'on-failure' }], ['list']],
 
   use: {
     baseURL: 'http://localhost:5173',
@@ -38,7 +41,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { 
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          executablePath: chromiumPath,
+        },
+      },
     },
   ],
 });

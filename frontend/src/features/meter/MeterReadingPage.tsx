@@ -144,6 +144,7 @@ export default function MeterReadingPage() {
             <CardHeader title="Electric Meter" />
             <div className="grid grid-cols-2 gap-4">
               <Input
+                id="electric-previous-reading"
                 label="Previous Reading"
                 type="number"
                 inputMode="decimal"
@@ -152,6 +153,7 @@ export default function MeterReadingPage() {
                 error={errors.electric_previous?.message}
               />
               <Input
+                id="electric-current-reading"
                 label="Current Reading"
                 type="number"
                 inputMode="decimal"
@@ -167,6 +169,7 @@ export default function MeterReadingPage() {
             <CardHeader title="Water Meter" />
             <div className="grid grid-cols-2 gap-4">
               <Input
+                id="water-previous-reading"
                 label="Previous Reading"
                 type="number"
                 inputMode="decimal"
@@ -175,6 +178,7 @@ export default function MeterReadingPage() {
                 error={errors.water_previous?.message}
               />
               <Input
+                id="water-current-reading"
                 label="Current Reading"
                 type="number"
                 inputMode="decimal"

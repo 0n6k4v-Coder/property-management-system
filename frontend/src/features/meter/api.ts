@@ -17,11 +17,16 @@ export function useRecordMeterMutation() {
   const qc = useQueryClient();
 
   return useMutation({
+    // Must run even while offline — mutationFn itself detects the offline
+    // case and falls back to the IndexedDB queue. TanStack Query's default
+    // networkMode ('online') would otherwise pause this mutation forever
+    // until connectivity returns, so it never gets the chance to queue it.
+    networkMode: 'always',
     mutationFn: async (payload: API.MeterReadingRequest): Promise<API.MeterReadingResponse> => {
       // Try online submit first
       try {
         const res = await apiFetch<API.SuccessResponse<API.MeterReadingResponse>>(
-          '/meter-readings',
+          '/billing/meter-readings',
           {
             method: 'POST',
             body: JSON.stringify(payload),

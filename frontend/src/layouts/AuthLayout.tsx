@@ -10,24 +10,24 @@ export function AuthLayout() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-surface-100 px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-auth">
         {/* Brand */}
-        <div className="mb-8 text-center">
+        <header className="mb-8 text-center">
           <h1 className="text-2xl font-bold text-surface-900">
             Property Management
           </h1>
-          <p className="mt-1 text-sm text-surface-500">
+          <p className="mt-1 text-sm text-surface-600">
             ระบบจัดการอสังหาริมทรัพย์
           </p>
-        </div>
+        </header>
 
         {/* Auth Card */}
-        <div className="rounded-xl bg-white px-6 py-8 shadow-sm ring-1 ring-surface-200 sm:px-8">
+        <main className="rounded-xl bg-white px-6 py-8 shadow-sm ring-1 ring-surface-200 sm:px-8">
           <Outlet />
-        </div>
+        </main>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-surface-400">
+        <footer className="mt-6 text-center text-xs text-surface-600">
           &copy; {year} Property Management System
-        </p>
+        </footer>
       </div>
     </div>
   );

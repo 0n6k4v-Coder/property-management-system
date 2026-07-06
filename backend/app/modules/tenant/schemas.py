@@ -30,7 +30,10 @@ class CreateTenantRequest(BaseModel):
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
-    property_id: uuid.UUID
+    # strict=False override: UUIDs always arrive as JSON strings over HTTP —
+    # model-level strict=True would reject every request since Pydantic v2's
+    # strict mode requires an already-parsed UUID instance, not a string.
+    property_id: uuid.UUID = Field(strict=False)
     full_name: str = Field(..., min_length=1, max_length=255)
     id_card_number: str = Field(..., min_length=13, max_length=13)
     phone: str = Field(..., min_length=10, max_length=10)

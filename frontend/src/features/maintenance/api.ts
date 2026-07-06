@@ -18,13 +18,13 @@ export function usePendingMaintenance(propertyId?: string) {
   return useQuery({
     queryKey: maintenanceKeys.pending(propertyId),
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (propertyId) params.set('property_id', propertyId);
-      const query = params.toString() ? `?${params}` : '';
-      const res = await apiFetch<API.MaintenanceListResponse>(`/maintenance-requests/pending${query}`);
+      const params = new URLSearchParams({ property_id: propertyId! });
+      const res = await apiFetch<API.MaintenanceListResponse>(`/maintenance/pending?${params}`);
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
       return (res as API.MaintenanceListResponse).data ?? [];
     },
+    // Backend requires property_id — don't fire until one is selected.
+    enabled: !!propertyId,
     staleTime: 15_000,
   });
 }
@@ -36,7 +36,7 @@ export function useMaintenanceDetail(id: string | undefined) {
     queryKey: maintenanceKeys.detail(id ?? ''),
     queryFn: async () => {
       const res = await apiFetch<API.SuccessResponse<API.MaintenanceResponse>>(
-        `/maintenance-requests/${id}`,
+        `/maintenance/${id}`,
       );
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
       return res.data;
@@ -52,7 +52,7 @@ export function useCreateMaintenance() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: API.CreateMaintenanceRequest) => {
-      const res = await apiFetch<API.SuccessResponse<API.MaintenanceResponse>>('/maintenance-requests', {
+      const res = await apiFetch<API.SuccessResponse<API.MaintenanceResponse>>('/maintenance/', {
         method: 'POST',
         body: JSON.stringify(data),
       });
@@ -72,7 +72,7 @@ export function useUpdateMaintenanceStatus() {
   return useMutation({
     mutationFn: async ({ requestId, data }: { requestId: string; data: API.UpdateMaintenanceStatusRequest }) => {
       const res = await apiFetch<API.SuccessResponse<API.MaintenanceResponse>>(
-        `/maintenance-requests/${requestId}/status`,
+        `/maintenance/${requestId}/status`,
         { method: 'PATCH', body: JSON.stringify(data) },
       );
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
@@ -92,7 +92,7 @@ export function useAssignMaintenance() {
   return useMutation({
     mutationFn: async ({ requestId, data }: { requestId: string; data: API.AssignMaintenanceRequest }) => {
       const res = await apiFetch<API.SuccessResponse<API.MaintenanceResponse>>(
-        `/maintenance-requests/${requestId}/assign`,
+        `/maintenance/${requestId}/assign`,
         { method: 'PATCH', body: JSON.stringify(data) },
       );
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
