@@ -1,13 +1,6 @@
-// File: src/shared/api/fetchClient.ts
-// Native fetch wrapper with auto-injected headers, 401 retry, and error mapping.
-// SDD §6.1 — No axios/third-party HTTP clients.
-
 const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 // ── Token Storage (Memory only — no localStorage) ───────────────────
-// ── Token Storage (sessionStorage — per-tab, cleared on close) ───────
-// SDD §5.1 originally specified memory-only, but that breaks page reload.
-// sessionStorage is safe: same-origin only, per-tab, auto-cleared on close.
 
 const STORAGE_KEY_ACCESS = 'pms_access_token';
 const STORAGE_KEY_REFRESH = 'pms_refresh_token';
@@ -70,28 +63,23 @@ export class ApiRequestError extends Error {
 function createApiError(status: number, errorData: unknown): ApiRequestError {
   const data = errorData as Record<string, unknown> | null;
   const errorObj = data?.error as Record<string, unknown> | undefined;
-  // Handle FastAPI's HTTPException format: { detail: "message" } or { detail: [...] }
   const detail = data?.detail;
   let message: string;
   let code: string;
   let details: Record<string, string> | undefined;
 
   if (errorObj) {
-    // Standard API format: { error: { code, message, details } }
     code = typeof errorObj.code === 'string' ? errorObj.code : `SYS-${status}`;
     message = typeof errorObj.message === 'string' ? errorObj.message : 'An unexpected error occurred';
     details = errorObj.details as Record<string, string> | undefined;
   } else if (typeof detail === 'string') {
-    // FastAPI HTTPException with string detail
     code = `SYS-${status}`;
     message = detail;
   } else if (Array.isArray(detail)) {
-    // FastAPI validation error array
     code = `SYS-${status}`;
     message = detail.map((d: unknown) => (d as Record<string, unknown>)?.msg ?? String(d)).join('; ');
     details = { validation_errors: JSON.stringify(detail) };
   } else {
-    // Fallback
     code = `SYS-${status}`;
     message = 'An unexpected error occurred';
   }
