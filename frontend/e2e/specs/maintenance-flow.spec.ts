@@ -48,6 +48,32 @@
 //
 // Disposition: MAINT-03~07 are assert-absence (the features genuinely do not
 // exist in the UI); the dead backend endpoints are documented, not faked.
+//
+// ── MAINT-NEW-01~05 re-verification (Session D / PROMPT D, live audit) ──
+// Re-audited MaintenanceFormPage.tsx + MaintenanceListPage.tsx:
+//   Fields present: Property, Room (conditional on property), Title,
+//   Description, Priority radio group (low/medium/high/urgent). Submit →
+//   success toast (showToast) + redirect to /maintenance.
+//   NO category field/dropdown. NO <input type="file"> / upload UI. NO
+//   separate in-app notification center (bell/inbox) — "notification" is the
+//   success toast, already asserted by the create-request test.
+// Dispositions:
+//   MAINT-NEW-01 (select room/property): cross-ref — covered by the existing
+//     "should create a new maintenance request" test (fills Property → Room).
+//     No duplicate test.
+//   MAINT-NEW-02 (category): assert-absence — no category field exists.
+//   MAINT-NEW-03 (priority): real test added — explicitly selects a
+//     non-default priority ('urgent'), submits, and verifies the created
+//     request's priority badge in the list.
+//     NOTE: the existing create-request test ALREADY calls
+//     `getByRole('radio', { name: 'high' }).check()` — it does select a
+//     priority; it just never asserted the reflected badge. MAINT-NEW-03 adds
+//     the explicit selection + badge verification with a distinct value.
+//   MAINT-NEW-04 (photo upload): assert-absence — no file input exists.
+//   MAINT-NEW-05 (submit → notification): cross-ref — "notification" = the
+//     success toast, already covered by the create-request test's alert + URL
+//     + list-persistence assertions. No assert-absence test for a concept
+//     never claimed to be a distinct feature.
 
 import { test, expect, type Page } from '@playwright/test';
 import { login } from '../utils/test-helpers';
@@ -238,6 +264,81 @@ test.describe('Maintenance Request Flow', () => {
     expect(states.jsErrors).toEqual([]);
     expect(states.hydrationErrors).toEqual([]);
   });
+
+  // ── MAINT-NEW-01: Select room/property (cross-reference, no test) ──
+  // Covered by the existing "should create a new maintenance request" test
+  // (fills Property → Room). No duplicate.
+
+  // ── MAINT-NEW-02: Category field does not exist (assert absence) ──
+  test('MAINT-NEW-02: no category field/dropdown on the create form', async ({ page }) => {
+    await login(page);
+    await page.goto('/maintenance/new');
+    await expect(page.locator('h1').first()).toContainText(/new maintenance request/i, { timeout: 30000 });
+
+    // Re-verified live against MaintenanceFormPage.tsx: the form has Property,
+    // Room, Title, Description, and Priority only — no category field.
+    await expect(page.getByLabel(/category/i)).toHaveCount(0);
+    await expect(page.getByText(/category/i)).toHaveCount(0);
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  // ── MAINT-NEW-03: Explicit priority selection + verify reflected badge ──
+  test('MAINT-NEW-03: selected priority is persisted and shown as the request priority badge', async ({ page }) => {
+    await login(page);
+    await page.goto('/maintenance/new');
+    await expect(page.locator('h1').first()).toContainText(/new maintenance request/i, { timeout: 30000 });
+
+    await page.getByLabel('Property').selectOption({ label: 'Sunset Tower' });
+    await page.getByLabel('Room').selectOption({ index: 1 });
+    await page.getByLabel('Title').fill('Urgent pipe burst');
+    await page.getByLabel('Description').fill('Main water pipe burst on the ground floor');
+    // Explicitly pick a non-default priority (default is "medium").
+    await page.getByRole('radio', { name: 'urgent' }).check();
+
+    await page.getByRole('button', { name: 'Submit Request' }).click();
+
+    await expect(page.getByRole('alert').filter({ hasText: /created|success/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page).toHaveURL(/\/maintenance$/);
+
+    // Confirm persistence + that the chosen priority is reflected on the row's
+    // priority badge (3rd column). Target the priority cell, not the title
+    // cell, because the title text itself contains the word "urgent".
+    await page.getByLabel('Filter by property:').selectOption({ label: 'Sunset Tower' });
+    const row = page.locator('tbody tr').filter({ hasText: 'Urgent pipe burst' });
+    const priorityCell = row.locator('td').nth(2);
+    await expect(priorityCell).toHaveText('urgent', { ignoreCase: true });
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  // ── MAINT-NEW-04: Photo upload does not exist (assert absence) ──
+  test('MAINT-NEW-04: no photo/file-upload control on the create form', async ({ page }) => {
+    await login(page);
+    await page.goto('/maintenance/new');
+    await expect(page.locator('h1').first()).toContainText(/new maintenance request/i, { timeout: 30000 });
+
+    // Re-verified live against MaintenanceFormPage.tsx: no <input type="file">
+    // or any upload UI anywhere in the form.
+    await expect(page.locator('input[type="file"]')).toHaveCount(0);
+    await expect(page.getByText(/upload|photo|attachment/i)).toHaveCount(0);
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  // ── MAINT-NEW-05: Submit → notification (cross-reference, no test) ──
+  // Re-verified: the form's only post-submit feedback is the success toast
+  // (showToast('Maintenance request created','success')). There is no separate
+  // in-app notification center / bell / inbox feature. "Notification" = the
+  // toast, already asserted by the existing create-request test (success
+  // alert + URL change + list persistence). No assert-absence test for a
+  // concept that was never claimed to be a distinct feature.
 
   // ── "View" link investigation (REAL FIX verification — F-30) ──
   test('view/title links do not bounce the user to /dashboard (no dead /maintenance/:id links)', async ({ page }) => {
