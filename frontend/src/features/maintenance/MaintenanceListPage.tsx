@@ -1,6 +1,17 @@
 // File: src/features/maintenance/MaintenanceListPage.tsx
 // Pending maintenance requests list with status badges, actions to view/detail.
 // SCR-MAINT-LIST: GET /maintenance-requests/pending
+//
+// NOTE (E2E Session B, F-30): the request title and the "View" action were
+// previously rendered as <Link to={`/maintenance/${req.id}`}>, but there is NO
+// `/maintenance/:id` route registered in src/routes/index.tsx (and no detail
+// page component exists). Those links were dead: clicking one hit the catch-all
+// `*` route → <Navigate to="/login"> → GuestRoute bounced the authenticated
+// user back to `/dashboard` (a silent no-op bounce, no 404, no error). The
+// backend detail endpoint (GET /maintenance/{id}) and the status/assign PATCH
+// endpoints DO exist but are unwired dead code (no UI consumer). Until a real
+// maintenance detail page is built (out of E2E scope), the list rows are plain
+// text — not fake links to a route that does not resolve.
 
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -88,19 +99,15 @@ export default function MaintenanceListPage() {
                   <th scope="col" className="px-4 py-3">Priority</th>
                   <th scope="col" className="px-4 py-3">Status</th>
                   <th scope="col" className="px-4 py-3">Created</th>
-                  <th scope="col" className="px-4 py-3"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {requestList.map((req) => (
                   <tr key={req.id} className="border-b border-surface-100 transition-colors hover:bg-surface-50">
                     <td className="px-4 py-3">
-                      <Link
-                        to={`/maintenance/${req.id}`}
-                        className="font-medium text-surface-900 hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-primary-500"
-                      >
+                      <span className="font-medium text-surface-900">
                         {req.title}
-                      </Link>
+                      </span>
                       <p className="mt-0.5 text-xs text-surface-500 line-clamp-1">{req.description}</p>
                     </td>
                     <td className="px-4 py-3 text-surface-600">Room {req.room_id.slice(0, 8)}</td>
@@ -115,14 +122,6 @@ export default function MaintenanceListPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-surface-600">{formatDate(req.created_at)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <Link
-                        to={`/maintenance/${req.id}`}
-                        className="text-sm font-medium text-primary-600 hover:text-primary-700 focus-visible:outline-2 focus-visible:outline-primary-500"
-                      >
-                        View
-                      </Link>
-                    </td>
                   </tr>
                 ))}
               </tbody>

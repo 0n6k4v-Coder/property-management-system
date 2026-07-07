@@ -77,6 +77,27 @@ R9. ผู้ใช้ทักสงสัยเรื่องทับ/ลบ
     - ถ้าพบทับจริง: กู้คืนก่อนอธิบาย (`git checkout HEAD -- <path>`)
     - Source: Task ล่าสุด (ตอบ "ไม่ได้ทับ" ก่อน verify → ผิด)
 
+R10. Parallel-session shared-DB coordination — ห้ามพังงานคู่ขนาน
+    - ถ้ามี 2 agent รันบน branch/working tree เดียวกัน: ห้าม `reset-e2e-db.sh` หรือรัน
+      `frontend-test` ขณะมี `pms-dev-frontend-test-run-*` container ลอยอยู่
+      (reset ตัดตาราง fixture ทั้งหมด → ทำลายรันของคู่ขนาน)
+    - ก่อน reset/run: `docker ps --format '{{.Names}}' | grep frontend-test`
+      ถ้ามี → poll ทุก ~10-15s รอให้หายก่อน (อย่ารันทับ)
+    - ห้าม `docker compose down` ขณะ session อื่นอาจกำลังรัน → กระทบ fixture กลาง
+    - Source: Session D (parallel maintenance-flow)
+
+R11. Selector precise + grep-after-patch
+    - เขียน locator เจาะจงรูปทรง route ไม่ใช่ prefix กว้าง
+      (เช่น `/maintenance/<uuid>` ไม่ใช่ `/maintenance/` ซึ่งจับปุ่ม `/maintenance/new` ด้วย)
+    - หลัง patch เปลี่ยน selector → `search_files` หา occurrence เก่าที่เหลือในไฟล์
+      ก่อนรันใหม่ (ชวด block → เสียรอบฟรี)
+    - Source: Session D
+
+R12. เก็บ Playwright output เต็ม — ห้าม `tail` ตัด
+    - `tail -40` ตัด error message ทำให้ diagnosis 瞎 → ใช้ `--reporter=line` แล้วอ่าน
+      process log ครบ หรือ redirect `2>&1` เก็บทั้งหมด
+    - Source: Session D
+
 ══════════════════════════════════════════════════
 # 📑 SESSION INDEX — เลือกอ่าน ARCHIVE ตามประเภทงาน
 ══════════════════════════════════════════════════
@@ -87,6 +108,7 @@ R9. ผู้ใช้ทักสงสัยเรื่องทับ/ลบ
 | B | 2026-07-07 | Docker cleanup | `docker compose down` ทุก container + prune | Time 3/10, Quality 5/10 |
 | C | 2026-07-07 | Doc/log edit | เพิ่ม Session B ลง `SELF_CRITIC.md` | Time 7/10, Quality 8/10 |
 | 4 | 2026-07-07 | E2E (Route 9/10) | Extend `invoice-payment.spec.ts` (INV-02~08, INV-DET-03~06) 4→14 tests | Time 5/10, Quality 9/10 |
+| D | 2026-07-07 | E2E (Route 16/17) + parallel | Extend `maintenance-flow.spec.ts` (MAINT-03~07) + หาแก้บั๊กจริง F-30 ในสภาพ 2 agent แชร์ working tree | Time 6/10, Quality 9/10 |
 
 ---
 
@@ -265,3 +287,60 @@ to cover METER-03~06 (fullstack, zero mocks).
 - [ ] แทรกหัว/กลาง → `read_file` ใหม่ก่อน `write_file`
 - [ ] หลีกเลี่ยง markdown table ใน CLI
 - [ ] รัน verify ก่อนประกาศจบ
+
+---
+
+## SESSION D — Parallel maintenance-flow E2E (2026-07-07)
+
+**Task:** Extend `frontend/e2e/specs/maintenance-flow.spec.ts` 2→8 tests (MAINT-03~07 assert-absence + F-30 regression) + หาแก้บั๊กจริง (F-30 dead `/maintenance/:id` link บน `MaintenanceListPage.tsx`) ในสภาพ **2 agent แชร์ working tree เดียวกัน** (Session A ทำ `contract-flow.spec.ts` คู่ขนาน)
+**Total Session Time:** ~ปกติ แต่อืดจาก verify-loop ยืดเยื้อ (รอบรันฟรี ~4-5 รอบ)
+
+### 1. Performance Summary
+| Phase | Actual | Expected | Delta |
+|-------|--------|----------|-------|
+| Code audit + หาบั๊กจริง | ปกติ | ปกติ | 0 |
+| เขียนเทส + doc edits | ปกติ | ปกติ | 0 |
+| B1: reset พังเพราะ migration ไม่เคยรัน | +1 รอบ | 0 | **+1 รอบ** |
+| B2: selector กว้างจับปุ่ม New Request → 3 fail | +2 รอบ | 0 | **+2 รอบ** |
+| D2: patch ชวด block Re-confirm → fail อีก | +1 รอบ | 0 | **+1 รอบ** |
+| B3: ไม่ reset ระหว่างรอบ → stale state false-fail | +1 รอบ | 0 | **+1 รอบ** |
+| B4: tail ตัด output → ต้อง process log เพิ่ม | ~+1 รอบ | 0 | **+1 รอบ** |
+
+**Verdict:** Time 6/10 (เสียรอบฟรีจาก B1/B2/D2/B3/B4) · Quality 9/10 (8/8 จริง ไม่หลอกเขียว + เจอบั๊กจริง 1 แก้ต้นเหตุ) · Process 8/10 (parallel coordination ถูก แต่ verify discipline หละหลวม)
+
+### 2. Bottlenecks
+1. **B1:** reset ครั้งแรกพัง `relation "meter_readings" not exist` → migration ไม่เคยถูก apply (ละเมิด R7) → เสียรอบ reset 1 รอบ
+2. **B2:** เขียน selector กว้าง `a[href*="/maintenance/"]` → จับปุ่ม "New Request" (`/maintenance/new`) → เทส 3 ตัวแรก fail → เสียรอบรัน 2 รอบ
+3. **B3:** ไม่ `reset-e2e-db.sh` ระหว่างรอบ → เทส create โดน stale "Broken window" จากรอบก่อน → false failure 1 รอบ (ละเมิด R6)
+4. **B4:** `tail -40` ตัด error message → ต้องรัน process log เพิ่ม → diagnosis ช้า
+5. **B5:** Docker cold-start ของ frontend-test container ทุกครั้ง (~15-25s) สะสมจากรอบรันหลายรอบ
+
+### 3. Mistakes
+- **D1:** selector ไม่ precise ตั้งแต่แรก → ควร `/maintenance/<uuid>` (UUID-shaped) ไม่ใช่ prefix กว้าง
+- **D2:** patch เปลี่ยน selector ชวด block `// Re-confirm` ใน MAINT-04 (ยังใช้ selector เก่า) → ต้อง patch เพิ่มรอบ 2
+- **D3:** ละเมิด R6 รัน verify โดยไม่ reset ระหว่างรอบ → ได้ false failure
+- **D4:** ละเมิด R7 ไม่เช็ก migration ก่อน reset → reset ไร้ประโยชน์รอบแรก
+- **D5:** พึ่ง `tail -40` แล้วอ่าน log ไม่ครบ → diagnosis ช้า
+
+### 4. What Went Well
+- ทำตาม parallel-session rule เคร่งครัด: ไม่แตะ `contract-flow.spec.ts`, เช็ก `frontend-test-run-*` ก่อนทุกครั้ง, รอคอนเทนเนอร์ Session A หายก่อน reset/run, scoped doc edits, ใช้ F-30 (เหนือ range ของ Session A ที่เริ่ม F-20)
+- เจอบั๊กจริง (F-30 dead link → silent bounce ไป /dashboard) แล้วแก้ที่ต้นเหตุ ไม่ workaround
+- assert-absence มีเหตุผลชัดเจน ไม่ shallow; ยืนยัน absence ด้วยการคลิกดูพฤติกรรมจริง (ไม่แค่เช็ก "ไม่มีปุ่ม")
+- ไม่ผ่อน assertion เลย
+
+### 5. AGENTS.md Rule (applied)
+> ❗ Parallel session: ห้าม `reset-e2e-db.sh` / รัน `frontend-test` ขณะมี `pms-dev-frontend-test-run-*` ลอยอยู่ — ห้าม `docker compose down` ถ้า session อื่นอาจกำลังรัน (→ R10)
+> ❗ เขียน locator เจาะจงรูปทรง route ไม่ใช่ prefix กว้าง + grep หา occurrence เก่าหลัง patch (→ R11)
+> ❗ เก็บ Playwright output เต็ม ห้าม `tail` ตัด (→ R12)
+
+### 6. Pre-Task Checklist
+- [ ] ตรวจสอบ parallel session: `docker ps | grep frontend-test` ก่อน reset/run ทุกครั้ง
+- [ ] ห้าม `docker compose down` ถ้า session อื่นอาจกำลังรัน
+- [ ] `alembic upgrade head` + `reset-e2e-db.sh` ก่อน verify ครั้งแรก (R7)
+- [ ] เขียน selector precise (รูปทรง route) ไม่ใช่ prefix กว้าง (R11)
+- [ ] หลัง patch selector → search_files หา occurrence เก่าก่อนรันใหม่
+- [ ] `reset-e2e-db.sh` ทุกครั้งก่อน verify run (R6)
+- [ ] ใช้ `--reporter=line` + อ่าน process log ครบ ห้าม `tail` ตัด (R12)
+- [ ] doc edits: ต่อท้าย/แทรกด้วย `patch` ห้าม rewrite; ใช้ F-number range ไม่ซ้ำ Session อื่น
+
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D
