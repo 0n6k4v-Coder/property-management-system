@@ -928,6 +928,131 @@ Extended `frontend/e2e/specs/invoice-payment.spec.ts` from 4 → 14 tests coveri
 
 ---
 
+### F-40 (Contract — CONT-DET-02 Record Payment): no payment UI exists on a contract — the only payment feature in the app is on invoices
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | CONT-DET-02 (Record payment on a contract) |
+| **Type** | Genuine feature gap (no payment concept on contracts at all) |
+| **Severity** | — (not a bug; the requirement describes a feature that was never built) |
+| **Status** | Documented, **not fixed** in this E2E task (would require building a new payment feature scoped to contracts; per project precedent for E2E gaps, document rather than implement). Covered by an assert-absence test in `contract-flow.spec.ts`. |
+
+**Root cause (F-40):** `frontend/src/features/contract/ContractDetailPage.tsx` exposes only three lifecycle actions — Extend Lease, Terminate, Renew (modals `terminate`/`extend`/`renew`). A repo-wide grep of `ContractDetailPage.tsx` and `frontend/src/features/contract/api.ts` for `payment` returned **zero** matches. The only "Record Payment" control in the entire frontend lives on `frontend/src/features/billing/InvoiceDetailPage.tsx` (and its `billing/api.ts`) — i.e. it is tied to invoices, not contracts. So a contract has no payment button, link, or modal anywhere on `/contracts/:id`.
+
+**Symptom:** navigating to `/contracts/:id` and searching for any "Record Payment" button/link/dialog yields nothing; an assert-absence test (`getByRole('button'|'link'|'dialog', { name: /record payment/i })` → count 0) is the correct, real representation of current behavior.
+
+**Files affected:** `frontend/src/features/contract/ContractDetailPage.tsx` (no payment UI), `frontend/src/features/contract/api.ts` (no payment mutation for contracts). `frontend/src/features/billing/InvoiceDetailPage.tsx` is the unrelated invoice payment UI.
+
+**How it was found:** while extending `contract-flow.spec.ts` for CONT-DET-02, I re-verified the prior read-only audit by grepping the contract feature for `payment` (0 hits) and grepping the whole frontend for `Record Payment` (only `billing/InvoiceDetailPage.tsx` + `billing/api.ts`). Confirmed the feature genuinely does not exist for contracts.
+
+**Prevention:** (1) When a Test ID names an action that lives in a *different* bounded context (payment = billing, not contract), verify the action is actually wired into the target page before writing a happy-path test; otherwise assert its absence and document the cross-context gap. (2) Same lesson as F-20/F-30: a grep for the feature verb across the target feature folder is a 5-second tripwire before assuming a feature exists.
+
+### F-41 (Contract — CONT-DET-05 Add Addendum): no addendum concept exists anywhere in the frontend
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | CONT-DET-05 (Add addendum to a contract) |
+| **Type** | Genuine feature gap (no addendum entity, UI, or API anywhere) |
+| **Severity** | — (not a bug; the requirement describes a feature that was never built) |
+| **Status** | Documented, **not fixed** in this E2E task (would require a new addendum entity + UI + API; out of E2E scope). Covered by an assert-absence test in `contract-flow.spec.ts`. |
+
+**Root cause (F-41):** a repo-wide grep for `addendum` across the entire `frontend/` tree returned **zero** hits — no component, no button, no modal, no section, no schema, no API call. `ContractDetailPage.tsx` has no "Add Addendum" control of any kind. The feature simply does not exist in the codebase.
+
+**Symptom:** navigating to `/contracts/:id` and searching for any "addendum" button/link/text yields nothing; an assert-absence test (`getByRole('button'|'link', { name: /addendum/i }).or(getByText(/addendum/i))` → count 0) is the correct, real representation of current behavior.
+
+**Files affected:** none (the feature is absent everywhere). `frontend/src/features/contract/ContractDetailPage.tsx` is the page where such a control would live, but has none.
+
+**How it was found:** while extending `contract-flow.spec.ts` for CONT-DET-05, I re-verified the prior read-only audit with a repo-wide `search_files` for `addendum` (0 matches in `frontend/`). Confirmed the feature genuinely does not exist.
+
+**Prevention:** (1) A Test ID describing a feature with no corresponding entity/schema/UI anywhere in the repo is a spec-vs-implementation gap, not a test failure — assert its absence and document it rather than forcing a fake happy path. (2) Repo-wide grep before writing the test is the cheapest proof of absence.
+
+---
+
+### F-60 (Settings — SET-REAL-01 Audit Logs default load): `GET /admin/audit-logs` required `property_id`, so the page's default "All properties" selection 422'd
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | SET-REAL-01 (Audit Logs default tab loads without a property filter) |
+| **Type** | Real backend bug — required query param rejected the page's default request |
+| **Severity** | High (the default Audit Logs view was completely broken for every admin) |
+| **Status** | **FIXED at source** (router `property_id` defaulted to `None`) |
+
+**Root cause (F-60):** `backend/app/modules/admin/routers/admin_router.py` declared `get_audit_logs` with `property_id: uuid.UUID = Query(...)` — a *required* query parameter with no default. But `frontend/src/features/settings/api.ts` (`useAuditLogs`) only appends `property_id` to the URL when the user actually picks a property; the page's default "All properties" selection sends **no** `property_id`. So the very first render of `/settings` hit `GET /admin/audit-logs` with no `property_id`, FastAPI rejected it with HTTP 422, the TanStack Query threw, and the Audit Logs tab silently fell through to its empty-state branch — showing "No audit logs found." even when log rows existed. The service (`get_audit_logs`) and repository (`get_audit_logs`/`count_audit_logs`) already branch on `property_id` being falsy (the `if property_id:` guard), so they correctly support a global "all properties" scope — only the router contract was wrong.
+
+**Symptom:** before the fix, the default Audit Logs tab rendered the empty-state on every visit; selecting a property worked (because it then sent `property_id`). After the fix, the default tab loads the global log set (login writes an audit row with `property_id=NULL`, which the `None` filter returns).
+
+**Files affected / fix:** `backend/app/modules/admin/routers/admin_router.py` — `property_id: uuid.UUID = Query(...)` → `property_id: uuid.UUID | None = Query(None, ...)`. No frontend change needed; the existing `useAuditLogs` already omits the param when unset.
+
+**How it was found:** re-verifying the prior read-only audit while writing `settings-flow.spec.ts`. The frontend's `useAuditLogs` clearly omits `property_id` for the default selection; cross-reading the router showed the param was required with no default — a guaranteed 422 on first paint. Confirmed against the service/repository, which already handle `None`.
+
+**Prevention:** (1) A list endpoint that the UI calls with an *optional* filter must declare that filter as `Query(None)`, not `Query(...)` — required params silently break the unfiltered default view. (2) When the frontend conditionally sends a query param, the router must make it optional; the two must be read together (same lesson as F-03/F-16: frontend/backend contract drift). (3) The empty-state branch should be distinguishable from a 422 — a 4xx on the default load should surface, not masquerade as "no data".
+
+### F-61 (Settings — SET-REAL-04 System Config edit): `PATCH /admin/config/{key}` does not exist; config is env-derived and read-only by design, so the Edit control can never persist
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | SET-REAL-04 (System Config edit a value and Save) |
+| **Type** | Frontend/backend contract drift + design gap (endpoint missing; no persistence store) |
+| **Severity** | Medium (the Edit control offers an interaction that always no-ops; a 404 is swallowed as a toast) |
+| **Status** | Documented, **NOT fixed** in this E2E task (would require building a DB-backed, mutable config store + a PATCH route — out of E2E scope). Covered by SET-REAL-04, which asserts the REAL current behavior: edit mode opens, but Save does not persist and the row reverts. |
+
+**Root cause (F-61):** `frontend/src/features/settings/SettingsPage.tsx` renders an "Edit" button per config row that calls `useUpdateSystemConfig().mutateAsync({ key, value })`, and `api.ts` sends `PATCH /admin/config/${key}`. But `backend/app/modules/admin/routers/admin_router.py` registers **only two** routes — `GET /audit-logs` and `GET /config` — there is **no** `PATCH /config/{key}` (grep of `router.patch`/`put`/`post` in the admin module returns zero). So every Save returns HTTP 404, which `handleConfigSave`'s `catch` swallows into an error toast ("Update failed") and the edit is dropped. Even if the route existed, `get_system_config()` in `admin_service.py` builds the list straight from `get_settings()` (env vars) and `ADMIN_005_CONFIG_READ_ONLY` + `_READ_ONLY_CONFIG_KEYS` already mark every key as read-only — there is no DB store to write to, so edit can never persist. This is the same "two halves exist, the join is missing / no persistence layer" class as F-19.
+
+**Symptom:** clicking Edit on a config row shows the input + Save/Cancel (real UI), but after Save the value reverts to the original and the PATCH 404s. The `networkErrors` captured by `captureAllStates` contains the 404 — that 404 is the empirical proof of the missing endpoint.
+
+**Files affected:** `frontend/src/features/settings/SettingsPage.tsx` (Edit button + `handleConfigSave`), `frontend/src/features/settings/api.ts` (`useUpdateSystemConfig` → `PATCH /admin/config/${key}`), `backend/app/modules/admin/routers/admin_router.py` (no PATCH route), `backend/app/modules/admin/services/admin_service.py` (`get_system_config` reads env, no mutation/update method), `backend/app/modules/admin/constants.py` (`ADMIN_005_CONFIG_READ_ONLY` already reserved for exactly this).
+
+**How it was found:** while writing SET-REAL-04 (real System Config edit test), I traced `useUpdateSystemConfig` → `PATCH /admin/config/${key}` and then read the admin router, which has no PATCH. Cross-checking the service confirmed config is env-derived and read-only, so there is no persistence path even conceptually.
+
+**Prevention:** (1) A frontend mutation hook must have a matching, registered backend route — grep the router for `router.patch/put/post` before shipping a "save" button. (2) Same lesson as F-03/F-16/F-19: a frontend edit control + a typed API call does NOT mean the write works end-to-end; the route and the persistence layer are the missing third/fourth legs. (3) When a resource is intentionally read-only (env-derived config), the UI should not expose an editable "Save" control at all — disable/hide it rather than present a no-op.
+
+### F-62 (Settings — SET-00/REAL-03/REAL-04 access): `require_role("owner")` could never pass for any real user — no `is_owner`/`is_superuser` JWT claim was ever issued
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | SET-00 / SET-REAL-03 / SET-REAL-04 (every `/settings` test that hits a real `/admin/*` endpoint) |
+| **Type** | Real backend authz bug — RBAC claim never populated, so all admin endpoints 403 for everyone |
+| **Severity** | Critical (the entire `/settings` admin page was unreachable for ANY user, including the seeded admin) |
+| **Status** | **FIXED at source** |
+
+**Root cause (F-62):** `backend/app/middleware/rbac.py` `require_role("owner")` reads `is_owner` (and, after my F-60-era hardening, `is_superuser`) from the JWT payload — but **no code ever set those claims**: (a) the `users` table has no `is_owner`/`is_superuser` columns at all, and (b) token issuance in `auth_service.py` (`login` + `refresh`-style issuers) only embedded `property_scopes: []`, never the role flags. So `current_user.get("is_owner", False)` was always `False` → every `GET /admin/{audit-logs,config}` returned **403 ADMIN-002** for every real account (the admin API integration tests only pass because they inject the claim via a `dependency_overrides` mock). The task's instruction to log in as `admin@example.com` for this "admin-facing" page is correct in intent, but the backend never marked anyone as admin/owner.
+
+**Symptom:** before the fix, `/settings` showed the Audit Logs + System Config tabs but every data fetch failed with a 403 (surfaced in `captureAllStates` as a console/network error). After the fix, the seeded `admin@example.com` (and any email in `ADMIN_EMAILS`) gets `is_owner=True`/`is_superuser=True` in its token and the endpoints return 200.
+
+**Files affected / fix:**
+- `backend/app/config.py` — added `ADMIN_EMAILS: str = "admin@example.com"` (comma-separated allowlist; production-overridable).
+- `backend/app/modules/auth/services/auth_service.py` — added `_is_admin_email()` helper; both token-issuance sites now set `is_owner`/`is_superuser` from it.
+- `backend/app/middleware/rbac.py` — `require_role("owner")` now also passes when `is_superuser` is set (superuser subsumes owner for read-only admin views).
+
+**How it was found:** during the first real Playwright run, SET-00 failed with `consoleErrors` containing a live **403** on `/admin/config` (and 422 on audit-logs). Curl reproduction showed `admin@example.com` → 403; decoding the JWT revealed **no** `is_owner`/`is_superuser` claim; DB inspection confirmed the `users` table has no such columns. The admin integration tests confirmed the intended contract expects the claim.
+
+**Prevention:** (1) An RBAC decorator must have a proven path to set its claim for at least one real user — if the only green tests use `dependency_overrides`, the route is unreachable in production. (2) Role/claim columns and the token-issuance code that populates them must be kept in lockstep; a claim the issuer never sets is a silent 403 for everyone. (3) Schema-free admin grants (email allowlist) are a valid minimal fix when no role column exists, but production must override the default.
+
+### F-63 (Settings — SET-REAL-01/REAL-03): `GET /admin/audit-logs` 500'd — `AuditLogResponse.metadata` collided with declarative `Base.metadata` and could not be serialized
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | SET-REAL-01 / SET-REAL-03 (any Audit Logs fetch) |
+| **Type** | Real backend serialization bug — ORM attribute-name collision |
+| **Severity** | High (the Audit Logs tab crashed with a 500 on every query, even after F-60/F-62) |
+| **Status** | **FIXED at source** |
+
+**Root cause (F-63):** `backend/app/modules/admin/schemas.py` `AuditLogResponse` declares `metadata: Any` with `from_attributes=True`. The `AuditLog` model's `metadata` column name **shadows declarative `Base.metadata`**, so `model_validate(log)` resolved the SQLAlchemy `MetaData` *object* (not the audit payload) and Pydantic failed to serialize it → `PydanticSerializationError: Unable to serialize unknown type: <class 'sqlalchemy.sql.schema.MetaData'>` → HTTP 500. The `config` endpoint was unaffected because it builds plain `SystemConfigResponse` objects. The frontend's `AuditLogResponse.metadata` type is `Record<string, unknown> | null` and is never rendered, so the field is contract-present but UI-unused.
+
+**Symptom:** before the fix, every Audit Logs request returned 500 (the tab showed an error/empty state). After the fix, `GET /admin/audit-logs` returns 200 with the full paginated log set (verified: total 579 rows, `user.logged_in` entries from login).
+
+**Files affected / fix:** `backend/app/modules/admin/schemas.py` — added a `field_validator("metadata", mode="before")` that coerces any `sqlalchemy.MetaData` instance to `None`, preserving the `metadata` contract key while keeping the response serializable. (The proper long-term fix is renaming the colliding `metadata` column in the `AuditLog` model + a migration, but that is out of E2E-scope; the validator is the minimal root-cause-safe fix.)
+
+**How it was found:** after F-60/F-62, `curl /admin/audit-logs` returned 500; the backend log showed the `MetaData` serialization error. Reading `schemas.py` + `repository.py` + the `AuditLog` model pinpointed the `metadata` name collision.
+
+**Prevention:** (1) Never name a SQLAlchemy mapped column `metadata` — it collides with `Base.metadata`; use `meta`/`extra`/`payload`. (2) Pydantic `from_attributes=True` over ORM objects can pull non-serializable internals; validate/coerce ORM-specific types at the schema boundary. (3) A 500 on a read endpoint is a crash, not a 4xx — it must surface in E2E, not be masked as "no data".
+
+> **Note (Session E / SET-xx):** The entire premise of the SET-01~08 Test IDs is wrong — `/settings` is an **admin system-config page** (Audit Logs + System Config tabs), not a personal/profile settings page. SET-01~08 (profile, change-password, notification prefs, theme, language, 2FA, API keys, danger-zone) have **no corresponding UI** on this route and are covered as precise assert-absence tests. The real, working functionality (Audit Logs default load + property filter, System Config load + masking) is covered by SET-REAL-01~04. This "wrong premise" is a more significant finding than a typical missing-feature gap: the whole route was misclassified in the spec.
+
+> **Verification (Session E):** `tsc --noEmit -p tsconfig.e2e.json` clean for `settings-flow.spec.ts` (3 pre-existing errors live in sibling files property-flow/tenant-flow/mock-helpers — out of scope). Full Playwright run: **13/13 passed** (`docker compose -f docker-compose.dev.yml --profile dev run --rm frontend-test npx playwright test e2e/specs/settings-flow.spec.ts`). Backend fixes F-60/F-62/F-63 verified live via curl (audit-logs 200 + config 200).
+
+---
+
 ## Reference: Correct Patterns
 
 ### Pattern 1: Mock Setup Function — Correct Registration Order

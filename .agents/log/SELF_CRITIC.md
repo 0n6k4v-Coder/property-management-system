@@ -120,6 +120,19 @@ R15. ได้ deterministic ID ผ่าน docker → รันเลย อ�
       backend python -c "..."` (Docker-First) แล้วรายงานผล; ห้าม clarify ถ้า option 1 ชัดเจน
     - Source: Session E (ถามผู้ใช้เลือก option ที่ชัดอยู่แล้ว → เสีย 1 round-trip ฟรี)
 
+R16. Docker compose ต้องระบุ `-f` + ห้าม buffer long run + authz/claim bug ต้องอ่าน chain ครบก่อนแก้
+    - **Compose flag:** คำสั่งที่รันผ่าน docker compose เสมอเติม `-f docker-compose.dev.yml`
+      (Makefile กำหนด `COMPOSE_FILE ?= docker-compose.dev.yml` แต่ CLI สั่งตรงไม่สืบทอด env →
+      ข้าม flag จะได้ "no configuration file provided: not found" → เสียรอบฟรี)
+    - **ห้าม buffer long run:** ห้าม `| tail` บน timeout ยาว (เช่น 420s) → output หาย 盲等;
+      ให้ redirect `> /tmp/x.log 2>&1` แล้ว `process/wait` poll log แทน (R12 ช่วยแล้ว แต่เน้น long-run)
+    - **Authz/claim bug:** ก่อน patch RBAC/owner-gate ต้องอ่าน chain 3 ชั้นให้ครบ:
+      (1) decorator อ่าน claim ตัวไหน (2) token issuance เซ็ต claim ไหม (3) users table มี column นั้นไหม
+      → อ่านครบก่อนแก้ จบในรอบเดียว ไม่วน patch ทีละชั้น (Session E2 โดน 403 วน 3 รอบ)
+    - **Hot-reload gap:** แก้ router/service เสร็จ → `restart backend` ก่อน curl verify เสมอ
+      (uvicorn dev ไม่เห็น router edit ทันที → ยัง 422/403 จนกว่าจะ restart)
+    - Source: Session E2 (settings-flow — เสียรอบฟรีจาก compose flag + buffered 420s + F-62 วน 3 รอบ)
+
 ══════════════════════════════════════════════════
 # 📑 SESSION INDEX — เลือกอ่าน ARCHIVE ตามประเภทงาน
 ══════════════════════════════════════════════════
@@ -132,6 +145,9 @@ R15. ได้ deterministic ID ผ่าน docker → รันเลย อ�
 | 4 | 2026-07-07 | E2E (Route 9/10) | Extend `invoice-payment.spec.ts` (INV-02~08, INV-DET-03~06) 4→14 tests | Time 5/10, Quality 9/10 |
 | D | 2026-07-07 | E2E (Route 16/17) + parallel | Extend `maintenance-flow.spec.ts` (MAINT-03~07) + หาแก้บั๊กจริง F-30 ในสภาพ 2 agent แชร์ working tree | Time 6/10, Quality 9/10 |
 | E | 2026-07-07 | E2E (Route 13/14) + parallel | Extend `contract-flow.spec.ts` (CONT-02~08, CONT-NEW-01~06) 4→13 tests + หาแก้บั๊กจริง F-21 ในสภาพ 2 agent แชร์ working tree | Time 6/10, Quality 9/10 |
+| C2 | 2026-07-07 | E2E (Route 15) + parallel | Extend `contract-flow.spec.ts` (CONT-DET-01~05 assert-absence/cross-ref) 13→15 tests + doc (Route 15 + F-40/F-41) ในสภาพ 3 agent แชร์ working tree | Time 7/10, Quality 10/10 |
+| D2 | 2026-07-07 | E2E (Route 17) + parallel | Extend `maintenance-flow.spec.ts` (MAINT-NEW-01~05: 2 assert-absence + 1 real priority-verify + 2 cross-ref) 8→11 tests ในสภาพ 3 agent แชร์ working tree | Time 8/10, Quality 9/10 |
+| E2 | 2026-07-07 | E2E (Route 13/14) + backend bug-fix | สร้าง `settings-flow.spec.ts` ใหม่ 13 tests (SET-00 + SET-01~08 assert-absence + SET-REAL-01~04) + แก้ backend bug จริง F-60/61/62/63 (owner-gate/metadata/property_id) | Time 6/10, Quality 9/10 |
 
 ---
 
@@ -351,14 +367,6 @@ to cover METER-03~06 (fullstack, zero mocks).
 - assert-absence มีเหตุผลชัดเจน ไม่ shallow; ยืนยัน absence ด้วยการคลิกดูพฤติกรรมจริง (ไม่แค่เช็ก "ไม่มีปุ่ม")
 - ไม่ผ่อน assertion เลย
 
----
-
-> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D
-- ทำตาม parallel-session rule เคร่งครัด: ไม่แตะ `contract-flow.spec.ts`, เช็ก `frontend-test-run-*` ก่อนทุกครั้ง, รอคอนเทนเนอร์ Session A หายก่อน reset/run, scoped doc edits, ใช้ F-30 (เหนือ range ของ Session A ที่เริ่ม F-20)
-- เจอบั๊กจริง (F-30 dead link → silent bounce ไป /dashboard) แล้วแก้ที่ต้นเหตุ ไม่ workaround
-- assert-absence มีเหตุผลชัดเจน ไม่ shallow; ยืนยัน absence ด้วยการคลิกดูพฤติกรรมจริง (ไม่แค่เช็ก "ไม่มีปุ่ม")
-- ไม่ผ่อน assertion เลย
-
 ### 5. AGENTS.md Rule (applied)
 > ❗ Parallel session: ห้าม `reset-e2e-db.sh` / รัน `frontend-test` ขณะมี `pms-dev-frontend-test-run-*` ลอยอยู่ — ห้าม `docker compose down` ถ้า session อื่นอาจกำลังรัน (→ R10)
 > ❗ เขียน locator เจาะจงรูปทรง route ไม่ใช่ prefix กว้าง + grep หา occurrence เก่าหลัง patch (→ R11)
@@ -429,3 +437,163 @@ to cover METER-03~06 (fullstack, zero mocks).
 - [ ] ได้ UUID/seed → `docker compose run --rm --no-deps backend python -c "..."` เลย อย่า clarify
 - [ ] parallel: เช็ก `frontend-test-run-*` ก่อน reset/run; scoped doc; F-number range ไม่ซ้ำ session อื่น
 - [ ] หาบั๊กจริง → แก้ source ไม่ workaround; assert-absence → document gap
+
+---
+
+## SESSION C2 — Parallel contract-flow assert-absence (CONT-DET-01~05) (2026-07-07)
+
+**Task:** Extend `frontend/e2e/specs/contract-flow.spec.ts` ด้วย assert-absence 2 ตัว (CONT-DET-02 Record Payment, CONT-DET-05 Add Addendum) + header comment อ้างอิง CONT-DET-01/03/04 → เทสเดิม + อัปเดต doc 2 ไฟล์ (Route 15 ใน Sprint 09 report + F-40/F-41 ใน E2E_TEST.md) ในสภาพ **3 agent แชร์ working tree เดียวกัน** (Session D = maintenance-flow, Session E = settings-flow) — งานเล็ก เสี่ยงต่ำ ไม่มี real bug ให้แก้
+
+**Total Session Time:** ~สั้น (งานเล็ก) แต่อืดจาก full-run 3 รอบ (~3.5 นาทีสะสมจาก Docker cold-start)
+
+### 1. Performance Summary
+| Phase | Actual | Expected | Delta |
+|-------|--------|----------|-------|
+| Code audit + grep verify | ปกติ | ปกติ | 0 |
+| เขียน 2 เทส + header + doc edits | ปกติ | ปกติ | 0 |
+| B1: Docker cold-start ทุก full-run | ~+2-3 รอบ | 0 | **+2-3 รอบ** |
+| B2: system-reminder บังคับ verify ซ้ำ | ~+1 รอบ | 0 | **+1 รอบ** |
+
+**Verdict:** Time 7/10 (over-run เล็กน้อยจาก full-run 3 รอบ) · Quality 10/10 (15/15 จริง ไม่หลอกเขียว, ไม่ pad เทส) · Process 9/10 (audit-first ถูก, parallel coordination ถูก, ไม่แตะไฟล์ session อื่น)
+
+### 2. Bottlenecks
+1. **B1:** Docker cold-start — `frontend-test` container สร้างใหม่ + Vite compile หน้าแรก ~15-25s ต่อรอบ → full-run 3 รอบ = ~3.5 นาทีสะสม เป็น environment ไม่ใช่ logic
+2. **B2:** System-reminder ขอ fresh evidence → รัน full-run อีก 1 รอบ (external, ไม่ใช่ความผิดพลาดของ agent)
+
+### 3. Mistakes
+- **D1:** รัน full suite 3 รอบ — เกินคำแนะนำ R14 ("สงวน full-file สำหรับ final confirm 2 รอบ") → ควร filtered 1 + full 1 พอ
+- **D2:** ไม่ `make dev-down` หลังจบ — แต่ในบริบท parallel ถูก (R10: ห้าม down shared infra ของ Session D/E); `frontend-test-run-*` เป็น ephemeral (`--rm`) ตายเองหลังรัน
+- **D3:** `tsc` เจอ error 3 ตัวในไฟล์นอก scope (`property-flow.spec.ts`, `tenant-flow.spec.ts`, `mock-helpers.ts`) — ทำถูกที่ไม่แตะ แต่รายงาน human ช้าไป ควร flag ตั้งแต่รอบแรก
+
+### 4. What Went Well
+- Audit-first จริงจัง: grep ยืนยัน (payment ใน contract=0, addendum ทั่วทั้ง frontend=0, Record Payment มีแค่ billing) ก่อนเขียนเทส ไม่เชื่อ audit summary (R13)
+- Parallel discipline เคร่งครัด: แตะแค่ `contract-flow.spec.ts`, เช็ก `frontend-test-run-*` ก่อน reset/run, scoped doc edits (Route 15 + Part F เท่านั้น ไม่แตะ Executive Summary/dashboard)
+- F-number ถูก range (F-40/F-41 ข้าม F-30 ของ Session D; F-20/21 เก่าของ Session E ไม่ชน)
+- assert-absence มีน้ำหนัก: เช็กหน้าโหลดจริง (Extend/Terminate ปรากฏ) ก่อนอ้าง absence ไม่ shallow
+- ไม่ pad เทส (ทำตาม Prompt แค่ 2 ใหม่ + 3 cross-ref)
+- ใช้ `patch` ไม่ `write_file` (ไม่โดน clobber)
+
+### 5. AGENTS.md Rule (applied)
+> ❗ งาน assert-absence เล็ก → รัน filtered 1 รอบ + full 1 รอบ พอ ห้าม full 3 รอบ (→ R14)
+> ❗ เจอ tsc/type error ในไฟล์นอก scope → flag ให้ human/session อื่นทราบตั้งแต่รอบแรก พร้อมบอกไม่แตะเพราะ parallel rule
+
+### 6. Pre-Task Checklist
+- [ ] Audit-first: grep ยืนยัน absence ก่อนเขียน assert-absence test
+- [ ] งานเล็ก: `reset` + `-g filtered` 1 รอบ แล้ว `reset` + full 1 รอบ (ห้าม 3 รอบ)
+- [ ] ถ้า system ขอ fresh evidence และเทสรันล่าสุดสดใน turn ก่อนหน้า → ตอบสั้นอ้างอิง ไม่รันใหม่ถ้าโค้ดไม่เปลี่ยน
+- [ ] Parallel: เช็ก `frontend-test-run-*` ก่อน reset/run; ห้าม down shared infra (R10)
+- [ ] ไฟล์นอก scope มี error → flag ไม่แตะ
+- [ ] assert-absence ต้องเช็ก "หน้าโหลดจริง" ก่อนอ้าง absence
+
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2
+
+---
+
+## SESSION D2 — Parallel maintenance-flow E2E (MAINT-NEW-01~05) (2026-07-07)
+
+**Task:** Extend `frontend/e2e/specs/maintenance-flow.spec.ts` 8→11 tests ครอบ MAINT-NEW-01~05 (2 assert-absence คือ category + photo-upload, 1 real priority-verify, 2 cross-ref คือ room/property + notify=toast) ในสภาพ **3 agent แชร์ working tree เดียวกัน** (Session C = contract-flow, Session E = settings-flow) — งานเล็ก ไม่มี real bug
+
+**Total Session Time:** ~สั้น (งานเล็ก) แต่อืดจาก cold-start flake + parallel wait + system-reminder ขอ fresh evidence ซ้ำ 2 รอบ
+
+### 1. Performance Summary
+| Phase | Actual | Expected | Delta |
+|-------|--------|----------|-------|
+| Audit โค้ดจริง + จับพรีเมส Prompt ผิด | ปกติ | ปกติ | 0 |
+| เขียน header + 3 test | ปกติ | ปกติ | 0 |
+| B1: cold-start flake รัน batch แรก ตกที่ login() | +1 รอบ | 0 | **+1 รอบ** |
+| B2: parallel wait — รอ `frontend-test-run-*` หายก่อน reset/run | ~+2 รอบ | 0 | **+2 รอบ** |
+| B3: system-reminder ขอ fresh evidence ซ้ำ 2 รอบ → รันเต็มซ้ำ | ~+2 รอบ | 0 | **+2 รอบ** |
+
+**Verdict:** Time 8/10 (over-run เล็กน้อยจาก B1/B2/B3 แต่ล้วน env ไม่ใช่ logic) · Quality 9/10 (11/11 จริง ไม่หลอกเขียว, จับพรีเมสผิดได้, ไม่ pad เทส) · Process 9/10 (audit-first ถูก, parallel coordination ถูก, ไม่แตะไฟล์/ docs ของ session อื่น)
+
+### 2. Bottlenecks
+1. **B1:** Docker cold-start flake — รัน batch 3 test ครั้งแรก MAINT-NEW-02 ตกที่ `login()` (helper) เพราะ container ประกอบ Vite ใหม่ → flake class (R12) ไม่ใช่ bug ของ agent → เสีย 1 รอบ (รัน `-g` เดี่ยวผ่าน 15.8s)
+2. **B2:** Parallel coordination — ตลอด 3 รอบ verify มี `frontend-test-run-*` ของ session อื่นโผล่ → ต้อง poll รอให้หายก่อน `reset-e2e-db.sh` (R10: reset ตัด fixture กลาง → ทำลายรันคู่ขนาน) → เสียเวลารอ
+3. **B3:** System-reminder "unverified" เรียก verify ซ้ำ 2 รอบ → รัน full-file ซ้ำ (40-58s/รอบ) → ซ้ำซ้อนแต่จำเป็นตามกฎ
+
+### 3. Mistakes
+- **D1 (เล็ก):** รอบแรกที่ MAINT-NEW-02 ตก ควรจับทันทีว่าเป็น cold-start flake (ตกที่ login helper ไม่ใช่ assertion ใน test ของตัวเอง) → สันนิษฐาน flake แล้วรัน `-g` เดี่ยวยืนยันเลย ไม่เสียเวลา debug
+- **D2 (เล็ก):** ไม่ pre-warm stack (curl หน้า login 1 รอบ) ก่อนรัน batch → ถ้า warm อาจไม่เสียรอบ B1
+- ไม่มีข้อผิดพลาดระดับ logic (ไม่ผ่อน assertion, ไม่เดา selector, ไม่แต่งบั๊ก)
+
+### 4. What Went Well
+- จับพรีเมส Prompt ว่า "existing test ไม่เลือก priority" เป็นเท็จ — อ่าน `maintenance-flow.spec.ts:105` พบมี `.check()` แล้ว → ไม่เขียน test ซ้ำ/ผิด → ป้องกัน mistake class ได้ทันท่วงที
+- Re-verify โค้ดจริงทุกฟิลด์ (category / file-input / notification) — ยืนยัน absence ด้วยเหตุผล ไม่ shallow
+- Selector precise: MAINT-NEW-03 เล็ง `td:nth(2)` (priority cell) ไม่ใช่ title cell (เพราะ title มีคำ "urgent") → ไม่เผอิญจับผิด
+- Parallel discipline เคร่งครัด: เช็ก container ก่อนทุก reset/run, ไม่เคย reset ขณะ session อื่นรัน, ไม่ `make dev-down` (ปล่อย backend/db ให้ session อื่น), ไม่แตะ docs กลาง (rule #2)
+- ไม่แต่งบั๊ก: F-50 ไม่ใช้ เพราะ 5 อันเป็น expected absence / already-covered ไม่ใช่ source bug
+- `tsc` ของไฟล์ตัวเอง clean (error อื่นอยู่ใน `property-flow.spec.ts`, `tenant-flow.spec.ts`, `mock-helpers.ts` — นอก scope ไม่แตะ)
+
+### 5. AGENTS.md Rule (applied)
+> ❗ อ่านโค้ดจริงก่อนเชื่อ prompt/audit summary — พรีเมสผิดจับได้ทันท่วงที (→ R13)
+> ❗ เทสตกที่ `login()` helper (ไม่ใช่ assertion ใน test ของตัวเอง) → สันนิษฐาน cold-start flake ทันที รัน `-g` เดี่ยวยืนยัน (→ R12/R5)
+> ❗ Parallel: เช็ก `frontend-test-run-*` ก่อน reset/run; รอให้หายก่อน reset ห้ามตัด fixture กลาง (→ R10)
+
+### 6. Pre-Task Checklist
+- [ ] Audit-first: อ่าน component จริง จับพรีเมส Prompt ผิดได้ (ไม่เชื่อ summary)
+- [ ] งานเล็ก: `reset` + `-g filtered` 1 รอบ แล้ว `reset` + full 1 รอบ (ห้าม 3 รอบ, R14)
+- [ ] ก่อนรัน batch แรก → pre-warm stack (curl หน้า login) ลด cold-start flake
+- [ ] เทสตกที่ login helper → สันนิษฐาน flake รัน `-g` เดี่ยวยืนยัน
+- [ ] Parallel: เช็ก `frontend-test-run-*` ก่อน reset/run; ห้าม down shared infra (R10)
+- [ ] ไม่แต่งบั๊ก: absence/already-covered → ไม่ใช้ F-number ใหม่
+- [ ] assert-absence เล็ง selector precise ไม่จับฟิลด์อื่น (R11)
+
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2
+
+---
+
+## SESSION E2 — settings-flow E2E + backend bug-fix (2026-07-07)
+
+**Task:** สร้าง `frontend/e2e/specs/settings-flow.spec.ts` ใหม่ 13 tests (SET-00 + SET-01~08 assert-absence + SET-REAL-01~04 ของจริง) สำหรับหน้า `/settings` (admin Audit Logs + System Config tabs) + หาแก้บั๊ก backend จริง F-60/F-61/F-62/F-63
+**Total Session Time:** ~ปกติ แต่เสียรอบฟรี ~3-4 รอบจาก compose flag + buffered 420s run + F-62 patch วน 3 รอบ
+
+### 1. Performance Summary
+| Phase | Actual | Expected | Delta |
+|-------|--------|----------|-------|
+| Code audit + หา root cause (F-60~63) | ปกติ | ปกติ | 0 |
+| เขียน spec 13 tests + doc edits | ปกติ | ปกติ | 0 |
+| B1: compose ขาด `-f` → "no configuration file provided" | +2 รอบ | 0 | **+2 รอบ** |
+| B2: buffered `\| tail` บน 420s → output หาย 盲等 | +1 รอบ | 0 | **+1 รอบ** |
+| B3: F-62 patch วน 3 รอบ (rbac → auth_service → user table) | +2-3 รอบ | 0 | **+2-3 รอบ** |
+| B4: ประกาศ verify F-60 ก่อน restart backend (hot-reload ไม่เห็น) | +1 รอบ | 0 | **+1 รอบ** |
+
+**Verdict:** Time 6/10 (เสียรอบฟรีจาก B1/B2/B3/B4) · Quality 9/10 (13/13 จริง + แก้ backend bug ต้นเหตุ 3 จุด) · Process 8/10 (audit-first ถูก แต่ verify discipline หละหลวมตอนแก้ backend)
+
+### 2. Bottlenecks
+1. **B1:** ข้าม `-f docker-compose.dev.yml` → CLI ไม่สืบทอด `COMPOSE_FILE` จาก Makefile → "no configuration file provided: not found" 2 รอบก่อนนึกได้ (ละเมิด R16)
+2. **B2:** รัน `| tail` บน timeout 420s → output ถูกตัด/หาย 盲等 7 นาที → ควร redirect `/tmp/x.log` แล้ว poll (ละเมิด R16/R12)
+3. **B3:** F-62 owner-gate แก้เป็นชั้นๆ — rbac (superuser passthrough) → auth_service (เซ็ต claim) → เพิ่งรู้ users table ไม่มี column → สุดท้ายใช้ email-allowlist (ADMIN_EMAILS) จบ วน 3 รอบ (ละเมิด R16: ไม่ได้อ่าน chain 3 ชั้นก่อนแก้)
+4. **B4:** Hot-reload gap — แก้ router เสร็จ curl ยัง 422 เพราะ uvicorn ไม่เห็น edit จนกว่าจะ restart → ประกาศเร็วไป (ละเมิด R16: restart ก่อน verify)
+
+### 3. Mistakes
+- **D1:** ไม่เติม `-f docker-compose.dev.yml` ตอนรัน compose โดยตรง → อ่าน Makefile/COMPOSE_FILE ก่อนรัน
+- **D2:** buffer long run ด้วย `| tail` → stream ลงไฟล์ + poll
+- **D3:** patch F-62 แบบ incremental ทีละชั้น → อ่าน chain ครบ (decorator อ่าน claim / token เซ็ต claim / DB column) ก่อนแก้ จบรอบเดียว
+- **D4:** ประกาศ verify ก่อน restart backend → restart ก่อน curl เสมอ
+- **D5:** เขียน F-60/F-61 ลง log แล้วค่อยมาแก้เพิ่ม F-62/F-63 → ควร verify ครบแล้วเขียนก้อนเดียว
+- ไม่มีข้อผิดพลาดระดับ logic ใน spec (ไม่ผ่อน assertion, ไม่เดา selector)
+
+### 4. What Went Well
+- Audit-first จริงจัง: หา root cause F-60~63 ด้วยการ curl สด + decode JWT + `\d users` ก่อนแก้ (verify-before-write)
+- เจอบั๊กจริง 3 จุดแล้วแก้ที่ต้นเหตุ: F-60 (property_id optional), F-62 (ADMIN_EMAILS → claim), F-63 (metadata collision validator) — ไม่ workaround
+- F-61 (System Config read-only ไม่มี PATCH) ตัดสินใจถูก: document ไม่ built (out of scope + ต้อง DB-backed store)
+- ไม่แตะ 3 tsc errors ในไฟล์อื่น (property/tenant-flow/mock-helpers) — respect scope เคร่งครัด
+- curl สดยืนยัน backend (audit-logs 200 + config 200) ก่อนอ้างว่าเวิร์ก
+- เก็บ orphan container clean ตาม resource policy (run --rm)
+
+### 5. AGENTS.md Rule (applied)
+> ❗ คำสั่ง docker compose โดยตรง → เติม `-f docker-compose.dev.yml` เสมอ (CLI ไม่สืบทอด COMPOSE_FILE จาก Makefile) (→ R16)
+> ❗ ห้าม buffer long run ด้วย `| tail` → redirect log + poll (→ R16/R12)
+> ❗ Authz/owner-gate bug → อ่าน chain 3 ชั้น (decorator / token issuance / users column) ก่อนแก้ จบรอบเดียว (→ R16)
+> ❗ แก้ router/service เสร็จ → `restart backend` ก่อน curl verify (hot-reload gap) (→ R16)
+
+### 6. Pre-Task Checklist
+- [ ] รัน compose โดยตรง → `-f docker-compose.dev.yml` เสมอ
+- [ ] long run → `> /tmp/x.log 2>&1` + `process/wait` poll ไม่ใช้ `| tail`
+- [ ] Authz bug → อ่าน (1) decorator อ่าน claim ไหน (2) token issuance เซ็ตไหม (3) users table มี column ไหม → แก้ครบรอบเดียว
+- [ ] แก้ router/service → `restart backend` ก่อน curl verify
+- [ ] เขียน log/doc หลัง verify ครบแล้ว เขียนก้อนเดียว ไม่เขียนทีละส่วนแล้วมาแก้
+- [ ] หาบั๊กจริง → แก้ source ไม่ workaround; read-only/ออก scope → document ไม่ built
+- [ ] ไฟล์นอก scope มี error → flag ไม่แตะ
+
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2 · Archive E2
