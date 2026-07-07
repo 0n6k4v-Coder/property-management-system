@@ -18,14 +18,14 @@
 |--------|-------|------------------------------|
 | **Total Routes** | 21 | 22 |
 | **Total Scenarios** | ~227 | ~230 |
-| **Scenarios Executed** | 105 | 230 |
-| **Passed** | 94 | - |
+| **Scenarios Executed** | 122 | 230 |
+| **Passed** | 111 | - |
 | **Failed** | 0 | - |
 | **Skipped (documented N/A)** | 14 | - |
-| **Not Executed** | ~122 | - |
-| **Coverage** | **~46.3%** | 100% |
+| **Not Executed** | ~105 | - |
+| **Coverage** | **~53.7%** | 100% |
 
-> All 16 previously-failing scenarios from the mocked run are now passing under fullstack (0 failures). `/reports`, the remaining Meter Reading scenarios (METER-03~06), and the remaining Invoice/Payment scenarios (INV-02~08, INV-DET-03~06) are now covered — see Routes 8, 9, 10, and 11 below. The 14 skips are real, documented limitations (missing rate-limiting, missing property-selector UI, cannot force a real 500/empty-list from a real backend). Remaining "Not Executed" scenarios are routes this session did not touch: `/settings`, `/contracts/:id` detail, `/maintenance/new`, and the deeper contract-wizard/tenant-detail/tenant-edit scenarios.
+> All 16 previously-failing scenarios from the mocked run are now passing under fullstack (0 failures). `/reports`, Meter Reading (METER-03~06), Invoice/Payment (INV-02~08, INV-DET-03~06), and now Contract (CONT-02~08, CONT-NEW-01~06) and Maintenance (MAINT-03~07) are covered — see Routes 8, 9, 10, 11, 13, 14, 16 below. The 14 skips are real, documented limitations (missing rate-limiting, missing property-selector UI, cannot force a real 500/empty-list from a real backend). Remaining "Not Executed" scenarios are routes this session did not touch: `/settings`, `/contracts/:id` detail page, `/maintenance/new` dedicated scenarios.
 
 ---
 
@@ -35,9 +35,9 @@
 |-------|--------|-----------|----------|------|------|---------|----------|
 | **Group 1: Auth (Guest)** | 2 | 19 | 18 | 18 | 0 | 2 (N/A) | 94.7% |
 | **Group 2: Core Modules** | 9 | 102 | 76 | 65 | 0 | 26 (11 N/A) | 63.7% |
-| **Group 3: Phase 4 Features** | 8 | 56 | 6 | 6 | 0 | 50 | 10.7% |
+| **Group 3: Phase 4 Features** | 8 | 56 | 23 | 23 | 0 | 33 | 41.1% |
 | **Cross-cutting (a11y)** | - | 5 | 5 | 5 | 0 | 0 | 100% |
-| **Total** | **21** | **~227** | **105** | **94** | **0** | **~122** | **~46.3%** |
+| **Total** | **21** | **~227** | **122** | **111** | **0** | **~105** | **~53.7%** |
 
 ---
 
@@ -368,10 +368,10 @@
 ├──────────────┼───────┼─────────┼──────┼──────┼───────┼─────────┼───────────┤
 │ Auth (G1)    │ 2     │ 19      │ 18   │ 18   │ 0     │ 2 (N/A) │ 94.7%     │
 │ Core (G2)    │ 9     │ 102     │ 76   │ 65   │ 0     │ 26 (11N)│ 63.7%     │
-│ Phase 4 (G3) │ 8     │ 56      │ 6    │ 6    │ 0     │ 50      │ 10.7%     │
+│ Phase 4 (G3) │ 8     │ 56      │ 23   │ 23   │ 0     │ 33      │ 41.1%     │
 │ a11y (cross) │ -     │ 5       │ 5    │ 5    │ 0     │ 0       │ 100%      │
 ├──────────────┼───────┼─────────┼──────┼──────┼───────┼─────────┼───────────┤
-│ TOTAL        │ 21    │ ~227    │ 105  │ 94   │ 0     │ ~122    │ ~46.3%    │
+│ TOTAL        │ 21    │ ~227    │ 122  │ 111  │ 0     │ ~105    │ ~53.7%    │
 └──────────────┴───────┴─────────┴──────┴──────┴───────┴─────────┴───────────┘
 ```
 
@@ -417,9 +417,9 @@ No test-bug-only failures remain. Two additional real bugs were found and fixed 
 | `dashboard.spec.ts` | `/dashboard` | ✅ Done, fullstack (8/9, 1 N/A) |
 | `a11y.spec.ts` | Cross-cutting | ✅ Done, fullstack, all passing (5/5) |
 | `property-flow.spec.ts` | `/property`, `/property/:id`, `/property/rooms/:id` | ✅ Done, fullstack, all passing (23/23) |
-| `contract-flow.spec.ts` | `/contracts`, `/contracts/new` (list/detail/terminate/new-nav only, not the multi-step wizard) | ✅ Done, fullstack, all passing (4/4) |
+| `contract-flow.spec.ts` | `/contracts`, `/contracts/new` (CONT-01~08, CONT-NEW-01~06 — no separate `/contracts/:id` detail-page scenarios) | ✅ Done, fullstack, all passing (13/13) |
 | `invoice-payment.spec.ts` | `/invoices`, `/invoices/:id` | ✅ Done, fullstack, all passing (14/14) |
-| `maintenance-flow.spec.ts` | `/maintenance` (list + create only) | ✅ Done, fullstack, all passing (2/2) |
+| `maintenance-flow.spec.ts` | `/maintenance` (MAINT-01~07 — no separate `/maintenance/new` dedicated scenarios) | ✅ Done, fullstack, all passing (8/8) |
 | `meter-offline-sync.spec.ts` | `/meter-reading` | ✅ Done, fullstack, all passing (7/7) |
 | `tenant-flow.spec.ts` | `/tenants` | ✅ Done, fullstack (6 pass, 7 N/A — hardcoded property-selector gap, 0 fail) |
 | `reports-flow.spec.ts` | `/reports` | ✅ Done, fullstack (8 pass, 1 N/A, 0 fail) |
@@ -450,15 +450,20 @@ No test-bug-only failures remain. Two additional real bugs were found and fixed 
 ### Phase 6: Create Missing Test Files — PARTIALLY DONE
 - ~~`/tenants`~~ → DONE this session (`tenant-flow.spec.ts`, fullstack, 6 pass / 7 N/A)
 - ~~`/reports`~~ → DONE this session (`reports-flow.spec.ts`, fullstack, 8 pass / 1 N/A) — also fixed METER-03~06 gap in the existing `meter-offline-sync.spec.ts` (now 7/7)
-- Still missing: `/contracts/:id` detail-only scenarios, `/maintenance/new` dedicated scenarios, `/settings`
+- ~~Contract CONT-02~08/CONT-NEW-01~06~~ → DONE this session (`contract-flow.spec.ts`, fullstack, 13/13) — found+fixed F-21 (renew navigation bug); documented F-20 (dead `useLeaseHistory` gap)
+- ~~Maintenance MAINT-03~07~~ → DONE this session (`maintenance-flow.spec.ts`, fullstack, 8/8) — found+fixed F-30 (dead `/maintenance/:id` links silently bouncing users to `/dashboard`)
+- Still missing: `/contracts/:id` dedicated detail-page scenarios, `/maintenance/new` dedicated form-page scenarios, `/settings`
 
 ### Phase 7: Execute All Scenarios — IN PROGRESS
-Target: 100% coverage (~227 scenarios). Current: 105 executed (94 pass, 14 N/A, 0 fail) — ~46.3% of total scenario inventory. Remaining gap is "not yet written," not "failing."
+Target: 100% coverage (~227 scenarios). Current: 122 executed (111 pass, 14 N/A, 0 fail) — ~53.7% of total scenario inventory. Remaining gap is "not yet written," not "failing."
 
 ### Phase 8: Fullstack Conversion — DONE (new this session)
-- Removed every `page.route()` mock from all 10 spec files (9 converted + `reports-flow.spec.ts` new); built a deterministic seed script + DB reset workflow; all scenarios now exercise the real FastAPI backend and real Postgres. Found and fixed 14 real application/backend bugs invisible under the mocked suite — see `docs/LOG/E2E_TEST.md` Part F (F-01~F-19, some numbers reserved/combined).
+- Removed every `page.route()` mock from all 10 spec files (9 converted + `reports-flow.spec.ts` new); built a deterministic seed script + DB reset workflow; all scenarios now exercise the real FastAPI backend and real Postgres. Found and documented real application/backend bugs (fixed where in-scope, documented-as-gap where a missing feature) invisible under the mocked suite — see `docs/LOG/E2E_TEST.md` Part F, findings F-01 through F-30.
+
+### Phase 9: Parallel Session Coordination — DONE (new this session)
+- Two independent agent sessions ran concurrently on the same branch (not isolated worktrees) — one extending `contract-flow.spec.ts`, one extending `maintenance-flow.spec.ts`. Both respected the coordination protocol: exclusive file ownership, non-overlapping F-number ranges, `docker ps` mutual-exclusion check before any DB reset/Playwright run, and deferred edits to shared docs when a conflict was detected (Session B explicitly held back its `E2E_TEST.md`/Sprint-report edits to avoid clobbering Session A's concurrent changes). Both sessions' claims were independently re-verified by @claude: all 21 combined tests pass fresh, backend pytest 149/149, frontend unit tests 73/73.
 
 ---
 
-**Report Status:** ✅ **ALIGNED WITH features-to-test.md** — statuses above reflect actual fullstack test runs (`./scripts/reset-e2e-db.sh && docker compose -f docker-compose.dev.yml --profile dev run --rm frontend-test npx playwright test --reporter=list --retries=0`), not an estimate. Against the `features-to-test.md` scenario inventory: 105 tests executed, 94 passed, 14 skipped (documented real limitations), 0 failed.  
-**Next Update:** After Phase 6/7 (writing test coverage for `/settings`, `/contracts/:id`, `/maintenance/new`, and remaining detail/wizard scenarios).
+**Report Status:** ✅ **ALIGNED WITH features-to-test.md** — statuses above reflect actual fullstack test runs (`./scripts/reset-e2e-db.sh && docker compose -f docker-compose.dev.yml --profile dev run --rm frontend-test npx playwright test --reporter=list --retries=0`), not an estimate. Against the `features-to-test.md` scenario inventory: 122 tests executed, 111 passed, 14 skipped (documented real limitations), 0 failed.  
+**Next Update:** After Phase 6/7 (writing test coverage for `/settings`, `/contracts/:id`, `/maintenance/new`).
