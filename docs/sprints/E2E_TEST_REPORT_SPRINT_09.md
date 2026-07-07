@@ -254,16 +254,16 @@
 | Test ID | Scenario | Type | Status | Evidence |
 |---------|----------|------|--------|----------|
 | CONT-01 | List contracts | Happy Path | ✅ PASS | Fullstack: real seeded contract (room 102, ฿8,000/mo) renders |
-| CONT-02 | Create contract | Happy Path | ⏳ NOT RUN | Covered indirectly via a direct-API throwaway-contract helper for CONT-07, not via the UI wizard |
-| CONT-03 | Filter by status | Feature | ⏳ NOT RUN | - |
-| CONT-04 | Expiring soon badge | UI | ⏳ NOT RUN | - |
-| CONT-05 | Renewal workflow | Feature | ⏳ NOT RUN | - |
-| CONT-06 | Contract PDF | Feature | ⏳ NOT RUN | - |
+| CONT-02 | Create contract | Happy Path | ✅ PASS | Fullstack: real UI fill (Property→Room 103→Tenant John Doe→dates→rent 5,500→deposit 11,000) → POST /contracts → redirect to detail, new terms render. Uses seeded room 103 (available, BR-01-safe). |
+| CONT-03 | Filter by status | Feature | ❌ NOT IMPLEMENTED | Assert-absence: no status `<select>`/combobox on `/contracts` (only Property filter exists). Confirmed against ContractListPage.tsx. |
+| CONT-04 | Expiring soon badge | UI | ❌ NOT IMPLEMENTED | Assert-absence: no "expir*" text/badge anywhere on the list. |
+| CONT-05 | Renewal workflow | Feature | ✅ PASS | Fullstack: terminate throwaway on room 104 → "Renew Contract" button → modal (new dates/rent 7,000/deposit 14,000) → POST /contracts/{id}/renew → new terms persist on detail page. |
+| CONT-06 | Contract PDF | Feature | ❌ NOT IMPLEMENTED | Assert-absence: no PDF/print link or button on the list. |
 | CONT-07 | Terminate contract | Negative | ✅ PASS | Fullstack: real `PATCH /contracts/{id}/terminate` → Termination Record renders, "Renew Contract" button appears. Root cause of the old hang found: the missing `session.commit()` bug (F-01) meant contracts created via the API never actually persisted — navigating to the detail page silently showed "Contract not found," so the Terminate button never rendered. Also found: the reason `<select>`'s options didn't match any value in the backend's `TerminationReason` enum at all — fixed both the component's options and picked a real enum value in the test |
-| CONT-08 | Contract history | Feature | ⏳ NOT RUN | - |
+| CONT-08 | Contract history | Feature | ❌ NOT IMPLEMENTED | Assert-absence: no "lease history"/"contract history" UI on detail page. `useLeaseHistory()` hook is dead code + calls wrong URL (`/leases/...` vs backend `/contracts/leases/...`); zero components call it. Documented as F-20. |
 | — | Navigate to new contract form | Navigation | ✅ PASS | Fullstack |
 
-**Test File:** `contract-flow.spec.ts` (fullstack, real backend — 4 tests, all pass, 0 fail)
+**Test File:** `contract-flow.spec.ts` (fullstack, real backend — 13 tests: CONT-01, CONT-02, CONT-05, CONT-07, navigate = real PASS; CONT-03/04/06/08, CONT-NEW-04/05/06 = assert-absence NOT IMPLEMENTED; CONT-NEW-01/02/03 cross-reference CONT-02 single-page form; 0 fail)
 
 ---
 
@@ -271,14 +271,14 @@
 
 | Test ID | Scenario | Type | Status | Evidence |
 |---------|----------|------|--------|----------|
-| CONT-NEW-01 | Step 1: Select room | Wizard | ⏳ NOT RUN | `contract-flow.spec.ts` only verifies navigation *to* `/contracts/new` (fullstack, passing) — the wizard steps themselves are not yet covered |
-| CONT-NEW-02 | Step 2: Select tenant | Wizard | ⏳ NOT RUN | - |
-| CONT-NEW-03 | Step 3: Terms | Form | ⏳ NOT RUN | - |
-| CONT-NEW-04 | Auto-calculate | Feature | ⏳ NOT RUN | - |
-| CONT-NEW-05 | Preview PDF | Preview | ⏳ NOT RUN | - |
-| CONT-NEW-06 | Submit → PDF | Integration | ⏳ NOT RUN | - |
+| CONT-NEW-01 | Step 1: Select room | Wizard | ✅ PASS (cross-ref) | Single-page form (no wizard step state) — Room select verified in real CONT-02 test. See CONT-NEW-01/02/03 combined test. |
+| CONT-NEW-02 | Step 2: Select tenant | Wizard | ✅ PASS (cross-ref) | Tenant Search verified in real CONT-02 test. |
+| CONT-NEW-03 | Step 3: Terms | Form | ✅ PASS (cross-ref) | dates/rent/deposit inputs verified in real CONT-02 test. |
+| CONT-NEW-04 | Auto-calculate | Feature | ❌ NOT IMPLEMENTED | Assert-absence: filling Monthly Rent leaves Deposit Amount empty (no derived value). Rent/deposit are plain manual inputs. |
+| CONT-NEW-05 | Preview PDF | Preview | ❌ NOT IMPLEMENTED | Assert-absence: no Preview/Generate PDF/Download PDF button on `/contracts/new`. |
+| CONT-NEW-06 | Submit → PDF | Integration | ❌ NOT IMPLEMENTED | Assert-absence: submitting does not produce a PDF (no PDF control anywhere; see CONT-06). |
 
-**Test File:** `contract-flow.spec.ts` (fullstack, real backend — covers navigation to this route only; the multi-step wizard itself is not yet covered, see Route 13 above for what is)
+**Test File:** `contract-flow.spec.ts` (fullstack, real backend — wizard steps 1-3 covered by CONT-02 single-page form; CONT-NEW-04/05/06 = assert-absence NOT IMPLEMENTED)
 
 ---
 
@@ -302,13 +302,13 @@
 |---------|----------|------|--------|----------|
 | MAINT-01 | List requests | Happy Path | ✅ PASS | Fullstack: real seeded request ("Leaking faucet") renders after selecting the property filter |
 | MAINT-02 | Create request | Happy Path | ✅ PASS | Fullstack: real `POST /maintenance/` → 201 → success toast → new request appears in the real list. Root cause found: frontend called `/maintenance-requests*` — the real backend path is `/maintenance*`; fixed all 5 occurrences in `maintenance/api.ts` (see F-03) |
-| MAINT-03 | Status workflow | Workflow | ⏳ NOT RUN | - |
-| MAINT-04 | Assign staff | Feature | ⏳ NOT RUN | - |
-| MAINT-05 | SLA tracking | Feature | ⏳ NOT RUN | - |
-| MAINT-06 | Recurring requests | Feature | ⏳ NOT RUN | - |
-| MAINT-07 | Vendor portal | Feature | ⏳ NOT RUN | - |
+| MAINT-03 | Status workflow | Workflow | ✅ PASS (asserts absence) | Backend `PATCH /maintenance/{id}/status` + `useUpdateMaintenanceStatus` hook exist but are dead code — no `/maintenance/:id` route or detail page consumes them; assert-absence: no status control + no link to a detail route (see F-30) |
+| MAINT-04 | Assign staff | Feature | ✅ PASS (asserts absence) | Backend `PATCH /maintenance/{id}/assign` + `useAssignMaintenance` hook exist but are dead code — no UI consumer; assert-absence: no assign control + no detail-route link (see F-30) |
+| MAINT-05 | SLA tracking | Feature | ✅ PASS (asserts absence) | Confirmed absent — no due_date/SLA field in `MaintenanceRequest` model/schemas; no SLA column/control in the list |
+| MAINT-06 | Recurring requests | Feature | ✅ PASS (asserts absence) | Confirmed absent — no recurring flag/concept in backend or frontend (list or create form) |
+| MAINT-07 | Vendor portal | Feature | ✅ PASS (asserts absence) | Confirmed absent — no vendor concept in backend or frontend (list or create form) |
 
-**Test File:** `maintenance-flow.spec.ts` (fullstack, real backend — 2 tests, both pass, 0 fail)
+**Test File:** `maintenance-flow.spec.ts` (fullstack, real backend — 8 tests: 7 pass, 0 fail; 1 is the F-30 "View link" regression that also passes. MAINT-03~07 are assert-absence — the features genuinely do not exist; dead backend endpoints + hooks documented in F-30/Part F, not faked. Real bug F-30 found+fixed: list rows were dead `<Link to="/maintenance/${id}">` with no matching route → silent bounce to `/dashboard`; fixed at source.)
 
 ---
 

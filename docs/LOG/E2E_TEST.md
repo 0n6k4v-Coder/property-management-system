@@ -865,6 +865,67 @@ Extended `frontend/e2e/specs/invoice-payment.spec.ts` from 4 → 14 tests coveri
 
 **Flake note (environment, not test logic):** on a *cold* `docker run --rm frontend-test` the Vite dev server compiles the whole app on first navigation; the detail-page `h1` `toContainText(invoice number)` occasionally misses the 30s window on the first test of a cold run, producing an intermittent 13/14. This is the documented container-startup-variance class (see Session A, bottleneck #4). Warm runs are consistently 14/14; all 10 new tests also pass in isolation. Assertions were NOT relaxed to mask it.
 
+### F-20 (Contract — CONT-08 Lease History): `useLeaseHistory()` hook + backend `GET /leases/{room_id}/history` exist but are dead code (frontend/backend URL mismatch, never rendered)
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | CONT-08 (Contract history) |
+| **Type** | Dead-code gap (frontend + backend disconnect) — same class as F-14 (`useUpdateRoomStatus`) / F-19-style gaps |
+| **Severity** | Low (no user-facing break; feature simply does not exist in the UI) |
+| **Status** | Documented, **not fixed** in this E2E task (would require building a new UI feature; per project precedent for E2E gaps, document rather than implement) |
+
+**Root cause (F-20):** `frontend/src/features/contract/api.ts` defines `useLeaseHistory(roomId)` which calls `fetchClient.apiFetch('/leases/' + roomId + '/history')` — i.e. a path under `/api/v1/leases/...`. But the backend endpoint is mounted at `backend/app/modules/contract/routers/contract_router.py` as `@router.get('/leases/{room_id}/history')`, and `contract_router` is included with `prefix='/api/v1/contracts'` (see `backend/app/main.py`). So the real URL is `/api/v1/contracts/leases/{room_id}/history`. The frontend hook would 404 even if it were ever called. More importantly, a **grep of the whole frontend confirms zero components import or call `useLeaseHistory`** — no contract detail page (or any other page) renders a lease/contract history section. So CONT-08 is genuinely unimplemented at the UI layer.
+
+**Symptom:** no lease/contract history UI appears anywhere; an assert-absence test (`page.getByText(/lease history|contract history/i)` → count 0) is the correct, real representation of current behavior.
+
+**Files affected:** `frontend/src/features/contract/api.ts` (`useLeaseHistory` → wrong URL `/leases/...` instead of `/contracts/leases/...`), `backend/app/modules/contract/routers/contract_router.py` (`get_lease_history` endpoint, reachable at `/api/v1/contracts/leases/{id}/history` but unreferenced by any UI), no frontend component wiring.
+
+**How it was found:** re-verifying the prior-session read-only audit while extending `contract-flow.spec.ts` for CONT-08 — the audit's claim ("dead-code gap, not a working feature") was confirmed by grepping the frontend for `useLeaseHistory` (0 callers) and by comparing the hook's URL against the backend router mount prefix.
+
+**Prevention:** (1) When a frontend data hook exists but no component uses it, treat it as a latent UI gap and grep for callers before asserting the feature works. (2) Frontend API path constants must be derived from the backend router's actual `prefix` + path at code-review time, not hand-written — a mismatch like `/leases/` vs `/contracts/leases/` is invisible to type-checking and only surfaces at runtime. (3) Same lesson as F-03/F-16: a hook + an endpoint both existing does NOT mean the feature exists end-to-end; the wiring (component render) is the missing third leg. This is the same class of "two halves exist, the join is missing" bug as F-14.
+
+### F-21 (Contract — CONT-05 Renew): renew creates a NEW contract (new id) but the UI stayed on the terminated original → renewed terms never shown
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | CONT-05 (Renewal workflow) |
+| **Type** | Real frontend bug — silent UX failure (renew "succeeds" but user sees no change) |
+| **Severity** | Medium (data is correct server-side; the user just can't see the renewed contract) |
+| **Status** | **FIXED at source** (frontend navigate to the new contract after renew) |
+
+**Root cause (F-21):** `POST /api/v1/contracts/{id}/renew` (`backend/app/modules/contract/routers/contract_router.py`) creates a **brand-new** `Contract` row (new UUID) from the terminated/expired original and returns it as `ContractCreateResponse` (HTTP 201). But `handleRenew()` in `frontend/src/features/contract/ContractDetailPage.tsx` only did `showToast('Contract renewed successfully')` + closed the modal — it never navigated to the new contract, and `useRenewContract`'s `onSuccess` only `invalidateQueries({ queryKey: contractKeys.all })` (= `['contracts']`). The page stayed at `/contracts/{originalId}`, whose detail query (`['contracts', originalId]`) still returned the **terminated** original (rent 5,000), so the renewed terms (rent 7,000) were invisible. The test initially failed asserting `7,000` on the detail page — the only honest reason was that the UI was showing the wrong (old) contract.
+
+**Symptom:** after renewing, the detail page still shows the original terminated contract's terms; no navigation, no error. An E2E test that terminates a throwaway contract then renews it and asserts the new rent appears will fail unless the UI navigates.
+
+**Files affected / fix:** `frontend/src/features/contract/ContractDetailPage.tsx` — `handleRenew()` now captures the mutation result, and if `newContract?.id` is present, calls `navigate('/contracts/' + newContract.id)` so the user lands on the renewed contract and sees its (correct) terms. `useRenewContract`'s broad `['contracts']` invalidation is harmless and left as-is (the new detail page does a fresh fetch).
+
+**How it was found:** the CONT-05 E2E test (extend `contract-flow.spec.ts`) failed at `expect(page.getByText('7,000')).toBeVisible()` after a successful renew — `getByText` uses substring match and `formatCurrency` renders `฿7,000.00`, so a real "7,000" would have matched; its absence proved the page was still on the original contract. Confirmed by reading `renew_contract` (creates new row) vs. `handleRenew` (no navigation).
+
+**Prevention:** whenever a write endpoint returns a **new** resource id (create / clone / renew / duplicate), the calling UI must navigate to or otherwise surface that new id — don't assume the current page's entity is the one that changed. A Playwright test asserting post-mutation state on the same URL is a cheap tripwire for exactly this class of bug.
+
+---
+
+### F-30 (Maintenance — MAINT-03/04 "View" dead link + dead status/assign endpoints): `MaintenanceListPage` rendered `<Link to={`/maintenance/${req.id}`}>` for the title AND "View" action, but no `/maintenance/:id` route is registered → silent bounce to `/dashboard`; status/assign PATCH endpoints + hooks exist but are unwired dead code
+
+| Field | Value |
+|-------|-------|
+| **Scenario** | MAINT-03 (Status workflow), MAINT-04 (Assign staff), and the list-row "View" navigation |
+| **Type** | Real frontend bug (dead link → silent navigation bounce) + two dead-code backend endpoints (status/assign) with no UI consumer |
+| **Severity** | Medium (no crash, but clicking a list row silently bounced the authenticated user to the dashboard — a confusing no-op; the status/assign backend features are reachable only via API, never the UI) |
+| **Status** | **Real bug FIXED at source** (dead links removed). The status/assign dead endpoints are documented, NOT built (out of E2E scope — would require a detail page). Covered by assert-absence tests for MAINT-03/04/05/06/07 + a F-30 regression test in `maintenance-flow.spec.ts`. |
+
+**Root cause (F-30):** `frontend/src/features/maintenance/MaintenanceListPage.tsx` wrapped both the request `title` and the row's "View" action in `<Link to={`/maintenance/${req.id}`}>`. But `src/routes/index.tsx` registers only `/maintenance` and `/maintenance/new` — there is **no `/maintenance/:id` route** and no detail page component. So clicking either link hit the catch-all route `<Route path="*">` → `<Navigate to="/login" replace>` → since the user is already authenticated, `GuestRoute` immediately redirected them to `/dashboard`. Net effect: a silent bounce with no 404, no console error, no feedback — the row looked clickable but did nothing useful. Separately, the backend DOES implement `GET /maintenance/{id}`, `PATCH /maintenance/{id}/status`, and `PATCH /maintenance/{id}/assign` (`backend/app/modules/maintenance/routers/maintenance_router.py`), and `api.ts` exposes the matching `useMaintenanceDetail`, `useUpdateMaintenanceStatus`, and `useAssignMaintenance` hooks — but a **grep confirms zero components import or call those hooks** (no detail page exists to host them). They are dead code, the same class as F-14 (`useUpdateRoomStatus`) and F-20 (`useLeaseHistory`): the backend half and the hook half exist, the UI wiring half is missing.
+
+**Symptom:** (before fix) clicking a maintenance row's title or "View" silently navigated away from `/maintenance` to `/dashboard`. After fix, list rows are plain text (no anchor), so no navigation occurs and the URL stays on `/maintenance`.
+
+**Files affected:** `frontend/src/features/maintenance/MaintenanceListPage.tsx` (removed the two dead `<Link>`s; title is now a `<span>`, the "View" column was dropped — list shows title/room/priority/status/created only). `backend/app/modules/maintenance/routers/maintenance_router.py` + `frontend/src/features/maintenance/api.ts` are confirmed dead-code (documented; not removed, since the endpoints/hooks are valid and a future detail page should wire them up).
+
+**How it was found:** while extending `maintenance-flow.spec.ts` for MAINT-03~07, I investigated what the list-row "View" action actually does (the prompt flagged it as a possible real bug). Component audit of `MaintenanceListPage.tsx` + route audit of `src/routes/index.tsx` showed the dead link; an `assert-absence` test for the missing `/maintenance/:id` route then confirmed the silent bounce empirically (authenticated click landed on `/dashboard`).
+
+**Fix:** removed the dead links at source (no fake route, no workaround). The assert-absence tests for MAINT-03/04 now confirm there is no status-change / assign control *and* no anchor pointing at a per-request detail route (`/maintenance/<uuid>`); a dedicated F-30 regression test asserts `countMaintenanceDetailLinks(page) === 0` and `page.url` stays `/maintenance` after interacting with the list. MAINT-05 (SLA/due_date), MAINT-06 (recurring), MAINT-07 (vendor) are confirmed absent in models/schemas/UI and asserted as absence.
+
+**Prevention:** (1) A `<Link to={...}>` whose target has no registered route is a silent failure (catch-all → login → bounce) — every dynamic row link must have a matching `Route` + page component, and a missing one should be caught in code review. (2) Same lesson as F-14/F-20: a backend endpoint + a frontend hook existing does NOT mean the feature is wired; grep for component callers before claiming a feature works. (3) Navigation-regression guard: any test that clicks a list row should assert the resulting URL, not just that "no error appeared" — a silent bounce to an unrelated page is still a failure.
+
 ---
 
 ## Reference: Correct Patterns

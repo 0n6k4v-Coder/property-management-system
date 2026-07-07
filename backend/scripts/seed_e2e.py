@@ -57,6 +57,8 @@ PROPERTY_RIVERSIDE_ID = _id("property-riverside")
 BUILDING_SUNSET_A_ID = _id("building-sunset-a")
 ROOM_101_ID = _id("room-101")
 ROOM_102_ID = _id("room-102")
+ROOM_103_ID = _id("room-103")
+ROOM_104_ID = _id("room-104")
 TENANT_JOHN_DOE_ID = _id("tenant-john-doe")
 CONTRACT_ROOM_102_ID = _id("contract-room-102")
 INVOICE_2026_0001_ID = _id("invoice-2026-0001")
@@ -219,6 +221,39 @@ async def seed_e2e() -> None:
             session.add(room_102)
             await session.flush()
             print("✅ Created room 102 (occupied)")
+
+        # ── Rooms 103 / 104 (available, reserved for E2E contract-create &
+        #    renew flows so they never collide with BR-01 one-active-contract
+        #    per-room against the shared room 101/102 fixtures) ─────────────
+        room_103 = await _get_or_none(session, Room, ROOM_103_ID)
+        if room_103 is None:
+            room_103 = Room(
+                id=ROOM_103_ID,
+                property_id=PROPERTY_SUNSET_ID,
+                building_id=BUILDING_SUNSET_A_ID,
+                room_number="103",
+                room_type=RoomType.STUDIO,
+                base_rent=Decimal("5500.00"),
+                status=RoomStatus.AVAILABLE,
+            )
+            session.add(room_103)
+            await session.flush()
+            print("✅ Created room 103 (available)")
+
+        room_104 = await _get_or_none(session, Room, ROOM_104_ID)
+        if room_104 is None:
+            room_104 = Room(
+                id=ROOM_104_ID,
+                property_id=PROPERTY_SUNSET_ID,
+                building_id=BUILDING_SUNSET_A_ID,
+                room_number="104",
+                room_type=RoomType.ONE_BEDROOM,
+                base_rent=Decimal("6500.00"),
+                status=RoomStatus.AVAILABLE,
+            )
+            session.add(room_104)
+            await session.flush()
+            print("✅ Created room 104 (available)")
 
         # ── Tenant ───────────────────────────────────────────────────────
         tenant = await _get_or_none(session, Tenant, TENANT_JOHN_DOE_ID)

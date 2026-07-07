@@ -98,6 +98,28 @@ R12. เก็บ Playwright output เต็ม — ห้าม `tail` ตั�
       process log ครบ หรือ redirect `2>&1` เก็บทั้งหมด
     - Source: Session D
 
+R13. ก่อนเขียน E2E ที่แตะ form ใดๆ → สกัด DOM contract จริงลง checklist ก่อนพิมพ์ selector
+    - ห้ามเชื่อชื่อ field จาก audit/compaction summary — อ่าน component จริงแล้วจด:
+      · ทุก `<Input label="X">` → id = `input-X` (และเช็คว่า label มี suff*ix อื่นไหม
+        เช่น `"(THB)"`, `" *"`) → `getByLabel` ต้องใช้ regex `/x/i` ไม่ใช่ exact string
+      · ทุก `<select>`/`<input>` ธรรมดา → อ่าน `id`/`htmlFor` จริง (ไม่ใช่ `getByLabel` เสมอไป)
+      · option text จริง (เช่น `"103 (studio) — available"`) → `selectOption` ใช้ `value: <SEEDED.id>`
+        ไม่ใช่ `{ label: '103' }` (regex ไม่รับใน selectOption)
+      · หลัง submit นำทางไปไหน → `toHaveURL` เช็คให้ตรง (อย่าสมมติ `/contracts/{id}`)
+    - Source: Session E (contract-flow — เดาผิด label/nav → เสีย 1 รอบเต็ม)
+
+R14. reset-e2e-db ก่อน EVERY playwright run + iterate ด้วย `-g` filtered ไม่ใช่ full suite
+    - Prompt บอกชัด: `./scripts/reset-e2e-db.sh` before every run — ห้ามข้ามแม้รันซ้ำติดกัน
+      (ไม่ reset → fixture pollution BR-01 ชนกันระหว่างรอบ → false failure)
+    - ตอน iterate แก้ selector/bug → รัน `npx playwright test -g "TEST_NAME"` (~5s) ไม่ใช่
+      full suite (~48s) ทุกครั้ง; สงวน full-file สำหรับ final confirm 2 รอบ
+    - Source: Session E (ไม่ reset ระหว่างรอบ → เสีย 1-2 รอบ; รันเต็มซ้ำๆ → เสียเวลา)
+
+R15. ได้ deterministic ID ผ่าน docker → รันเลย อย่า clarify ถ้า option ชัด
+    - ถ้าต้องได้ UUID/seed value ที่คำนวณจาก namespace → `docker compose run --rm --no-deps
+      backend python -c "..."` (Docker-First) แล้วรายงานผล; ห้าม clarify ถ้า option 1 ชัดเจน
+    - Source: Session E (ถามผู้ใช้เลือก option ที่ชัดอยู่แล้ว → เสีย 1 round-trip ฟรี)
+
 ══════════════════════════════════════════════════
 # 📑 SESSION INDEX — เลือกอ่าน ARCHIVE ตามประเภทงาน
 ══════════════════════════════════════════════════
@@ -109,6 +131,7 @@ R12. เก็บ Playwright output เต็ม — ห้าม `tail` ตั�
 | C | 2026-07-07 | Doc/log edit | เพิ่ม Session B ลง `SELF_CRITIC.md` | Time 7/10, Quality 8/10 |
 | 4 | 2026-07-07 | E2E (Route 9/10) | Extend `invoice-payment.spec.ts` (INV-02~08, INV-DET-03~06) 4→14 tests | Time 5/10, Quality 9/10 |
 | D | 2026-07-07 | E2E (Route 16/17) + parallel | Extend `maintenance-flow.spec.ts` (MAINT-03~07) + หาแก้บั๊กจริง F-30 ในสภาพ 2 agent แชร์ working tree | Time 6/10, Quality 9/10 |
+| E | 2026-07-07 | E2E (Route 13/14) + parallel | Extend `contract-flow.spec.ts` (CONT-02~08, CONT-NEW-01~06) 4→13 tests + หาแก้บั๊กจริง F-21 ในสภาพ 2 agent แชร์ working tree | Time 6/10, Quality 9/10 |
 
 ---
 
@@ -328,6 +351,14 @@ to cover METER-03~06 (fullstack, zero mocks).
 - assert-absence มีเหตุผลชัดเจน ไม่ shallow; ยืนยัน absence ด้วยการคลิกดูพฤติกรรมจริง (ไม่แค่เช็ก "ไม่มีปุ่ม")
 - ไม่ผ่อน assertion เลย
 
+---
+
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D
+- ทำตาม parallel-session rule เคร่งครัด: ไม่แตะ `contract-flow.spec.ts`, เช็ก `frontend-test-run-*` ก่อนทุกครั้ง, รอคอนเทนเนอร์ Session A หายก่อน reset/run, scoped doc edits, ใช้ F-30 (เหนือ range ของ Session A ที่เริ่ม F-20)
+- เจอบั๊กจริง (F-30 dead link → silent bounce ไป /dashboard) แล้วแก้ที่ต้นเหตุ ไม่ workaround
+- assert-absence มีเหตุผลชัดเจน ไม่ shallow; ยืนยัน absence ด้วยการคลิกดูพฤติกรรมจริง (ไม่แค่เช็ก "ไม่มีปุ่ม")
+- ไม่ผ่อน assertion เลย
+
 ### 5. AGENTS.md Rule (applied)
 > ❗ Parallel session: ห้าม `reset-e2e-db.sh` / รัน `frontend-test` ขณะมี `pms-dev-frontend-test-run-*` ลอยอยู่ — ห้าม `docker compose down` ถ้า session อื่นอาจกำลังรัน (→ R10)
 > ❗ เขียน locator เจาะจงรูปทรง route ไม่ใช่ prefix กว้าง + grep หา occurrence เก่าหลัง patch (→ R11)
@@ -344,3 +375,57 @@ to cover METER-03~06 (fullstack, zero mocks).
 - [ ] doc edits: ต่อท้าย/แทรกด้วย `patch` ห้าม rewrite; ใช้ F-number range ไม่ซ้ำ Session อื่น
 
 > ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D
+
+---
+
+## SESSION E — Parallel contract-flow E2E (2026-07-07)
+
+**Task:** Extend `frontend/e2e/specs/contract-flow.spec.ts` 4→13 tests (CONT-02,03,04,05,06,08 + CONT-NEW-01~06 assert-absence/cross-ref) + หาแก้บั๊กจริง (F-21 renew ไม่ navigate ไป contract ใหม่) ในสภาพ **2 agent แชร์ working tree** (Session D ทำ `maintenance-flow.spec.ts` คู่ขนาน)
+**Total Session Time:** ~ปกติ แต่เสียรอบรันฟรี ~3 รอบจาก selector ผิด + DB pollution
+
+### 1. Performance Summary
+| Phase | Actual | Expected | Delta |
+|-------|--------|----------|-------|
+| Code audit + หาบั๊กจริง | ปกติ | ปกติ | 0 |
+| เขียนเทส + doc edits | ปกติ | ปกติ | 0 |
+| B1: selector เดาผิดจาก audit (label/nav) → 3 fail | +1 รอบ | 0 | **+1 รอบ** |
+| B2: ไม่ reset ระหว่างรอบ → BR-01 pollution false-fail | +1-2 รอบ | 0 | **+1-2 รอบ** |
+| B3: รันเต็มซ้ำๆ ตอน iterate แทน -g filtered | ~+2 รอบ | 0 | **+2 รอบ** |
+| B4: clarify ขอ UUID ทั้งที่ option ชัด | +1 round-trip | 0 | **+1 RT** |
+
+**Verdict:** Time 6/10 (เสียรอบฟรีจาก B1/B2/B3) · Quality 9/10 (13/13 จริง ไม่หลอกเขียว + เจอบั๊กจริง 1 แก้ต้นเหตุ) · Process 8/10 (parallel coordination ถูก แต่ verify discipline หละหลวม)
+
+### 2. Bottlenecks
+1. **B1:** เชื่อ audit/compaction summary ว่า label คือ "Monthly Rent / Deposit Amount / Tenant Search" และ submit นำทาง `/contracts/{id}` → จริงคือ `<Input label="Monthly Rent (THB)">`, `<input id="tenant-search">`, submit นำทางกลับ `/contracts` → 3 tests fail รอบแรก (ละเมิด R13)
+2. **B2:** ไม่ `reset-e2e-db.sh` ระหว่างรอบ → terminate test (room101) + CONT-05 (room104) โดน BR-01 จาก contract ค้างรอบก่อน → false failure (ละเมิด R14)
+3. **B3:** ตอน iterate แก้ selector/bug รันเต็ม 48s ทุกครั้ง แทน `-g "CONT-02"` (~5s) → เสียเวลาสะสม
+4. **B4:** Clarify ขอ deterministic UUID ทั้งที่ option 1 (docker compute) ชัดเจนตาม Docker-First → เสีย 1 round-trip ฟรี (ละเมิด R15)
+
+### 3. Mistakes
+- **D1:** เชื่อชื่อ field จาก summary ไม่ใช่โค้ดจริง → สกัด exact label/id/nav ลง checklist ก่อนเขียน selector (→ R13)
+- **D2:** ละเมิด R14 ไม่ reset ระหว่างรอบ → ได้ false failure จาก fixture pollution
+- **D3:** รันเต็มซ้ำๆ ตอน debug → ควร `-g` filtered (→ R14)
+- **D4:** Clarify เรื่องที่ option ชัด → รัน docker compute เลย (→ R15)
+- **D5:** ไม่แยกวินิจฉัยกลุ่ม fail (selector vs pollution vs real bug) → แก้ทีละชั้นรันเต็มทุกหน
+
+### 4. What Went Well
+- ทำตาม parallel-session rule เคร่งครัด: ไม่แตะ `maintenance-flow.spec.ts`, เช็ก `frontend-test-run-*` ก่อนทุกครั้ง, scoped doc edits, ใช้ F-20/F-21 (ใต้ range Session D ที่เริ่ม F-30)
+- เจอบั๊กจริง (F-21: `POST /contracts/{id}/renew` สร้าง contract ใหม่แต่ UI อยู่บน original → ไม่เห็น terms ใหม่) แล้วแก้ที่ต้นเหตุ (`ContractDetailPage.tsx` navigate ไป contract ใหม่) ไม่ workaround
+- F-20 (CONT-08 useLeaseHistory dead-code + URL ผิด) ยืนยันด้วย grep 0 callers + เทียบ router prefix → documented ไม่ built (ตาม precedent)
+- assert-absence มีเหตุผลชัดเจน (CONT-03/04/06/08, CONT-NEW-04/05/06) ไม่ shallow
+- ไม่ผ่อน assertion เลย; captureAllStates ครบทุก test
+- ไม่รัน `make dev-down` → ไม่กระทบ backend/db ของ Session D (shared resource)
+
+### 5. AGENTS.md Rule (applied)
+> ❗ ก่อนเขียน E2E form → สกัด DOM contract จริง (label/id/nav/option-text) ลง checklist ห้ามเชื่อ audit summary (→ R13)
+> ❗ reset-e2e-db ก่อน EVERY run + iterate ด้วย `-g` filtered ไม่ใช่ full suite (→ R14)
+> ❗ ได้ deterministic ID ผ่าน docker → รันเลย อย่า clarify ถ้า option ชัด (→ R15)
+
+### 6. Pre-Task Checklist
+- [ ] อ่าน component form จริง → จด exact Input label (รวม suff*ix `*`/`(THB)`), select id, option-text, post-submit nav
+- [ ] `getByLabel` ใช้ regex `/x/i` ถ้า label มี suff*ix; `selectOption` ใช้ `value: SEEDED.id` ไม่ใช่ label regex
+- [ ] `./scripts/reset-e2e-db.sh` ก่อน EVERY playwright run (รวมรอบซ้ำ)
+- [ ] iterate ด้วย `npx playwright test -g "TEST_NAME"` ไม่ใช่ full suite
+- [ ] ได้ UUID/seed → `docker compose run --rm --no-deps backend python -c "..."` เลย อย่า clarify
+- [ ] parallel: เช็ก `frontend-test-run-*` ก่อน reset/run; scoped doc; F-number range ไม่ซ้ำ session อื่น
+- [ ] หาบั๊กจริง → แก้ source ไม่ workaround; assert-absence → document gap

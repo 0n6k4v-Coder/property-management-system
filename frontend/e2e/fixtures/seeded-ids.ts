@@ -21,6 +21,8 @@ export const SEEDED = {
   buildingSunsetAId: '66d6c84c-92dd-5f40-8fc5-9a3f6e93d386',
   room101Id: 'feebfe84-5858-5726-be7c-1271172a4e19',
   room102Id: '204370e6-54bc-5487-80db-0f5af944feaf',
+  room103Id: '84f90ef5-7f57-5ebd-baf4-d81a62550778',
+  room104Id: 'e904444d-36e0-547a-bb2b-de7b231bda12',
   tenantJohnDoeId: '89eada44-adae-57b6-b83d-7c79fae5672a',
   contractRoom102Id: '8e166080-a4dc-5a18-801f-36b8cf803474',
   invoice20260001Id: '16c02148-f68c-5e14-b143-49b7485e5be0',
@@ -36,6 +38,8 @@ export const SEEDED_DATA = {
   },
   room101: { number: '101', type: 'studio', baseRent: 5000, status: 'available' },
   room102: { number: '102', type: 'one_bedroom', baseRent: 8000, status: 'occupied' },
+  room103: { number: '103', type: 'studio', baseRent: 5500, status: 'available' },
+  room104: { number: '104', type: 'one_bedroom', baseRent: 6500, status: 'available' },
   tenant: { fullName: 'John Doe', phone: '0899999999' },
   contract: { monthlyRent: 8000, depositAmount: 16000, status: 'active' },
   invoice: {

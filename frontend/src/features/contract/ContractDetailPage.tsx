@@ -3,7 +3,7 @@
 // SCR-CONTRACT-DETAIL: GET /contracts/{id}, PATCH /contracts/{id}/terminate, POST /contracts/{id}/extend, POST /contracts/{id}/renew
 
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useContractDetail, useTerminateContract, useExtendLease, useRenewContract } from './api';
 import { Card, CardHeader } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
@@ -30,6 +30,7 @@ type ModalMode = 'terminate' | 'extend' | 'renew' | null;
 
 export default function ContractDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { showToast } = useToast();
   const { data: contract, isLoading } = useContractDetail(id);
   const terminateMutation = useTerminateContract();
@@ -99,7 +100,7 @@ export default function ContractDetailPage() {
   async function handleRenew() {
     if (!id || !renewStart || !renewEnd || !renewRent || !renewDeposit) return;
     try {
-      await renewMutation.mutateAsync({
+      const newContract = await renewMutation.mutateAsync({
         contractId: id,
         data: {
           new_start_date: renewStart,
@@ -114,6 +115,9 @@ export default function ContractDetailPage() {
       setRenewEnd('');
       setRenewRent('');
       setRenewDeposit('');
+      // Renew creates a NEW contract (new id) — navigate to it so the user
+      // sees the renewed terms instead of the still-terminated original.
+      if (newContract?.id) navigate(`/contracts/${newContract.id}`);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Renewal failed', 'error');
     }
