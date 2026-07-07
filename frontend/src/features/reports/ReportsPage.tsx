@@ -63,7 +63,7 @@ export default function ReportsPage() {
 
       {/* Revenue Chart */}
       <Card>
-        <CardHeader title="Revenue Overview" subtitle="Monthly revenue, expenses, and net" />
+        <CardHeader title="Revenue Overview" subtitle="Collected, outstanding, and total billed by period" />
         {revLoading ? (
           <CardSkeleton />
         ) : revenue && revenue.length > 0 ? (

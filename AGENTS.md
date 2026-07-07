@@ -1,8 +1,8 @@
 # AGENTS.md — Property Management System
 
-**คู่มือสำหรับ AI Agent ที่ทำงานในโปรเจกต์นี้ อ่านก่อนเริ่มทำงานทุกครั้ง**
-**Last Updated:** 2026-07-06  
-**Version:** 3.1  
+**คู่มือสำหรับ AI Agent ที่ทำงานในโปรเจกต์นี้ อ่านก่อนเริ่มทำงานทุกครั้ง**    
+**Last Updated:** 2026-07-07    
+**Version:** 3.2    
 **Status:** Backend v1.0.0 Complete — Frontend v1.0.0 Complete — **Phase 1: E2E Campaign (pms-e2e Profile)**
 
 ---
@@ -11,10 +11,10 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Backend** | ✅ v1.0.0 Ready | 9 modules, 139 tests, production Docker, CI/CD pipeline |
+| **Backend** | ✅ v1.0.0 Ready | 9 modules, 139 tests, production Docker, Local CI preferred |
 | **Frontend** | ✅ v1.0.0 Ready | 9 feature modules, E2E suite, PWA, Lighthouse CI, A11y audit |
-| **Documentation** | ⚠️ 60% Complete | Core specs มี แต่ขาด README, SECURITY.md, UX_SPEC/, API.md |
-| **Infrastructure** | ✅ Ready | GitHub Actions, backup/restore scripts, prod compose, MinIO, Redis |
+| **Documentation** | ⚠️ 85% Complete | **Exists (referenced):** PROMPT.md, E2E_TEST_STRATEGY.md, shared-contracts/, backend SDD, frontend SDD, ARCHITECTURE.md, REQUIREMENTS.md, DOMAIN_MODEL.md, USER_STORIES.md, GLOSSARY.md  |  **Missing at root:** README.md, SECURITY.md, UX_SPEC/, API.md |
+| **Infrastructure** | ✅ Ready | Local CI preferred, backup/restore scripts, prod compose, MinIO, Redis |
 | **Testing** | ✅ 100% Pass | 139/139 tests, coverage ≥85%, async_client pattern stable |
 
 > ✅ **สรุป:** Backend + Frontend พร้อมใช้งานจริง 100% — Next Step: v1.0.0 Release & Production Deployment
@@ -27,7 +27,7 @@
 
 ```text
 property-management-system/
-├── .github/workflows/ci.yml       # ✅ CI pipeline (lint → test → build → scan)
+├── .github/workflows/ci.yml       # ✅ CI pipeline config (Local CI primary, GitHub Actions as backup)
 ├── AGENTS.md                      # 📜 Global Workflow & Rules (This file)
 ├── Makefile                       # ✅ Docker shortcuts (408 lines)
 ├── docker-compose.dev.yml         # ✅ Dev stack (backend, db, redis, minio)
@@ -64,8 +64,8 @@ property-management-system/
 │   ├── Dockerfile                 # ✅ Multi-stage, non-root, 254MB
 │   └── scripts/                   # ✅ init-prod-db.sql, create_tables.py
 │
-├── frontend/                      # ✅ Frontend v1.0.0 (React 19 + Vite 8 + PWA)
-│   ├── app/                       # ✅ src/ — 9 feature modules + shared kernel
+├── frontend/                      # ✅ Frontend v1.0.0 (React 19 + Vite 8 + PWA, **JS + JSDoc, no TypeScript**)
+│   ├── src/                       # ✅ 9 feature modules + shared kernel (JS + JSDoc, jsconfig + checkJs, .js with JSX)
 │   ├── e2e/                       # ✅ Playwright E2E (3 flows + A11y)
 │   ├── docs/                      # ✅ SDD, screen specs, sprint plans
 │   └── public/                    # ✅ PWA manifest, icons, offline fallback
@@ -96,7 +96,7 @@ property-management-system/
    - `backend/docs/sprints/` → Sprint Plans (1–8)
    - `backend/docs/` → CODE_STYLE.md, OPERATIONS.md
    - `frontend/docs/` → Frontend Architecture, Integration, UX Specs
-3. **Code Location:** Python → `backend/app/`, TypeScript → `frontend/src/`
+3. **Code Location:** Python → `backend/app/`, **JS + JSDoc** → `frontend/src/` (no TypeScript, uses `jsconfig.json` + `checkJs`)
 4. **Missing Files Reference:** หากเอกสารอ้างอิงไฟล์ที่ยังไม่มี → ให้สร้างไฟล์นั้นก่อนเริ่มงาน หรือแจ้ง Human เพื่อปรับเอกสาร
 
 ---
@@ -158,6 +158,7 @@ property-management-system/
 - ทุก endpoint ใน `routers/` ต้องมี integration test (`async_client` pattern)
 - ใช้ `httpx.AsyncClient + ASGITransport` — ห้ามใช้ `TestClient` ใน Python 3.14+
 - Coverage target: `services/` ≥90%, `routers/` ≥85%, overall ≥85%
+- ❗ **ก่อนเขียน test สำหรับ backend error: ต้อง verify `fetchClient.ts` handle error format จริงของ backend** (FastAPI `HTTPException` ส่ง `{detail}` ไม่ใช่ `{error}`)
 
 ---
 
@@ -196,7 +197,7 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 |-------|---------------|------------------|
 | **Backend Dev** | docs/02-design/SDD/_index.md, CODE_STYLE.md, Sprint Plan | README.md, SECURITY.md (deferred) |
 | **Frontend Dev** | frontend/docs/ARCHITECTURE.md, INTEGRATION.md, UX_SPEC/SCREEN_SPECS.md | Full UX spec, DATABASE.md |
-| **Production** | DEPLOYMENT.md, OPERATIONS.md, CI/CD config | CHANGELOG.md, Release Notes |
+|| **Production** | DEPLOYMENT.md, OPERATIONS.md, Local CI config | CHANGELOG.md, Release Notes |
 
 ### Cross-Reference Rules
 - หากเอกสารอ้างอิงไฟล์ที่ไม่มีอยู่ → สร้างไฟล์นั้นก่อน หรือแจ้ง Human เพื่อปรับเอกสาร
@@ -215,13 +216,14 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 ✅ Workers: celery_app, tasks, schedulers (stubs)
 ✅ Tests: 139/139 pass, coverage ≥85%, async_client pattern stable
 ✅ Docker: multi-stage, non-root, 254MB, healthcheck, graceful shutdown
-✅ CI/CD: GitHub Actions (lint → test → build → scan → push)
+✅ CI/CD: Local CI preferred (unlimited-free), GitHub Actions config present but not primary
 ✅ Migration: 001–007 applied, upgrade/downgrade safe
 ```
 
 ### Frontend ✅ v1.0.0 Complete
 ```
-✅ 9 Modules: auth, property, tenant, billing, meter, dashboard, reports, room, tenant
+✅ 9 Modules: auth, billing, dashboard, meter, property, reports, tenant, contract, maintenance
+✅ Stack: React 19 + Vite 8 + **JS + JSDoc (NOT TypeScript), jsconfig + checkJs, .js with JSX**
 ✅ Shared Kernel: fetchClient, AuthContext, PWA (SW + IDB queue + sync), UI components
 ✅ Routing: React Router v7 lazy-load + ProtectedRoute + GuestRoute
 ✅ Testing: Vitest (unit), Playwright (E2E 3 flows), axe-core (A11y 0 violations)
@@ -264,8 +266,9 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 3. อ่าน backend/docs/02-design/SDD/_index.md → เลือกไฟล์ที่เกี่ยวข้องกับงาน
 4. อ่าน docs/ARCHITECTURE.md → เข้าใจภาพรวมระบบ
 5. ตรวจสอบ frontend/docs/ (ถ้าทำ Frontend) → เข้าใจ integration patterns
-6. เริ่มงานตาม Sprint Plan → Propose → Implement → Test → PR
-7. รัน `make dev-down` เมื่อเสร็จ
+6. 🔴 **อ่าน .agents/log/SELF_CRITIC.md** → ดู Mistakes Made + Improvements & Rules ป้องกันทำผิดซ้ำจาก Session เก่า
+7. เริ่มงานตาม Sprint Plan → Propose → Implement → Test → PR
+8. รัน `make dev-down` เมื่อเสร็จ
 ```
 
 ### เมื่อเจอปัญหา
@@ -311,9 +314,12 @@ infra: add health check endpoint + middleware stubs
 | **Deployment & Ops** | `backend/docs/02-design/SDD/09-deployment.md`, `backend/docs/OPERATIONS.md` | Prod setup, Docker-First strategy, backup/restore, incident playbooks |
 | **Requirements** | `docs/REQUIREMENTS.md` | FR/NFR/BR definitions, actors |
 | **Domain Model** | `docs/DOMAIN_MODEL.md` | Entities, aggregates, domain events |
-| **Frontend Spec** | `frontend/docs/SDD.md` | Frontend architecture, integration patterns |
-| **API Contract (SSOT)** | `http://localhost:8000/openapi.json` | Auto-generated from FastAPI — source of truth for types |
-| **Decision Records** | `docs/DECISIONS/README.md` | Architecture Decision Records index |
+|| **Frontend Spec** | `frontend/docs/02-design/SDD/` | Frontend architecture (01-architecture.md), integration (04-api-integration.md), screen specs (02-screen-specs/), state/data flow (03-state-data-flow.md), implementation (08-implementation.md), testing (06-testing-quality.md) |
+|| **Frontend Code Style** | `frontend/docs/CODE_STYLE.md` | JS + JSDoc patterns, React 19, testing rules, accessibility |
+|| **E2E Test Strategy** | `docs/E2E_TEST_STRATEGY.md` | Constitution for E2E testing (State Verification Engine, Priority Gates, MVTF) |
+|| **Prompt Templates** | `docs/PROMPT.md` | Reusable templates: COMPREHENSIVE_AUDIT (default), E2E_TEST_CAMPAIGN, COMPONENT_AUDIT, DEBUG_INFRASTRUCTURE, BACKEND_API_AUDIT |
+|| **Shared Contracts** | `shared-contracts/` | Shared TypeScript/Python contracts between frontend & backend |
+|| **Decision Records** | `docs/DECISIONS/README.md` | Architecture Decision Records index |
 
 ---
 

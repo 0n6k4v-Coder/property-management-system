@@ -70,12 +70,33 @@ export class ApiRequestError extends Error {
 function createApiError(status: number, errorData: unknown): ApiRequestError {
   const data = errorData as Record<string, unknown> | null;
   const errorObj = data?.error as Record<string, unknown> | undefined;
-  return new ApiRequestError({
-    code: typeof errorObj?.code === 'string' ? errorObj.code : `SYS-${status}`,
-    message: typeof errorObj?.message === 'string' ? errorObj.message : 'An unexpected error occurred',
-    details: errorObj?.details as Record<string, string> | undefined,
-    status,
-  });
+  // Handle FastAPI's HTTPException format: { detail: "message" } or { detail: [...] }
+  const detail = data?.detail;
+  let message: string;
+  let code: string;
+  let details: Record<string, string> | undefined;
+
+  if (errorObj) {
+    // Standard API format: { error: { code, message, details } }
+    code = typeof errorObj.code === 'string' ? errorObj.code : `SYS-${status}`;
+    message = typeof errorObj.message === 'string' ? errorObj.message : 'An unexpected error occurred';
+    details = errorObj.details as Record<string, string> | undefined;
+  } else if (typeof detail === 'string') {
+    // FastAPI HTTPException with string detail
+    code = `SYS-${status}`;
+    message = detail;
+  } else if (Array.isArray(detail)) {
+    // FastAPI validation error array
+    code = `SYS-${status}`;
+    message = detail.map((d: unknown) => (d as Record<string, unknown>)?.msg ?? String(d)).join('; ');
+    details = { validation_errors: JSON.stringify(detail) };
+  } else {
+    // Fallback
+    code = `SYS-${status}`;
+    message = 'An unexpected error occurred';
+  }
+
+  return new ApiRequestError({ code, message, details, status });
 }
 
 // ── Refresh Token Logic ────────────────────────────────────────────

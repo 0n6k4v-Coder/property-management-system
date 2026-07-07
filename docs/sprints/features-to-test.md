@@ -13,7 +13,7 @@ Execute E2E Campaign for **5 critical features** using `pms-e2e` profile to vali
 | 1 | GET | `/login` | LoginPage | AuthLayout | auth |
 | 2 | GET | `/auth/register` | RegisterPage | AuthLayout | auth |
 
-### 🔒 Group 2: Protected Routes - Core Modules (10 Routes)
+### 🔒 Group 2: Protected Routes - Core Modules (9 Routes)
 | # | Method | Path | Page | Module |
 |---|--------|------|------|--------|
 | 1 | GET | `/dashboard` | DashboardPage | dashboard |
@@ -25,7 +25,6 @@ Execute E2E Campaign for **5 critical features** using `pms-e2e` profile to vali
 | 7 | GET | `/invoices` | InvoiceListPage | billing |
 | 8 | GET | `/invoices/:id` | InvoiceDetailPage | billing |
 | 9 | GET | `/reports` | ReportsPage | reports |
-| 10 | GET | `/property/detail/:id` | PropertyDetailPage | property |
 
 ### 🔒 Group 3: Protected Routes - Phase 4 Features (8 Routes)
 | # | Method | Path | Page | Module |
@@ -289,18 +288,6 @@ Execute E2E Campaign for **5 critical features** using `pms-e2e` profile to vali
 | RPT-06 | Scheduled reports | Feature | Email schedule setup |
 
 **API Calls:** `GET /api/v1/reports/revenue`, `GET /api/v1/reports/occupancy`, `GET /api/v1/reports/collection`
-
----
-
-### Route 12: `/property/detail/:id` (GET) — PropertyDetailPage
-
-**Test Scenarios:**
-
-| Test ID | Scenario | Type | Expected Result |
-|---------|----------|------|-----------------|
-| PROP-ALT-01 | Alternative detail view | Happy Path | Full hierarchy in single view |
-| PROP-ALT-02 | Quick actions | UI | Quick add building/room |
-| PROP-ALT-02 | Print summary | Feature | PDF summary |
 
 ---
 

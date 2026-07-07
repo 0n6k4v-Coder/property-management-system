@@ -13,19 +13,19 @@ interface RevenueChartProps {
 
 export function RevenueChart({ data }: RevenueChartProps) {
   return (
-    <div aria-label="Revenue chart showing monthly revenue, expenses, and net">
+    <div aria-label="Revenue chart showing collected, outstanding, and total billed amounts by period">
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+          <XAxis dataKey="period" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip
             labelStyle={{ fontWeight: 600 }}
           />
           <Legend />
-          <Bar dataKey="revenue" fill="#2563eb" name="Revenue" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="expenses" fill="#f59e0b" name="Expenses" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="net" fill="#16a34a" name="Net" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="collected" fill="#2563eb" name="Collected" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="outstanding" fill="#f59e0b" name="Outstanding" radius={[4, 4, 0, 0]} />
+          <Bar dataKey="total_billed" fill="#16a34a" name="Total Billed" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

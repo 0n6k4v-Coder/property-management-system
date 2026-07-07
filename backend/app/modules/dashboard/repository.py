@@ -10,7 +10,7 @@ import uuid
 from datetime import UTC, date
 from decimal import Decimal
 
-from sqlalchemy import case, func, select
+from sqlalchemy import String, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.billing.models import Invoice
@@ -124,12 +124,14 @@ class DashboardRepository:
 
         Returns a list of dicts with keys: period, collected, outstanding.
         """
+        from app.modules.billing.models import InvoiceStatus
+
         stmt = (
             select(
                 func.concat(
-                    func.cast(Invoice.billing_year, func.String),
+                    func.cast(Invoice.billing_year, String),
                     "-",
-                    func.lpad(func.cast(Invoice.billing_month, func.String), 2, "0"),
+                    func.lpad(func.cast(Invoice.billing_month, String), 2, "0"),
                 ).label("period"),
                 func.sum(
                     case(
@@ -139,7 +141,10 @@ class DashboardRepository:
                 ).label("collected"),
                 func.sum(
                     case(
-                        (Invoice.status.in_(["sent", "overdue"]), Invoice.total_amount - Invoice.paid_amount),
+                        (
+                            Invoice.status.in_([InvoiceStatus.ISSUED, InvoiceStatus.PARTIAL, InvoiceStatus.OVERDUE]),
+                            Invoice.total_amount - Invoice.paid_amount,
+                        ),
                         else_=Decimal("0"),
                     )
                 ).label("outstanding"),
@@ -147,10 +152,12 @@ class DashboardRepository:
             )
             .where(
                 Invoice.property_id == property_id,
-                # Approximate date range via billing year/month
-                Invoice.billing_year >= start_date.year,
-                Invoice.billing_month >= start_date.month if start_date.year == end_date.year else True,
-                Invoice.billing_year <= end_date.year,
+                # Date range via billing year/month, compared as a single
+                # comparable "period key" (year * 12 + month) so the bound
+                # is correct across year boundaries and doesn't require a
+                # Python-level conditional inside the SQL where-clause.
+                (Invoice.billing_year * 12 + Invoice.billing_month) >= (start_date.year * 12 + start_date.month),
+                (Invoice.billing_year * 12 + Invoice.billing_month) <= (end_date.year * 12 + end_date.month),
             )
             .group_by("period")
             .order_by("period")

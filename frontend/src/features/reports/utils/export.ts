@@ -11,13 +11,12 @@ function csvEscape(value: string | number | null | undefined): string {
 }
 
 export function exportRevenueToCsv(data: API.RevenueMetricResponse[]): void {
-  const headers = ['Month', 'Year', 'Revenue (THB)', 'Expenses (THB)', 'Net (THB)'];
+  const headers = ['Period', 'Collected (THB)', 'Outstanding (THB)', 'Total Billed (THB)'];
   const rows = data.map((r) => [
-    csvEscape(r.month),
-    csvEscape(r.year),
-    csvEscape(r.revenue),
-    csvEscape(r.expenses),
-    csvEscape(r.net),
+    csvEscape(r.period),
+    csvEscape(r.collected),
+    csvEscape(r.outstanding),
+    csvEscape(r.total_billed),
   ].join(','));
 
   const csv = [headers.join(','), ...rows].join('\n');

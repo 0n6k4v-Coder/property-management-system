@@ -384,11 +384,10 @@ declare namespace API {
   }
 
   interface RevenueMetricResponse {
-    month: string;
-    year: number;
-    revenue: number;
-    expenses: number;
-    net: number;
+    period: string;
+    collected: number;
+    outstanding: number;
+    total_billed: number;
   }
 
   interface OccupancyResponse {

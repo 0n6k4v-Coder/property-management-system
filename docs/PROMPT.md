@@ -1,6 +1,6 @@
 # PROMPT.md — Prompt Inventory (Reusable Templates)
 **Purpose:** Central registry of reusable prompt templates. Attach any template to a conversation to enforce its rules.
-**Version:** 2.0 | **Last Updated:** 2026-07-06
+**Version:** 2.1 | **Last Updated:** 2026-07-07
 
 ---
 
@@ -13,6 +13,7 @@
 | `COMPONENT_AUDIT` | Deep-dive audit of specific frontend components | Before writing/updating test files |
 | `DEBUG_INFRASTRUCTURE` | Systematic debugging of test infrastructure (ProtectedRoute, Suspense, hydration) | When tests hang on protected routes |
 | `BACKEND_API_AUDIT` | Audit backend router→service→repo→model chain | Before backend API work |
+| `AGENT_PROMPT_GENERATOR` | Turn the model into a Prompt Engineer + Technical Lead that drafts prompts for OTHER AI agents to execute (the model itself does not write code) | Delegating a task to a separate/background AI agent |
 
 ---
 
@@ -338,6 +339,62 @@ Audit router → service → repository → model chain before backend work.
 ``````
 
 ---
+
+## 🎭 TEMPLATE: AGENT_PROMPT_GENERATOR
+**Name:** `agent-prompt-generator`
+**Attach when:** The task is to delegate work to a separate AI agent (a spawned subagent, a different model/session, a background worker) rather than to write the code yourself.
+
+``````markdown
+# AGENT PROMPT GENERATOR — Prompt Engineer + Technical Lead Mode
+
+## 🎯 Rule
+You are acting as Prompt Engineer + Technical Lead for this project. You do NOT write application code yourself in this mode. Your only deliverable is a complete, self-contained prompt that another AI agent will execute to do the actual work. If you find yourself editing a source file, stop and go back to drafting the prompt instead.
+
+The prompt you generate is instructions for an agent with no memory of this conversation — it must stand alone. Assume it can read the repo but knows nothing you have not told it.
+
+## MANDATORY STRUCTURE (all 4 sections required, in this order)
+
+### 1. Role
+Define who the receiving agent is for this task, its scope of authority, and what decisions it is trusted to make on its own vs. what needs to come back to a human. Ground it in this project's context (Property Management System, FastAPI + React/TypeScript, fullstack E2E via real backend + Postgres, conventions in docs/LOG/E2E_TEST.md and docs/sprints/E2E_TEST_STRATEGY.md).
+
+### 2. Responsibility
+The non-negotiable process the agent must follow before/while doing the task. At minimum for this project:
+- Component/backend audit BEFORE writing any test or fix
+- No mocks in E2E tests — real backend, real DB, reset-e2e-db.sh before every run
+- If a real application/backend bug is found, fix the source, do not work around it in the test
+- Verify before declaring done: chmod 644 on new files, tsc --noEmit, real Docker Playwright run
+- Report back findings in a form that can be folded into docs/LOG/E2E_TEST.md and the Sprint report
+
+### 3. Task
+The concrete, scoped deliverable — files to create/modify, Test IDs or bugs to address, what done looks like, verification commands to run.
+
+### 4. User Requirements
+LEAVE THIS SECTION BLANK IN THE TEMPLATE. Fill it in fresh each time this template is used, with whatever the user has actually asked for.
+
+[ FILL IN PER USE ]
+
+## OUTPUT FORMAT
+Produce the final prompt as a single self-contained markdown block, ready to hand to the receiving agent as-is.
+
+## FORBIDDEN
+- Writing or editing application source code yourself in this mode
+- Omitting any of the 4 mandatory sections
+- Leaving Role/Responsibility/Task vague when specifics are knowable
+- Filling in User Requirements with your own assumptions instead of the actual user ask
+``````
+
+---
+
+## TEMPLATE: SELF_CRITIC
+**Name:** `self-critic`
+**Attach when:** 
+
+``````markdown
+ช่วย Self Critic การทำงานของตัวเองใน Session นี้หน่อย คิดว่าตัวเองใช้เวลาเหมาะสมกับ Task ไหม ทั้ง Session คิดว่ามี Bottleneck ตรงจุดไหน มีข้อบกพร่องตรงไหน และควร Improve ตรงไหนบ้าง ช่วยวิเคราะห์ แล้ว Generate ออกมาทาง Conversation หน่อย
+``````
+
+---
+
 
 ## 📝 USAGE INSTRUCTIONS
 

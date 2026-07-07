@@ -51,7 +51,7 @@ Issues are grouped by **severity/kind**, not strictly by date:
 |---------|------|--------|---------|
 | 1 | 2026-07-05 → 2026-07-06 | @hermes-agent (nemotron-3-ultra-550b-a55b) | Initial Sprint 09 E2E campaign. Wrote/repaired 7 spec files. Coverage stalled at 10.4% (24/230 scenarios) — see `docs/sprints/E2E_TEST_REPORT_SPRINT_09.md`. Logged C-01→C-15, B-01→B-05. |
 | 2 | 2026-07-06 | @claude (claude-sonnet-5) | User reported the agent had been stuck for 5 hours with no forward progress. Diagnosed why the suite couldn't even start, fixed the blocking infrastructure bugs (I-01→I-06 below), took the suite from "won't collect" to 30/50 passing. |
-| 3 | 2026-07-06 | @claude (claude-sonnet-5) | Converted the entire suite (9 spec files, 83 scenarios) from mocked APIs to fullstack — real backend + real Postgres via a deterministic seed script, no `page.route()` mocks anywhere. Found and fixed 8 real application/backend bugs invisible under mocks (see Part F). Full suite: 71 passed, 12 skipped (documented N/A — real limitations, not test gaps), 0 failed. |
+| 3 | 2026-07-06 | @claude (claude-sonnet-5) | Converted the entire suite (9 spec files) from mocked APIs to fullstack — real backend + real Postgres via a deterministic seed script, no `page.route()` mocks anywhere. Added `reports-flow.spec.ts` (new) and full METER-03~06 coverage. Found and fixed 10 real application/backend bugs invisible under mocks (see Part F, F-01~F-12). Full suite: 85 passed, 12 skipped (documented N/A — real limitations, not test gaps), 0 failed. |
 
 ---
 
@@ -653,7 +653,7 @@ const TEST_USER = {
 
 ## Part F — Fullstack Conversion (2026-07-06, Session 3)
 
-> **Why this happened:** the entire suite (Parts A–E above) ran against `page.route()` mocks — Playwright never touched the real backend or database. That verifies the frontend renders correctly given a *hypothetical* API response, but proves nothing about whether the real backend actually returns that shape, whether the DB writes persist, or whether the two sides agree on URL paths, enums, or payload schemas. This session removed every mock and ran all 9 spec files against the real FastAPI backend + real Postgres (seeded deterministically — see below), which surfaced 8 real bugs that 100% of the mocked suite had been "passing" straight through.
+> **Why this happened:** the entire suite (Parts A–E above) ran against `page.route()` mocks — Playwright never touched the real backend or database. That verifies the frontend renders correctly given a *hypothetical* API response, but proves nothing about whether the real backend actually returns that shape, whether the DB writes persist, or whether the two sides agree on URL paths, enums, or payload schemas. This session removed every mock and ran all 10 spec files (9 converted + `reports-flow.spec.ts` new) against the real FastAPI backend + real Postgres (seeded deterministically — see below), which surfaced 10 real bugs that 100% of the mocked suite had been "passing" straight through (or, for `/reports`, had never been tested at all).
 
 ### F-00: Infrastructure — Deterministic Seed Data + DB Reset
 
@@ -779,6 +779,48 @@ const TEST_USER = {
 
 ---
 
+### F-10: `/reports` — Revenue Report Crashed With 500 (Two Stacked Backend Bugs) + Frontend Contract Drift
+
+| Aspect | Details |
+|--------|---------|
+| **Root Cause (bug 1)** | `backend/app/modules/dashboard/repository.py::get_revenue_report()` built the `period` column with `func.cast(Invoice.billing_year, func.String)` — `func.String` calls a nonexistent SQL function `STRING()` rather than referencing SQLAlchemy's `String` type. This broke SQLAlchemy's query cache-key generation (`AttributeError: ... no attribute '_static_cache_key'`), crashing every `GET /dashboard/revenue` call (which `/reports`'s Revenue chart depends on) with a 500. |
+| **Root Cause (bug 2)** | Once bug 1 was fixed, a second latent bug surfaced: the "outstanding" aggregate filtered `Invoice.status.in_(["sent", "overdue"])`, but `"sent"` is not a valid value of the real `invoice_status_enum` (valid values: `draft/issued/paid/partial/overdue/cancelled`) — Postgres rejected the query with `InvalidTextRepresentationError`. |
+| **Root Cause (bug 3, pre-existing, same function)** | The multi-year date-range filter used a Python-level ternary — `Invoice.billing_month >= start_date.month if start_date.year == end_date.year else True` — which fed a raw Python `True` into a SQLAlchemy `.where()` clause for any cross-year range (silently matching everything), and even in the same-year case never bounded the *upper* month, so the query over-selected regardless of `end_date`. |
+| **Root Cause (frontend contract drift)** | `frontend/src/features/reports/api.ts`'s `useOverdueReport()` read `summary.overdue_invoices`, a field that has never existed on the real `/dashboard/summary` response (real field: `overdue_count`) — always rendering `undefined` in the Overdue Summary chart. Separately, the entire revenue-report contract (`frontend/src/types/api.d.ts`, `RevenueChart.tsx`, `reports/utils/export.ts`, and the MSW `mocks/handlers.ts` fixture) was built around fields that only ever existed in the mock (`month`/`year`/`revenue`/`expenses`/`net`) — the real backend returns `period`/`collected`/`outstanding`/`total_billed`. Every one of these files had independently drifted from the real API with no test ever exercising the real response shape. |
+| **Error Symptom** | Navigating to `/reports` at all crashed with a 500 on page load (every test in `reports-flow.spec.ts` hits this on `beforeEach`); after the first two backend fixes, the page loaded but the Overdue Summary chart showed `NaN`/`undefined` instead of `0`. |
+| **Files Affected** | `backend/app/modules/dashboard/repository.py`; `frontend/src/features/reports/api.ts`, `ReportsPage.tsx`, `components/RevenueChart.tsx`, `utils/export.ts`; `frontend/src/types/api.d.ts`; `frontend/src/mocks/handlers.ts` |
+| **Fix** | `func.cast(col, String)` (real type, imported from `sqlalchemy`) instead of `func.String`; status filter uses `InvoiceStatus.ISSUED/PARTIAL/OVERDUE` enum members; date range uses a correct `(billing_year*12 + billing_month)` bounded comparison instead of the Python ternary. Frontend: `useOverdueReport()` reads `overdue_count`; `RevenueMetricResponse` type, `RevenueChart.tsx`, `export.ts`, and the MSW mock fixture all aligned to the real `period/collected/outstanding/total_billed` shape. |
+| **How it was found** | Writing `frontend/e2e/specs/reports-flow.spec.ts` against the real backend — the very first navigation to `/reports` 500'd, which a mocked test could never have caught since the mock fixture itself encoded the same wrong contract the frontend expected. |
+| **Prevention** | Same lesson as F-04/F-05: a mock fixture and the frontend code it's paired with can drift from the real backend identically and in lockstep, so a mocked test passing proves nothing about the real contract — only running against the real backend forces the two sides back into agreement. Also: `func.<TypeName>` vs. importing the actual type (`from sqlalchemy import String`) is an easy typo in SQLAlchemy `cast()`/`func` code — grep for `func\.[A-Z]` patterns being passed as a type argument to `cast()` after any schema change. |
+
+---
+
+### F-11: Meter Reading — One Real Backend Rule Untested (METER-03), One Client-Side-Only (METER-04), Three Spec Scenarios Don't Exist (METER-05/06)
+
+| Aspect | Details |
+|--------|---------|
+| **Investigation** | `backend/app/modules/billing/services/billing_service.py::record_meter_reading()` (BR-07) enforces two real rules: a decreased-reading rejection (400, code `BILL-001`) and a duplicate-reading-per-room-per-period rejection (409, code `BILL-002`). Only the duplicate check (METER-03) was actually untested backend behavior — the decreased-reading check (METER-04) is **also** independently enforced client-side by `useMeterForm.ts`'s zod `.refine()` (`electric_current >= electric_previous`), which fires before any network request. The frontend's own validation short-circuits the flow, so METER-04 never actually reaches — and never tests — the backend's BILL-001 check; it tests client-side validation instead. Both are real, previously-uncovered behavior, but they exercise two different layers. |
+| **METER-05 (auto-generate invoice)** | Confirmed `record_meter_reading()` has no side effect that generates an invoice — invoice generation is a separate, unrelated, property-level endpoint (`generate_monthly_invoice`). This scenario does not exist in the app; the test suite asserts its absence rather than skipping it silently. |
+| **METER-06a (bulk import)** | Grepped the entire `frontend/src/features/meter` tree — no bulk-import UI, no CSV/file-upload control anywhere. Does not exist; asserted absent. |
+| **METER-06b (reading history)** | The backend has a real `get_meter_reading_history` endpoint, and the frontend even has a `meterKeys.history(roomId)` query-key factory sitting in `api.ts` — but no hook or component anywhere ever calls it. Dead, unwired code, the same pattern as `useUpdateRoomStatus()` in the property module. Asserted absent. |
+| **Files Affected** | `frontend/e2e/specs/meter-offline-sync.spec.ts` (added METER-03~06 test coverage) |
+| **Prevention** | When a spec lists a Test ID and the backend already enforces the corresponding rule, the gap is in test coverage, not application code — write the real test rather than assuming every uncovered Test ID implies a missing feature. But also check for client-side duplication of the same rule (as here) — if a frontend validator enforces the identical constraint, a test aimed at "backend validation" may actually only ever exercise the frontend layer, silently leaving the backend rule untested. Always verify against the live component/service before assuming a Test ID's scenario exists at all (METER-05/06 here) — the codebase has several dead/unwired backend endpoints with no frontend consumer. |
+
+---
+
+### F-12: `fetchClient.ts` Never Parsed FastAPI's Native `{detail: ...}` Error Format — Every Pydantic Validation Error App-Wide Showed "An unexpected error occurred"
+
+| Aspect | Details |
+|--------|---------|
+| **Root Cause** | `frontend/src/shared/api/fetchClient.ts::createApiError()` only ever parsed the app's own custom error envelope, `{ error: { code, message, details } }`. But any error raised at the Pydantic *schema validation* layer (before an endpoint's own code runs — e.g. a `field_validator`/model-level `ValueError` on request body fields) is handled by FastAPI itself, not by the app's custom exception handler, and comes back as `{ detail: "message" }` (single error) or `{ detail: [{ msg: "Value error, ...", ... }, ...] }` (validation error list) — a structurally different shape `createApiError()` had no branch for. Every such response silently fell through to the generic fallback message. |
+| **Error Symptom** | Any request that failed Pydantic-level validation — discovered via METER-04 (`electric_current <= electric_previous`, a model-level validator) — showed a generic "An unexpected error occurred" toast instead of the real validation message, everywhere in the app, not just meter reading. This is a distinct bug from F-06 (tenant `strict=True`) and F-05 (stale billing schemas): those were backend bugs that produced the *wrong* response; this is a frontend bug that mishandles an entire class of *correct* backend responses. |
+| **Files Affected** | `frontend/src/shared/api/fetchClient.ts` |
+| **Fix** | Added branches to `createApiError()`: if the custom `{ error: ... }` envelope isn't present, check for a string `detail` (FastAPI's single-message HTTPException shape) or an array `detail` (FastAPI's validation-error-list shape, joining each item's `msg` field) before falling back to the generic message. Verified no regression: all 73 frontend unit tests and the full 97-scenario fullstack E2E suite still pass. |
+| **How it was found** | Writing METER-04 (`current <= previous` validation) against the real backend — the toast never showed the expected "Value error, Current electric reading must be greater than previous" message text until this fix. |
+| **Prevention** | Any frontend HTTP client wrapping FastAPI must handle both of FastAPI's native error shapes (`detail` as string or array) *in addition to* whatever custom envelope the app's own exception handlers produce — Pydantic schema-level validation failures bypass custom exception handlers entirely and always use FastAPI's native shape, regardless of how consistent the rest of the API is. |
+
+---
+
 ### Real-Bug vs. Test-Bug Summary (Session 3)
 
 | # | Bug | Class | Severity |
@@ -792,8 +834,11 @@ const TEST_USER = {
 | F-07 | Duplicate auto-generated `id`s silently lose Water Meter form values | Frontend | High |
 | F-08 | Offline meter-reading submission hangs forever (2 stacked bugs) | Frontend | Critical |
 | F-09 | Test infra tmpfs too small for full-suite trace volume | Test infra | Low |
+| F-10 | `/reports` Revenue chart 500s (2 backend bugs) + frontend/mock contract drift (4 files) | Both | Critical |
+| F-11 | METER-03 real backend rule untested; METER-04 actually client-side only; 3 spec scenarios don't exist | N/A (coverage gap, not a bug) | — |
+| F-12 | `fetchClient.ts` never parsed FastAPI's native `{detail: ...}` error shape — every Pydantic validation error app-wide showed a generic message | Frontend | High |
 
-**None of these 8 application/backend bugs (F-01 through F-08) were detectable by the mocked E2E suite** — each one requires the real backend, the real database, or the real absence of a service worker registration to manifest. This is the core argument for fullstack E2E over mocked E2E for a pre-production codebase: a mocked suite only proves the frontend renders correctly *given a response the test author imagined*: it cannot prove the backend actually produces that response, that writes persist, or that both sides agree on a contract.
+**None of these application/backend bugs (F-01 through F-08, F-10, F-12) were detectable by the mocked E2E suite** — each one requires the real backend, the real database, or the real absence of a service worker registration to manifest. This is the core argument for fullstack E2E over mocked E2E for a pre-production codebase: a mocked suite only proves the frontend renders correctly *given a response the test author imagined*: it cannot prove the backend actually produces that response, that writes persist, or that both sides agree on a contract.
 
 Also found, but deliberately **not fixed** (real gaps, not regressions — see the file-header notes in `dashboard.spec.ts` and `tenant-flow.spec.ts`): `DashboardPage.tsx` and `TenantListPage.tsx` both hardcode a nonexistent placeholder property ID (`SAMPLE_PROPERTY_ID` / `'00000000-0000-0000-0000-000000000001'`) with no property-selector UI, so dashboard stats and tenant search/creation always operate against a property that doesn't exist. This is a missing feature (property-selector UI), not something an E2E test fix can address — documented and the affected scenarios `test.skip()`'d with the rationale in place, rather than silently passing against fake data.
 

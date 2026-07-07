@@ -1,8 +1,8 @@
 # AGENTS.md — Backend (Property Management System)
 
 **Scope:** `./backend` directory only  
-**Last Updated:** 2026-05-31
-**Version:** 2.0
+**Last Updated:** 2026-07-07
+**Version:** 2.1
 **Status:** Active — Sprint 8 Complete, Backend 100% Operational
 
 > 🤖 **สำหรับ AI Agent:** อ่านไฟล์นี้ + `docs/02-design/SDD/_index.md` + `docs/ARCHITECTURE.md` + `backend/docs/sprints/SPRINT_8.md` ก่อนเริ่มเขียนโค้ดใน `backend/` ทุกครั้ง  
@@ -100,7 +100,7 @@ backend/
 │   │   ├── SPRINT_5.md         # ✅ Complete (Maintenance & Ops)
 │   │   ├── SPRINT_6.md         # ✅ Complete (Dashboard & Notifications)
 │   │   ├── SPRINT_7.md         # ✅ Complete (Admin & Security Hardening)
-│   │   └── SPRINT_8.md         # ✅ Complete (Production Ready & CI/CD)
+│   │   └── SPRINT_8.md         # ✅ Complete (Production Ready & Local CI)
 │   ├── CODE_STYLE.md       # Python coding standards, async patterns
 │   └── OPERATIONS.md       # Runbooks, backup/restore, monitoring
 ├── tests/
@@ -181,7 +181,7 @@ make dev-down     # 🔴 Mandatory: Stop containers immediately when done (Resou
 
 ✅ Process:
    - PR ผ่าน review โดย Human
-   - CI pipeline ผ่านทั้งหมด (รันใน Docker เช่นกัน)
+   - Local CI pipeline ผ่านทั้งหมด (รันใน Docker เช่นกัน)
    - **ทรัพยากรปิดเรียบร้อย:** `make dev-down` รันแล้ว — ไม่มีคอนเทนเนอร์ค้าง
 ```
 

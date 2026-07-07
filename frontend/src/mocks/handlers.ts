@@ -408,6 +408,7 @@ const handlers = [
         active_contracts: 38,
         total_revenue: 425000,
         overdue_invoices: 5,
+        overdue_count: 5,
         overdue_amount: 78000,
         maintenance_count: 3,
       },
@@ -417,12 +418,12 @@ const handlers = [
   http.get('*/api/v1/dashboard/revenue', () => {
     return HttpResponse.json({
       data: [
-        { month: 'Jan', year: 2026, revenue: 380000, expenses: 45000, net: 335000 },
-        { month: 'Feb', year: 2026, revenue: 395000, expenses: 42000, net: 353000 },
-        { month: 'Mar', year: 2026, revenue: 410000, expenses: 48000, net: 362000 },
-        { month: 'Apr', year: 2026, revenue: 398000, expenses: 44000, net: 354000 },
-        { month: 'May', year: 2026, revenue: 425000, expenses: 46000, net: 379000 },
-        { month: 'Jun', year: 2026, revenue: 415000, expenses: 43000, net: 372000 },
+        { period: '2026-01', collected: 380000, outstanding: 45000, total_billed: 425000 },
+        { period: '2026-02', collected: 395000, outstanding: 42000, total_billed: 437000 },
+        { period: '2026-03', collected: 410000, outstanding: 48000, total_billed: 458000 },
+        { period: '2026-04', collected: 398000, outstanding: 44000, total_billed: 442000 },
+        { period: '2026-05', collected: 425000, outstanding: 46000, total_billed: 471000 },
+        { period: '2026-06', collected: 415000, outstanding: 43000, total_billed: 458000 },
       ],
     });
   }),

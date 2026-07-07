@@ -49,7 +49,7 @@ export function useOverdueReport() {
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
       const summary = res.data;
       return [
-        { label: 'Overdue Invoices', value: summary.overdue_invoices },
+        { label: 'Overdue Invoices', value: summary.overdue_count },
         { label: 'Overdue Amount (THB)', value: summary.overdue_amount },
       ];
     },

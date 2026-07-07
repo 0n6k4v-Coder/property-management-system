@@ -33,6 +33,13 @@
 //     the deterministic, synchronous part (the form queues the reading and
 //     shows the "pending sync" state) rather than waiting for the
 //     background sync to actually complete.
+//   - METER-03/04 test real backend validation errors (BILL-001, BILL-002).
+//   - METER-05 asserts absence of auto-invoice generation on reading save
+//     (confirmed: record_meter_reading() has NO invoice side effect; invoice
+//     generation is a separate property-level endpoint).
+//   - METER-06a asserts no bulk-import UI exists on /meter-reading.
+//   - METER-06b asserts no reading history UI exists (dead code: get_meter_reading_history
+//     endpoint + meterKeys.history() exist but no component/hook calls them).
 
 import { test, expect } from '@playwright/test';
 import { login } from '../utils/test-helpers';
@@ -49,15 +56,27 @@ async function navigateToMeterReading(page: import('@playwright/test').Page): Pr
 async function fillMeterForm(
   page: import('@playwright/test').Page,
   roomId: string,
-  billingMonth: number
+  billingMonth: number,
+  options?: {
+    electricPrevious?: number;
+    electricCurrent?: number;
+    waterPrevious?: number;
+    waterCurrent?: number;
+  }
 ): Promise<void> {
   await page.getByLabel('Room ID').fill(roomId);
   await page.getByLabel('Billing Month').fill(String(billingMonth));
   await page.getByLabel('Billing Year').fill('2026');
-  await page.getByLabel('Previous Reading').first().fill('0');
-  await page.getByLabel('Current Reading').first().fill('100');
-  await page.getByLabel('Previous Reading').last().fill('0');
-  await page.getByLabel('Current Reading').last().fill('50');
+  await page.getByLabel('Previous Reading').first().fill(String(options?.electricPrevious ?? 0));
+  await page.getByLabel('Current Reading').first().fill(String(options?.electricCurrent ?? 100));
+  await page.getByLabel('Previous Reading').last().fill(String(options?.waterPrevious ?? 0));
+  await page.getByLabel('Current Reading').last().fill(String(options?.waterCurrent ?? 50));
+}
+
+async function submitAndExpectError(page: import('@playwright/test').Page, expectedMessage: string | RegExp): Promise<void> {
+  await page.getByRole('button', { name: /Save Reading|Save Offline/ }).click();
+  // Wait for toast with error message
+  await expect(page.getByRole('alert').filter({ hasText: expectedMessage })).toBeVisible({ timeout: 10_000 });
 }
 
 test.describe('Meter Reading Offline Sync', () => {
@@ -67,7 +86,7 @@ test.describe('Meter Reading Offline Sync', () => {
     states = await captureAllStates(page);
   });
 
-  test('should queue meter reading offline when submitted without network', async ({ context, page }) => {
+  test('METER-01: should queue meter reading offline when submitted without network', async ({ context, page }) => {
     await login(page);
     await navigateToMeterReading(page);
 
@@ -88,7 +107,7 @@ test.describe('Meter Reading Offline Sync', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('should record a meter reading successfully when online', async ({ page }) => {
+  test('METER-02: should record a meter reading successfully when online', async ({ page }) => {
     await login(page);
     await navigateToMeterReading(page);
 
@@ -99,6 +118,118 @@ test.describe('Meter Reading Offline Sync', () => {
     await expect(page.getByText('✓ Recorded')).toBeVisible();
 
     expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  test('METER-03: should reject duplicate reading for same room and billing period (BILL-002)', async ({ page }) => {
+    await login(page);
+    await navigateToMeterReading(page);
+
+    // Room 101 already has a seeded reading for July 2026 (billing_month=7, billing_year=2026)
+    // Submitting another reading for the same room/month/year should return 409 BILL-002
+    await fillMeterForm(page, SEEDED.room101Id, 7);
+    await submitAndExpectError(page, /Meter reading already exists for this room and billing period/);
+
+    // Form should remain in idle state (not success)
+    await expect(page.getByText('✓ Recorded')).not.toBeVisible();
+
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  test('METER-04: should reject reading where current <= previous (BILL-001)', async ({ page }) => {
+      await login(page);
+      await navigateToMeterReading(page);
+
+      // Use a fresh month (September 2026) for room 101 to avoid duplicate conflict
+      // Fill form with electric_current (50) <= electric_previous (100)
+      // The client-side Zod validation should catch this and show inline error
+      // without submitting to the server.
+      await fillMeterForm(page, SEEDED.room101Id, 9, {
+        electricPrevious: 100,
+        electricCurrent: 50,
+        waterPrevious: 0,
+        waterCurrent: 50,
+      });
+
+      // Click submit - client-side validation should prevent submission
+      await page.getByRole('button', { name: /Save Reading|Save Offline/ }).click();
+
+      // Check for inline validation error message (from Zod schema)
+      await expect(page.getByText(/Electric current cannot be less than previous/i)).toBeVisible({ timeout: 5000 });
+
+      // Form should NOT show success state
+      await expect(page.getByText('✓ Recorded')).not.toBeVisible();
+
+      expect(states.jsErrors).toEqual([]);
+      expect(states.hydrationErrors).toEqual([]);
+    });
+
+  test('METER-05: should NOT auto-generate invoice on meter reading submit (assert absence)', async ({ page }) => {
+    await login(page);
+    await navigateToMeterReading(page);
+
+    // Submit a valid new reading for a fresh month (October 2026) for room 102
+    await fillMeterForm(page, SEEDED.room102Id, 10);
+    await page.getByRole('button', { name: /Save Reading|Save Offline/ }).click();
+
+    // Wait for success toast
+    await expect(page.getByRole('alert').filter({ hasText: /recorded|success/i })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText('✓ Recorded')).toBeVisible();
+
+    // Assert: No invoice-related toast, redirect, or notification appears
+    // - No "Invoice generated" toast
+    // - No navigation to invoice page
+    // - No invoice number displayed
+    const invoiceToast = page.getByRole('alert').filter({ hasText: /invoice|generated/i });
+    await expect(invoiceToast).toHaveCount(0);
+
+    // URL should remain on /meter-reading (no redirect)
+    await expect(page).toHaveURL(/.*meter-reading/);
+
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  test('METER-06a: should NOT have bulk import UI (assert absence)', async ({ page }) => {
+    await login(page);
+    await navigateToMeterReading(page);
+
+    // Assert: No "Import", "Bulk", "Upload", or "CSV" buttons/links on the page
+    const bulkImportButton = page.getByRole('button', { name: /import|bulk|upload|csv/i });
+    await expect(bulkImportButton).toHaveCount(0);
+
+    const bulkImportLink = page.getByRole('link', { name: /import|bulk|upload|csv/i });
+    await expect(bulkImportLink).toHaveCount(0);
+
+    // Also check for file input (type="file") which would indicate upload capability
+    const fileInput = page.locator('input[type="file"]');
+    await expect(fileInput).toHaveCount(0);
+
+    expect(states.jsErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
+  });
+
+  test('METER-06b: should NOT have reading history UI (assert absence)', async ({ page }) => {
+    await login(page);
+    await navigateToMeterReading(page);
+
+    // Assert: No "History", "Chart", "Graph", "Timeline", or tab/link for reading history
+    const historyTab = page.getByRole('tab', { name: /history|chart|graph|timeline/i });
+    await expect(historyTab).toHaveCount(0);
+
+    const historyLink = page.getByRole('link', { name: /history|chart|graph|timeline/i });
+    await expect(historyLink).toHaveCount(0);
+
+    const historyButton = page.getByRole('button', { name: /history|chart|graph|timeline/i });
+    await expect(historyButton).toHaveCount(0);
+
+    // No table with meter reading history data (distinct from the form)
+    // Look for any table that might show historical readings
+    const tables = page.locator('table');
+    await expect(tables).toHaveCount(0);
+
     expect(states.jsErrors).toEqual([]);
     expect(states.hydrationErrors).toEqual([]);
   });
