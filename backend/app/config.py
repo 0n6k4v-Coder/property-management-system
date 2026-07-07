@@ -63,6 +63,14 @@ class Settings(BaseSettings):
     # ── CORS ───────────────────────────────────────────────────────────
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
+    # ── Admin access (RBAC owner-gated endpoints: /admin/*) ────────────
+    # Emails granted owner + superuser privileges for admin views
+    # (audit logs, system config). Schema-free: the JWT claim `is_owner`
+    # is set at token-issuance time for these accounts (see auth_service).
+    # Defaults to the seeded E2E admin account. Production deployments
+    # SHOULD override this with their real admin email(s).
+    ADMIN_EMAILS: str = "admin@example.com"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

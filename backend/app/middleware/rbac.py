@@ -51,7 +51,11 @@ def require_role(role: str = "owner"):
                 )
 
             is_owner = current_user.get("is_owner", False)
-            if role == "owner" and not is_owner:
+            is_superuser = current_user.get("is_superuser", False)
+            # A superuser (e.g. the seeded admin@example.com) may access
+            # read-only admin views (audit logs, system config). Superuser
+            # privileges subsume the owner role for these read endpoints.
+            if role == "owner" and not (is_owner or is_superuser):
                 raise APIError(
                     code="ADMIN-002",
                     message="Insufficient permissions. Owner role required.",

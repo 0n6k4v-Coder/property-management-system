@@ -32,7 +32,7 @@ router = APIRouter(tags=["admin"], redirect_slashes=False)
 async def get_audit_logs(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[dict, Depends(get_current_user)],
-    property_id: uuid.UUID = Query(..., description="Filter by property"),
+    property_id: uuid.UUID | None = Query(None, description="Filter by property (omit for all properties)"),
     action: str | None = Query(None, description="Filter by action type"),
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(50, ge=1, le=200, description="Items per page"),

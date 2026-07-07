@@ -32,6 +32,17 @@ from app.shared.security import (
 _settings = get_settings()
 
 
+def _is_admin_email(email: str) -> bool:
+    """Return True if ``email`` is in the configured ADMIN_EMAILS allowlist.
+
+    Admin accounts are granted owner + superuser privileges in their JWT
+    claims so they can reach owner-gated admin endpoints (audit logs,
+    system config). This is schema-free: no DB role column required.
+    """
+    admins = {e.strip().lower() for e in _settings.ADMIN_EMAILS.split(",") if e.strip()}
+    return email.strip().lower() in admins
+
+
 class AuthService:
     """Handles user authentication and token lifecycle (FR-USER-01).
 
@@ -136,6 +147,8 @@ class AuthService:
                 "user_id": str(user.id),
                 "email": user.email,
                 "property_scopes": [],
+                "is_owner": _is_admin_email(user.email),
+                "is_superuser": _is_admin_email(user.email),
                 "token_type": "access",
             },
         )
@@ -278,6 +291,8 @@ class AuthService:
                 "user_id": str(user.id),
                 "email": user.email,
                 "property_scopes": [],
+                "is_owner": _is_admin_email(user.email),
+                "is_superuser": _is_admin_email(user.email),
                 "token_type": "access",
             },
         )
