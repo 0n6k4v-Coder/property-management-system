@@ -395,6 +395,15 @@ Produce the final prompt as a single self-contained markdown block, ready to han
 
 ---
 
+## TEMPLATE: GIT COMMIT
+**Name:** `git-commit`
+**Attach when:** 
+
+``````markdown
+ใช้ git commit skill **สำคัญ:** อ่านก่อนใช้ และ Proceed อย่าง Strictly
+``````
+
+---
 
 ## 📝 USAGE INSTRUCTIONS
 

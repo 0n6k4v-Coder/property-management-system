@@ -49,6 +49,34 @@ R5. E2E general discipline (จาก Session A)
     - เลือก `billing_month` ไม่ซ้ำกับ seed (July=7) และไม่ซ้ำกับ test อื่น
     - Source: Session A
 
+R6. เขียน data-mutating test — อ่าน repo guard / status transition ก่อน
+    - ก่อน POST/PATCH/DELETE ใน E2E ให้อ่าน guard ของ repository method + allowed
+      status transition ของ entity
+    - ตัวอย่าง: `repo.record_payment` ปฏิเสธทุกการจ่ายนอก `status in (DRAFT, ISSUED)`
+      → จ่ายครั้งที่ 2 หลัง test อื่นเปลี่ยนสถานะเป็น PARTIAL = 422 (ไม่ใช่ backend bug)
+    - ออกแบบ mutate-test ให้เป็น sole mutator ของ fixture นั้น หรือ assert-absence
+      ไม่ mutate — ห้ามให้ test หนึ่ง mutate แล้วทำลาย test อื่นในไฟล์เดียวกัน
+    - Source: Session 4
+
+R7. Verify step 0 — migration + table ต้องมีก่อนรันเทสแรก
+    - ก่อน Playwright run แรก: `alembic upgrade head` (ถ้ามigration ยังไม่รัน) แล้ว
+      `./scripts/reset-e2e-db.sh`
+    - reset script อาจรายงาน "seeded" แต่จริงๆ DB ไม่มี table (migration ถูกข้าม) —
+      อย่ารอเทส failed ค่อยรู้ ให้เช็ค `\dt` / row count ล่วงหน้า
+    - Source: Session 4
+
+R8. เขียน/append ไฟล์ log หรือ doc — เช็ค BOTH ดิสก์และ git ก่อน
+    - ไฟล์อาจ **tracked แต่หายจาก working tree** (ดิสก์ว่างเปล่า แต่ git มี) →
+      `write_file` จะเขียนทับ silently โดยไม่เตือน (อันตราย)
+    - ก่อน create/append: `git ls-files <path>` (tracked?) + `read_file`/`test -f`
+      (ดิสก์มี?) → ถ้า tracked = append ด้วย `patch` ห้าม `write_file` ทั้งไฟล์
+    - Source: Task ล่าสุด (ทับ SELF_CRITIC.md เอง → ต้อง `git checkout` กู้คืน)
+
+R9. ผู้ใช้ทักสงสัยเรื่องทับ/ลบไฟล์ — `git diff`/`git status` ทันทีก่อนตอบ
+    - อย่าปกป้องหรือฟันธง "ไม่ได้ทับ" ก่อนเช็ค vcs จริง
+    - ถ้าพบทับจริง: กู้คืนก่อนอธิบาย (`git checkout HEAD -- <path>`)
+    - Source: Task ล่าสุด (ตอบ "ไม่ได้ทับ" ก่อน verify → ผิด)
+
 ══════════════════════════════════════════════════
 # 📑 SESSION INDEX — เลือกอ่าน ARCHIVE ตามประเภทงาน
 ══════════════════════════════════════════════════
@@ -58,6 +86,54 @@ R5. E2E general discipline (จาก Session A)
 | A | 2026-07-07 | E2E / backend error test | Extend `meter-offline-sync.spec.ts` (METER-03~06) | Time 6/10, Quality 9/10 |
 | B | 2026-07-07 | Docker cleanup | `docker compose down` ทุก container + prune | Time 3/10, Quality 5/10 |
 | C | 2026-07-07 | Doc/log edit | เพิ่ม Session B ลง `SELF_CRITIC.md` | Time 7/10, Quality 8/10 |
+| 4 | 2026-07-07 | E2E (Route 9/10) | Extend `invoice-payment.spec.ts` (INV-02~08, INV-DET-03~06) 4→14 tests | Time 5/10, Quality 9/10 |
+
+---
+
+## SESSION 4 — invoice-payment.spec.ts E2E (2026-07-07)
+
+**Task:** Extend `frontend/e2e/specs/invoice-payment.spec.ts` 4→14 tests ครบ INV-02,03,04,06,07,08, INV-DET-03,04,05,06 (Route 9/10) แบบ fullstack ไม่ mock
+**Total Session Time:** ~สูงกว่าคาด เพราะ verify-step โดน env (B1/B2) + ข้อผิดพลาด D1
+
+### 1. Performance Summary
+| Phase | Actual | Expected | Delta |
+|-------|--------|----------|-------|
+| Test design + write | ~ปกติ | ปกติ | 0 |
+| B1: DB ไม่มี table → อัพ migrate + reset ใหม่ | ~+1 รอบ | 0 | **+1 รอบ** |
+| B2: cold-start flake → รันหลายรอบจนมั่นใจ 14/14 | ~+2-3 รอบ | 0 | **+2-3 รอบ** |
+| D1: INV-DET-06 2nd-payment 422 → isolation + แก้ | ~+1 รอบ | 0 | **+1 รอบ** |
+
+**Verdict:** Time 5/10 (เสียรอบฟรีจาก B1/B2/D1) · Quality 9/10 (14/14 จริง ไม่หลอกเขียว) · Process 8/10 (isolation วินิจฉัยถูก แต่ verify ช้าไป)
+
+### 2. Bottlenecks (env, not logic)
+1. **B1:** reset script รายงาน "seeded" แต่ migration ยังไม่รัน → DB ว่าง → เสียรอบเดียวรู้ทีหลัง `alembic upgrade head`
+2. **B2:** Cold-start flake — `docker run --rm frontend-test` compile Vite ใหม่ทุกครั้ง → เทสแรก h1 toContainText ทะลุ 30s บางรอบ → 13/14 สลับเทส (warm run ได้ 14/14 ตลอด) → environment flake class (cf. Session A bottleneck #4) ไม่ผ่อน assertion
+3. **B3:** container 1GB limit ช้าโดยรวม
+
+### 3. Mistakes
+- **D1 (สำคัญ):** INV-DET-06 เดิมกดจ่ายครั้งที่ 2 หลัง test "record a payment" เปลี่ยนสถานะเป็น PARTIAL → `repo.record_payment` guard บล็อก → 422 ตก. วินิจฉัยด้วย isolation run (เดี่ยวผ่าน รวมตก) → ยืนยัน shared-state ordering ไม่ใช่ backend bug → แก้เป็น assert-absence ล้วน ไม่ผ่อน assertion → **เกิด R6**
+- **D2:** สมมติ `#payment-history` id มี → จริงๆ ไม่มี (ใช้ title="Payment History") → patch locator ใหม่
+- **D3:** INV-02 locator ใช้ `/^issued$/` anchored + `tr` filter → เปราะต่อ whitespace/DOM → ควร harden
+- **D4:** ไล่ flake ด้วย full-suite หลายรอบก่อน isolate → ช้ากว่า necessary
+
+### 4. What Went Well
+- อ่าน SELF_CRITIC + audit โค้ดจริงก่อนเขียนเทส (R4/R5)
+- isolation run พิสูจน์ INV-DET-06 = state-pollution ไม่ใช่ bug
+- ไม่ผ่อน assertion เลย แม้เจอ flake บ่อย
+- บันทึก F-13..F-19 (root cause + prevention) ลง `docs/LOG/E2E_TEST.md` Part F
+
+### 5. Improvements to carry forward
+- I1: mutate-test → อ่าน repo guard / status transition ก่อน (→ R6)
+- I2: verify step 0 = migration + table ก่อนรันแรก (→ R7)
+- I3: warm Vite (curl หน้าแรก) หรือรอ API response เฉพาะ แทน toContainText ที่ race กับ render
+- I4: ดึง locator จาก DOM จริง (อ่าน component เต็ม) ไม่เดา id
+- I5: isolate เทสที่สงสัย flake เร็วกว่า (ก่อน full-run 2-3 รอบ)
+
+### 6. ⚠️ Meta-mistake (บันทึกด้วย): ทับไฟล์ SELF_CRITIC.md เอง
+- ช่วงท้าย session ผู้ใช้สั่ง "สร้าง/เพิ่ม entry ลง SELF_CRITIC.md" → ผม `write_file` ทับทั้งไฟล์โดย **ไม่ read ก่อน** (ลืม R4 ของไฟล์เอง) + คิดผิดว่าไฟล์ไม่อยู่ดิสก์ (จริงๆ มีใน git 191 บรรทัด)
+- แก้ไข: `git checkout HEAD -- .agents/log/SELF_CRITIC.md` กู้ของเดิม → แล้ว `patch` เพิ่ม R6/R7 + Session 4 ต่อท้าย (ไม่ rewrite)
+- บทเรียน: คำสั่ง "สร้าง/เพิ่ม" ในบริบทไฟล์ที่มีอยู่ = **append ไม่ใช่ overwrite** เสมอ `read_file` ก่อน `write_file` แม้ผู้ใช้จะบอกสร้าง
+
 
 > ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C
 
