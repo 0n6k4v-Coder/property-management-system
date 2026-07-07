@@ -20,7 +20,7 @@ export function AuthLayout() {
         </header>
 
         {/* Auth Card */}
-        <main className="rounded-xl bg-white px-6 py-8 shadow-sm ring-1 ring-surface-200 sm:px-8">
+        <main className="rounded-xl bg-surface-50 px-6 py-8 shadow-sm ring-1 ring-surface-200 sm:px-8">
           <Outlet />
         </main>
 

@@ -138,7 +138,7 @@ export default function LoginPage() {
         {/* API Error */}
         {authError && (
           <div
-            className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700"
+            className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 login-error-alert"
             role="alert"
           >
             {authError}
@@ -149,7 +149,7 @@ export default function LoginPage() {
           type="submit"
           variant="primary"
           size="lg"
-          className="w-full"
+          className="w-full login-submit-btn"
           isLoading={formState === 'submitting'}
           disabled={formState === 'submitting'}
         >

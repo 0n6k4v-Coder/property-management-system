@@ -24,7 +24,7 @@ export function Input({
   const hintId = `${inputId}-hint`;
 
   const baseInputStyles =
-    'block w-full rounded-lg border bg-white px-3 py-2 text-sm text-surface-900 placeholder-surface-400 transition-colors duration-150 disabled:cursor-not-allowed disabled:bg-surface-100 disabled:text-surface-400';
+    'block w-full rounded-lg border bg-surface-50 px-3 py-2 text-sm text-surface-900 placeholder-surface-400 transition-colors duration-150 disabled:cursor-not-allowed disabled:bg-surface-100 disabled:text-surface-400';
   const errorInputStyles = error
     ? 'border-red-500 focus:border-red-500 focus:ring-red-500/20'
     : 'border-surface-300';

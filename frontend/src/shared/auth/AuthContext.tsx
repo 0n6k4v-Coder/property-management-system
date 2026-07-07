@@ -125,11 +125,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
+  // Wrap a navigation in a View Transition (React Router v7) when supported;
+  // otherwise navigate normally. Focus routing handled by route target (ADR 004 v1.2).
+  const navigateWithTransition = useCallback(
+    (to: string, replace = false) => {
+      navigate(to, { replace, viewTransition: true });
+    },
+    [navigate],
+  );
+
   const logout = useCallback(() => {
     clearStoredTokens();
     dispatch({ type: 'LOGOUT' });
-    void navigate('/login');
-  }, [navigate]);
+    navigateWithTransition('/login', true);
+  }, [navigateWithTransition]);
 
   const refreshToken = useCallback(async (): Promise<string | null> => {
     const token = getStoredAccessToken();
@@ -173,7 +182,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if ('data' in res) {
           setStoredTokens(res.data.access_token, res.data.refresh_token);
           dispatch({ type: 'LOGIN_SUCCESS', user: res.data.user });
-          void navigate('/', { replace: true });
+          // React Router v7 drives the View Transition; focus routed by target (ADR 004 v1.2)
+          navigate('/', { replace: true, viewTransition: true });
         }
       } catch (err) {
         const message =

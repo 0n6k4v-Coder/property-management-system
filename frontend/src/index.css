@@ -1,33 +1,140 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary-50: #eff6ff;
-  --color-primary-100: #dbeafe;
-  --color-primary-200: #bfdbfe;
-  --color-primary-300: #93c5fd;
-  --color-primary-400: #60a5fa;
-  --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;
-  --color-primary-700: #1d4ed8;
-  --color-primary-800: #1e40af;
-  --color-primary-900: #1e3a8a;
-  --color-primary-950: #172554;
+  /* Raw color values kept separate for light-dark() fallback (Sprint 10 / ADR 002) */
+  --color-primary-50-light: #eff6ff;
+  --color-primary-50-dark: #172554;
+  --color-primary-100-light: #dbeafe;
+  --color-primary-100-dark: #1e3a8a;
+  --color-primary-200-light: #bfdbfe;
+  --color-primary-200-dark: #1e40af;
+  --color-primary-300-light: #93c5fd;
+  --color-primary-300-dark: #1d4ed8;
+  --color-primary-400-light: #60a5fa;
+  --color-primary-400-dark: #2563eb;
+  --color-primary-500-light: #3b82f6;
+  --color-primary-500-dark: #3b82f6;
+  --color-primary-600-light: #2563eb;
+  --color-primary-600-dark: #3b82f6;
+  --color-primary-700-light: #1d4ed8;
+  --color-primary-700-dark: #1d4ed8;
+  --color-primary-800-light: #1e40af;
+  --color-primary-800-dark: #bfdbfe;
+  --color-primary-900-light: #1e3a8a;
+  --color-primary-900-dark: #dbeafe;
+  --color-primary-950-light: #172554;
+  --color-primary-950-dark: #eff6ff;
 
-  --color-surface-50: #f8fafc;
-  --color-surface-100: #f1f5f9;
-  --color-surface-200: #e2e8f0;
-  --color-surface-300: #cbd5e1;
-  --color-surface-400: #94a3b8;
-  --color-surface-500: #64748b;
-  --color-surface-600: #475569;
-  --color-surface-700: #334155;
-  --color-surface-800: #1e293b;
-  --color-surface-900: #0f172a;
-  --color-surface-950: #020617;
+  --color-surface-50-light: #f8fafc;
+  --color-surface-50-dark: #020617;
+  --color-surface-100-light: #f1f5f9;
+  --color-surface-100-dark: #0f172a;
+  --color-surface-200-light: #e2e8f0;
+  --color-surface-200-dark: #1e293b;
+  --color-surface-300-light: #cbd5e1;
+  --color-surface-300-dark: #334155;
+  --color-surface-400-light: #94a3b8;
+  --color-surface-400-dark: #475569;
+  --color-surface-500-light: #64748b;
+  --color-surface-500-dark: #94a3b8;
+  --color-surface-600-light: #475569;
+  --color-surface-600-dark: #94a3b8;
+  --color-surface-700-light: #334155;
+  --color-surface-700-dark: #cbd5e1;
+  --color-surface-800-light: #1e293b;
+  --color-surface-800-dark: #e2e8f0;
+  --color-surface-900-light: #0f172a;
+  --color-surface-900-dark: #f1f5f9;
+  --color-surface-950-light: #020617;
+  --color-surface-950-dark: #f8fafc;
+
+  /* light-dark() token pairs — auto-adapt to color-scheme (ADR 002) */
+  --color-primary-50: light-dark(var(--color-primary-50-light), var(--color-primary-50-dark));
+  --color-primary-100: light-dark(var(--color-primary-100-light), var(--color-primary-100-dark));
+  --color-primary-200: light-dark(var(--color-primary-200-light), var(--color-primary-200-dark));
+  --color-primary-300: light-dark(var(--color-primary-300-light), var(--color-primary-300-dark));
+  --color-primary-400: light-dark(var(--color-primary-400-light), var(--color-primary-400-dark));
+  --color-primary-500: light-dark(var(--color-primary-500-light), var(--color-primary-500-dark));
+  --color-primary-600: light-dark(var(--color-primary-600-light), var(--color-primary-600-dark));
+  --color-primary-700: light-dark(var(--color-primary-700-light), var(--color-primary-700-dark));
+  --color-primary-800: light-dark(var(--color-primary-800-light), var(--color-primary-800-dark));
+  --color-primary-900: light-dark(var(--color-primary-900-light), var(--color-primary-900-dark));
+  --color-primary-950: light-dark(var(--color-primary-950-light), var(--color-primary-950-dark));
+
+  --color-surface-50: light-dark(var(--color-surface-50-light), var(--color-surface-50-dark));
+  --color-surface-100: light-dark(var(--color-surface-100-light), var(--color-surface-100-dark));
+  --color-surface-200: light-dark(var(--color-surface-200-light), var(--color-surface-200-dark));
+  --color-surface-300: light-dark(var(--color-surface-300-light), var(--color-surface-300-dark));
+  --color-surface-400: light-dark(var(--color-surface-400-light), var(--color-surface-400-dark));
+  --color-surface-500: light-dark(var(--color-surface-500-light), var(--color-surface-500-dark));
+  --color-surface-600: light-dark(var(--color-surface-600-light), var(--color-surface-600-dark));
+  --color-surface-700: light-dark(var(--color-surface-700-light), var(--color-surface-700-dark));
+  --color-surface-800: light-dark(var(--color-surface-800-light), var(--color-surface-800-dark));
+  --color-surface-900: light-dark(var(--color-surface-900-light), var(--color-surface-900-dark));
+  --color-surface-950: light-dark(var(--color-surface-950-light), var(--color-surface-950-dark));
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --max-width-auth: 400px;
+
+  /* Physics-based spring easing (Sprint 10 / ADR 003) — MANDATORY duration on use */
+  --spring-easing: linear(
+    0, 0.016 0.5%, 0.06 1%, 0.226 2%, 1.116 5.4%, 1.375 6.6%, 1.527 7.7%,
+    1.565 8.2%, 1.585 8.8%, 1.581 9.3%, 1.559 9.8%, 1.458 10.9%, 0.937 14.3%,
+    0.784 15.5%, 0.693 16.6%, 0.67 17.1%, 0.657 17.7%, 0.671 18.7%, 0.729 19.8%,
+    1.042 23.3%, 1.13 24.5%, 1.182 25.6%, 1.201 26.7%, 1.192 27.7%, 1.156 28.8%,
+    0.977 32.2%, 0.925 33.4%, 0.894 34.5%, 0.882 35.6%, 0.887 36.6%, 0.907 37.7%,
+    1.045 42.4%, 1.069 44.5%, 1.059 46.3%, 0.979 50.9%, 0.96 53.4%, 0.966 55.3%,
+    1.013 59.9%, 1.024 62.3%, 0.986 71.2%, 1.008 79.9%, 0.995 88.9%, 1
+  );
+}
+
+/* MANDATORY: apply color-scheme to :root for viewport-wide theming (ADR 002) */
+:root {
+  color-scheme: light dark;
+}
+
+/* View Transition fade for navigation continuity (Sprint 10 / ADR 004) */
+::view-transition-old(root) {
+  animation: vt-fade-out 0.3s ease-out forwards;
+}
+::view-transition-new(root) {
+  animation: vt-fade-in 0.3s ease-out backwards;
+  animation-delay: 0.05s;
+}
+@keyframes vt-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes vt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Respect reduced-motion: disable physics-based transitions (ADR 003) */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+/* Physics-based spring easing on Login interactions (Sprint 10 / ADR 003) */
+/* Fallback ease-out declared first; modern browsers override with linear() spring */
+.login-submit-btn {
+  transition: transform 0.4s ease-out, background-color 0.15s ease-out, opacity 0.15s ease-out;
+  transition-timing-function: var(--spring-easing);
+}
+.login-error-alert {
+  transition: transform 0.4s ease-out, opacity 0.4s ease-out;
+  transition-timing-function: var(--spring-easing);
+}
+.login-error-alert[role='alert'] {
+  animation: login-alert-in 0.4s var(--spring-easing) both;
+}
+@keyframes login-alert-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /*

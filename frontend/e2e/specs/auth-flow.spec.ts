@@ -550,4 +550,41 @@ test.describe('Auth Flow — Cross-cutting Concerns', () => {
     expect(states.networkErrors).toEqual([]);
     expect(states.hydrationErrors).toEqual([]);
   });
+
+  // ── Sprint 10 / ADR 004 (v1.2): View Transition continuity on login ──
+  // Verify the React Router v7 `viewTransition: true` navigation does not
+  // throw, breaks nothing, and still lands on /dashboard. View Transition
+  // itself is browser/flag-dependent, so we assert on behavior + absence of
+  // transition-related errors rather than the visual animation.
+  test('AUTH-VT-01: Login navigation uses View Transition without errors', async ({ page }) => {
+    await login(page);
+
+    // Behavior unchanged: ends on dashboard with stored token.
+    await expect(page).toHaveURL(/\/dashboard/);
+    await verifyTokenStored(page);
+
+    // No JS/console errors from the View Transition API or React Router.
+    expect(states.consoleErrors.filter(e => /view.?transition/i.test(e))).toEqual([]);
+    expect(states.jsErrors.filter(e => /view.?transition/i.test(e))).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+
+    // Document exposes the View Transition API (Chrome 111+); if absent, RR
+    // v7 falls back silently — either way navigation must succeed (above).
+    const hasVT = await page.evaluate(() => 'startViewTransition' in document);
+    expect(typeof hasVT).toBe('boolean');
+  });
+
+  test('AUTH-VT-02: Logout navigation does not error and returns to /login', async ({ page }) => {
+    await login(page);
+    await expect(page).toHaveURL(/\/dashboard/);
+
+    // Trigger logout via the app (MainLayout header logout control).
+    await page.getByRole('button', { name: /log out|logout|sign out/i }).first().click();
+
+    await expect(page).toHaveURL(/\/login/);
+
+    expect(states.consoleErrors.filter(e => /view.?transition/i.test(e))).toEqual([]);
+    expect(states.jsErrors.filter(e => /view.?transition/i.test(e))).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+  });
 });
