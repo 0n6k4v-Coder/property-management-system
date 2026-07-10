@@ -97,7 +97,7 @@ class TenantRepository:
                 .offset(offset)
                 .limit(limit)
             )
-        else:  # default: name
+        elif search_by == "name":
             stmt = (
                 select(Tenant)
                 .where(
@@ -107,6 +107,11 @@ class TenantRepository:
                 .offset(offset)
                 .limit(limit)
             )
+        else:
+            # Invalid value — should be unreachable now that the router
+            # constrains ``search_by`` to a Literal, but fail loudly rather
+            # than silently falling back to a name search (anti-pattern #7).
+            raise ValueError(f"Unsupported search_by value: {search_by!r}")
 
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
@@ -135,7 +140,7 @@ class TenantRepository:
                     Tenant.email.ilike(pattern),
                 )
             )
-        else:
+        elif search_by == "name":
             stmt = (
                 select(Tenant)
                 .where(
@@ -143,6 +148,10 @@ class TenantRepository:
                     Tenant.full_name.ilike(pattern),
                 )
             )
+        else:
+            # Invalid value — unreachable via the router's Literal constraint;
+            # fail loudly rather than silently falling back to a name count (#7).
+            raise ValueError(f"Unsupported search_by value: {search_by!r}")
 
         result = await self.db.execute(stmt)
         return len(result.scalars().all())

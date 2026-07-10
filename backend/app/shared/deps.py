@@ -100,16 +100,24 @@ async def user_has_property_scope(
     return any(s.property_id == property_id for s in scopes)
 
 
-def require_property_scope(path_param: str | None = None):
+def require_property_scope(
+    path_param: str | None = None,
+    query_param: str | None = None,
+):
     """Build a FastAPI dependency enforcing property scope.
 
-    The ``property_id`` to check is sourced in one of two ways:
+    The ``property_id`` to check is sourced in one of three ways (mutually
+    exclusive; exactly one should be configured per usage):
 
-    - ``path_param is None`` (default, backward-compatible with
-      ``/auth/invite``): read ``property_id`` from the JSON request body.
+    - ``path_param`` and ``query_param`` both ``None`` (default,
+      backward-compatible with ``/auth/invite``): read ``property_id``
+      from the JSON request body.
     - ``path_param`` given (e.g. ``"property_id"``): read it from the
       matching path parameter, so path-scoped reads like
       ``GET /properties/{property_id}`` can reuse the same check.
+    - ``query_param`` given (e.g. ``"property_id"``): read it from the
+      matching query parameter, so query-scoped reads like
+      ``GET /tenants/search?property_id=...`` can reuse the same check.
 
     The dependency raises ``AUTH-005`` (403) unless the caller is a global
     owner/admin or holds a ``user_property_scopes`` row for that property.
@@ -117,7 +125,7 @@ def require_property_scope(path_param: str | None = None):
 
     Usage::
 
-        # body-sourced (unchanged)
+        # body-sourced (unchanged, e.g. /auth/invite and POST /tenants/)
         @router.post("/invite")
         async def invite(
             payload: InviteRequest,
@@ -129,6 +137,13 @@ def require_property_scope(path_param: str | None = None):
         async def get_property(
             property_id: uuid.UUID,
             _: Annotated[None, require_property_scope("property_id")],
+        ): ...
+
+        # query-sourced (e.g. GET /tenants/search?property_id=...)
+        @router.get("/search")
+        async def search(
+            property_id: str = Query(...),
+            _: Annotated[None, require_property_scope(query_param="property_id")],
         ): ...
     """
 
@@ -145,6 +160,8 @@ def require_property_scope(path_param: str | None = None):
         try:
             if path_param is not None:
                 raw = request.path_params[path_param]
+            elif query_param is not None:
+                raw = request.query_params[query_param]
             else:
                 body = await request.json()
                 raw = body.get("property_id")
