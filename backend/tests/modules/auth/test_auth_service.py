@@ -228,6 +228,12 @@ class TestRefreshAccessToken:
         )
         mock_repo = AsyncMock()
         mock_repo.get_by_id.return_value = user
+        # Refresh-token rotation persists the new jti; mirror that on the
+        # in-memory user so the rotation guard (AUTH-008) accepts it.
+        async def _persist_jti(uid, jti):
+            user.current_refresh_jti = jti
+
+        mock_repo.set_current_refresh_jti.side_effect = _persist_jti
 
         # Create a real refresh token via the auth_service
         service = AuthService.__new__(AuthService)
