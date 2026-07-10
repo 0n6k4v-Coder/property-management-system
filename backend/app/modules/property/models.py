@@ -26,6 +26,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.modules.property.constants import RoomStatus, RoomType
 from app.shared.database import Base
 
+# Imported so the relationship string "UserPropertyScope" resolves at
+# mapper-configuration time (registered on Base.metadata via auth.models).
+from app.modules.auth.models import UserPropertyScope  # noqa: F401
+
 
 class Property(Base):
     """A real-estate property (dormitory, apartment building, etc.).
@@ -69,6 +73,9 @@ class Property(Base):
     )
     invoices: Mapped[list["Invoice"]] = relationship(
         "Invoice", back_populates="property", lazy="selectin", cascade="all, delete-orphan"
+    )
+    users: Mapped[list["UserPropertyScope"]] = relationship(
+        "UserPropertyScope", back_populates="property", lazy="selectin", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
