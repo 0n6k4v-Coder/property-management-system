@@ -1,48 +1,51 @@
-# API Reference — Property Management System v1.0.0
+# API Reference — Property Management System
 
 > **Base URL**: `https://{domain}/api/v1/`
-> **Authentication**: `Authorization: Bearer <JWT>` (except `/auth/*`)
+> **Authentication**: `Authorization: Bearer <JWT>` (except `/auth/login`, `/auth/register`, `/auth/refresh`)
 > **Content-Type**: `application/json`
-> **Versioning**: URL path (`/v1/`)
+> **Versioning**: `/api/v1/` is hardcoded in every router mount (`app/main.py`) — there is no `/v2`, no version negotiation, and no version-bump mechanism implemented yet. Treat this as the only version that exists.
+> **Response envelope**: `{"data": ..., "meta": ...}` on success is a strong convention, not a framework guarantee — most endpoints follow it, a few don't (noted inline below).
+> **OpenAPI docs**: `/docs`, `/redoc`, `/openapi.json` only exist when `settings.DEBUG=True` (`app/config.py`, default `True` — must be overridden in production).
+
+This document is generated from the actual routers under `backend/app/modules/*/routers/` and their schemas, not from a spec. Where the code itself is inconsistent or has dead code, that is called out explicitly rather than smoothed over — see [Known Inconsistencies](#known-inconsistencies).
 
 ---
 
 ## 📋 Table of Contents
 
 - [Authentication](#authentication)
-- [Properties](#properties)
-- [Buildings](#buildings)
-- [Floors](#floors)
-- [Rooms](#rooms)
+- [Properties & Rooms](#properties--rooms)
 - [Tenants](#tenants)
-- [Meter Readings](#meter-readings)
-- [Invoices](#invoices)
-- [Payments](#payments)
+- [Billing (Meter Readings, Invoices, Payments)](#billing)
 - [Contracts](#contracts)
 - [Maintenance](#maintenance)
 - [Dashboard](#dashboard)
-- [Reports](#reports)
+- [Notifications](#notifications)
 - [Admin](#admin)
 - [Error Codes](#error-codes)
 - [Rate Limiting](#rate-limiting)
+- [Known Inconsistencies](#known-inconsistencies)
+
+> Note: there is **no** dedicated `/reports` module, and **no** top-level `/rooms`, `/buildings`, or `/floors` resources. Those do not exist in the codebase.
 
 ---
 
 ## 🔐 Authentication
 
+Router: `app/modules/auth/routers/auth_router.py`, mounted at `/api/v1/auth`.
+
 ### `POST /api/v1/auth/login`
 
-Authenticate user and return JWT tokens.
-
-**Request:**
+Body — `AuthRequest` (`strict=True, extra="forbid"`):
 ```json
 {
   "email": "user@example.com",
   "password": "SecurePass123"
 }
 ```
+`password` requires ≥8 chars, ≥1 uppercase, ≥1 digit.
 
-**Response (200):**
+**Response (200)** — `TokenResponse`:
 ```json
 {
   "data": {
@@ -59,15 +62,13 @@ Authenticate user and return JWT tokens.
 }
 ```
 
-**Errors:** `401 AUTH-001` (invalid credentials), `403 AUTH-002` (inactive), `429` (rate limited)
+**Errors:** `401 AUTH-001` (invalid credentials), `403 AUTH-002` (inactive account), `429 SYS-429` (rate limited)
 
 ---
 
 ### `POST /api/v1/auth/register`
 
-Accept invitation and create new user account.
-
-**Request:**
+Accepts an invite and creates the account. Body — `RegisterRequest` (`strict=True, extra="forbid"`):
 ```json
 {
   "invite_token": "eyJhbGciOiJIUzI1NiIs...",
@@ -76,8 +77,9 @@ Accept invitation and create new user account.
   "phone": "0899999999"
 }
 ```
+`full_name`: 2-255 chars. `password`: same strength rule as login. `phone`: 10-15 chars, no format regex enforced at this layer.
 
-**Response (201):**
+**Response (201)** — `UserResponse` (not `TokenResponse` — registering does **not** log the user in):
 ```json
 {
   "data": {
@@ -90,15 +92,13 @@ Accept invitation and create new user account.
 }
 ```
 
-**Errors:** `400 VAL-001` (invalid token/password), `409 AUTH-004` (email exists), `410 AUTH-003` (token expired)
+**Errors:** `401 AUTH-003` (invite expired/invalid/used), `409 AUTH-004` (email exists)
 
 ---
 
 ### `POST /api/v1/auth/invite`
 
-Send invitation to new user (requires auth + property scope).
-
-**Request:**
+Requires auth. Body — `InviteRequest` (`extra="forbid"`, not `strict` — deliberately, to allow UUID coercion from string):
 ```json
 {
   "email": "newuser@example.com",
@@ -106,37 +106,32 @@ Send invitation to new user (requires auth + property scope).
 }
 ```
 
-**Response (201):**
+**Response (201)** — ad-hoc dict, no schema class backs it:
 ```json
-{
-  "data": {
-    "invite_link": "https://app.com/auth/register?token=eyJhbGciOiJIUzI1NiIs..."
-  }
-}
+{ "data": { "invite_link": "https://app.com/auth/register?token=..." } }
 ```
+
+**Errors:** `409 AUTH-004` (email already in use)
 
 ---
 
 ### `POST /api/v1/auth/refresh`
 
-Issue new access token from refresh token (sent via httpOnly cookie).
+Body is a raw `dict`, not a Pydantic schema: `{"refresh_token": "..."}`.
 
 **Response (200):**
 ```json
-{
-  "data": {
-    "access_token": "eyJhbGciOiJIUzI1NiIs..."
-  }
-}
+{ "data": { "access_token": "eyJhbGciOiJIUzI1NiIs..." } }
 ```
+Only `access_token` is returned — no `refresh_token`, no `user`, unlike login.
+
+**Errors:** `401 AUTH-007` (invalid, expired, revoked, or mismatched refresh token — all four conditions collapse to this one code)
 
 ---
 
 ### `GET /api/v1/auth/me`
 
-Get authenticated user profile.
-
-**Response (200):**
+Requires auth. **Response (200)** — `UserResponse` (same shape as the `user` field on login):
 ```json
 {
   "data": {
@@ -149,15 +144,17 @@ Get authenticated user profile.
 }
 ```
 
+**Errors:** `401 AUTH-009` (invalid/expired access token)
+
 ---
 
-## 🏢 Properties
+## 🏢 Properties & Rooms
 
-### `POST /api/v1/properties`
+Router: `app/modules/property/routers/property_router.py`, mounted at `/api/v1/properties`. There is no separate Buildings or Floors resource, and no top-level `/rooms` resource — rooms are only reachable nested under a property.
 
-Create new property.
+### `POST /api/v1/properties/`
 
-**Request:**
+Body — `CreatePropertyRequest` (`strict=True, extra="forbid"`):
 ```json
 {
   "name": "Green View Dormitory",
@@ -166,16 +163,17 @@ Create new property.
   "min_deposit_months": 2
 }
 ```
+`billing_due_day`: 1-28. `min_deposit_months`: default `2`, ≥1.
 
-**Response (201):** Property object with `id`, `created_at`, `updated_at`
+**Response (201)** — `PropertyCreateResponse` (`data: PropertyResponse`).
 
 ---
 
-### `GET /api/v1/properties`
+### `GET /api/v1/properties/`
 
-List all properties accessible to user.
+List all properties. No query parameters, no pagination — returns the full list.
 
-**Response (200):**
+**Response (200)** — `PropertyListResponse`:
 ```json
 {
   "data": [
@@ -185,6 +183,7 @@ List all properties accessible to user.
       "address": "123 Sukhumvit Rd",
       "billing_due_day": 5,
       "min_deposit_months": 2,
+      "created_by": "uuid",
       "created_at": "2026-01-15T10:30:00Z",
       "updated_at": "2026-01-15T10:30:00Z"
     }
@@ -194,180 +193,113 @@ List all properties accessible to user.
 
 ---
 
-### `GET /api/v1/properties/{id}`
+### `GET /api/v1/properties/{property_id}`
 
-Get property details.
-
-**Response (200):** Full property object
+**Response (200)** — `PropertyCreateResponse` (same wrapper class as create — reused for get-by-id too).
 
 ---
 
-## 🏗️ Buildings
+### `GET /api/v1/properties/{property_id}/rooms`
 
-### `POST /api/v1/buildings`
+Returns the property plus its full room list (no pagination/filters).
 
-Create building within a property.
-
-**Request:**
+**Response (200)** — `PropertyWithRoomsResponse`:
 ```json
 {
-  "property_id": "uuid",
-  "name": "Building A",
-  "display_order": 1,
-  "description": "Main building"
+  "property": { "id": "uuid", "name": "...", "...": "..." },
+  "rooms": [
+    {
+      "id": "uuid",
+      "property_id": "uuid",
+      "building_id": "uuid",
+      "floor_id": "uuid",
+      "room_number": "101",
+      "room_type": "studio",
+      "base_rent": "5000.00",
+      "status": "available",
+      "images": {}
+    }
+  ]
 }
 ```
-
-**Response (201):** Building object with `id`
+Note: this response is **not** wrapped in `{"data": ...}` — `property`/`rooms` are top-level keys.
 
 ---
 
-## 🏢 Floors
+### `PATCH /api/v1/properties/rooms/{room_id}/status`
 
-### `POST /api/v1/floors`
+Note the path — it lives under the `/properties` prefix even though it addresses a room (`.../properties/rooms/{room_id}/status`, not `/rooms/{room_id}/status`).
 
-Create floor within a building.
-
-**Request:**
+Body — `UpdateRoomStatusRequest`:
 ```json
-{
-  "building_id": "uuid",
-  "name": "Floor 1",
-  "display_order": 1,
-  "description": "Ground floor"
-}
+{ "status": "occupied" }
 ```
+`status` enum: `available | occupied | maintenance`.
 
-**Response (201):** Floor object with `id`
-
----
-
-## 🚪 Rooms
-
-### `POST /api/v1/rooms`
-
-Create room.
-
-**Request:**
-```json
-{
-  "property_id": "uuid",
-  "building_id": "uuid",
-  "floor_id": "uuid",  // optional if building has no floors
-  "room_number": "101",
-  "room_type": "studio",
-  "base_rent": 5000.00,
-  "images": {}
-}
-```
-
-**Response (201):**
-```json
-{
-  "data": {
-    "id": "uuid",
-    "property_id": "uuid",
-    "building_id": "uuid",
-    "floor_id": "uuid",
-    "room_number": "101",
-    "room_type": "studio",
-    "base_rent": "5000.00",
-    "status": "available",
-    "images": {},
-    "created_at": "2026-01-15T10:30:00Z",
-    "updated_at": "2026-01-15T10:30:00Z"
-  }
-}
-```
-
-**Errors:** `409 PROP-001` (room_number exists in building)
-
----
-
-### `GET /api/v1/rooms`
-
-List rooms with filters.
-
-**Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `property_id` | UUID | Filter by property |
-| `building_id` | UUID | Filter by building |
-| `floor_id` | UUID | Filter by floor |
-| `status` | Enum | `available`, `occupied`, `maintenance` |
-| `room_type` | String | Filter by type |
-| `page` | Int | Page number (default: 1) |
-| `limit` | Int | Items per page (default: 20, max: 100) |
-| `sort` | String | Sort field, prefix `-` for desc |
-
-**Response (200):**
-```json
-{
-  "data": [...],
-  "meta": {
-    "page": 1,
-    "limit": 20,
-    "total": 45,
-    "has_next": true
-  }
-}
-```
+**Response (200):** `{"data": {...room...}, "meta": null}`
 
 ---
 
 ## 👥 Tenants
 
-### `POST /api/v1/tenants`
+Router: `app/modules/tenant/routers/tenant_router.py`, mounted at `/api/v1/tenants`.
 
-Create tenant (ID card encrypted with Fernet).
+### `POST /api/v1/tenants/`
 
-**Request:**
+Body — `CreateTenantRequest` (`strict=True, extra="forbid"`):
 ```json
 {
   "property_id": "uuid",
   "full_name": "Somchai Jaidee",
-  "id_card_number": "1234567890123",  // will be encrypted
+  "id_card_number": "1234567890123",
   "phone": "0812345678",
   "email": "somchai@email.com",
   "emergency_contact_name": "Mother",
   "emergency_contact_phone": "0898765432"
 }
 ```
+`id_card_number`: exactly 13 digits + Thai checksum validation, encrypted at rest, never returned. `phone`: exactly 10 digits, must match `^0\d{9}$`.
 
-**Response (201):** Tenant object (id_card_number_encrypted in DB, not returned)
+**Response (201)** — `TenantCreateResponse` (`data: TenantResponse`, `id_card_number_encrypted` excluded from the response).
 
 ---
 
 ### `GET /api/v1/tenants/search`
 
-Search tenants.
-
 **Query Parameters:**
-| Param | Type | Description |
-|-------|------|-------------|
-| `q` | `q` | String | Search query (name, phone, email) |
-| `property_id` | UUID | Filter by property |
-| `page` | Int | Page number |
-| `limit` | Int | Items per page |
+| Param | Type | Required | Notes |
+|-------|------|----------|-------|
+| `property_id` | string | yes | |
+| `query` | string | yes | min length 3 |
+| `search_by` | string | no | default `"name"` |
+| `page` | int | no | default 1, ≥1 |
+| `limit` | int | no | default 20, 1-100 |
+
+Response is a raw `dict` — no dedicated schema class; `data` contains `TenantResponse` instances.
 
 ---
 
-## 📊 Meter Readings
+## 💰 Billing
 
-### `POST /api/v1/meter-readings`
+Router: `app/modules/billing/routers/billing_router.py`, mounted at **`/api/v1/billing`** — meter readings, invoices, and payments are all under this one prefix, not top-level resources.
 
-Record meter reading (validates current ≥ previous).
+### `POST /api/v1/billing/meter-readings`
 
-**Request:**
+Body — `MeterReadingRequest` (no `strict`/`forbid` — extra fields are allowed here, unlike most other modules):
 ```json
 {
   "room_id": "uuid",
+  "billing_month": 1,
+  "billing_year": 2026,
+  "electric_previous": 100,
   "electric_current": 150,
+  "water_previous": 15,
   "water_current": 25
 }
 ```
+`electric_current`/`water_current` must be ≥ their `_previous` counterpart (validated).
 
-**Response (201):**
+**Response (201)** — `MeterReadingCreateResponse`:
 ```json
 {
   "data": {
@@ -381,315 +313,367 @@ Record meter reading (validates current ≥ previous).
     "water_previous": 15,
     "water_current": 25,
     "water_used": 10,
-    "read_date": "2026-01-20T08:30:00Z",
-    "recorded_by": "uuid"
+    "read_date": "2026-01-20T08:30:00Z"
   }
 }
 ```
 
-**Errors:** `400 BILL-001` (current < previous)
+**Errors:** meter-reading validation failures use the `BILL-*` codes (see [Error Codes](#error-codes)) — there is no dedicated code for "current < previous" distinct from the general `BILL-*` set.
 
 ---
 
-### `GET /api/v1/meter-readings/history`
+### `GET /api/v1/billing/meter-readings/{room_id}/history`
 
-Get meter reading history for a room.
-
-**Query:** `?room_id=uuid&limit=12`
+**Query:** `limit: int = 12` (plain default, no bound enforced).
 
 ---
 
-## 🧾 Invoices
+### `POST /api/v1/billing/invoices/generate`
 
-### `POST /api/v1/invoices/bulk-generate`
-
-Generate invoices for all occupied rooms in a property.
-
-**Request:**
+Body — `GenerateInvoiceRequest`:
 ```json
-{
-  "property_id": "uuid",
-  "billing_month": 1,
-  "billing_year": 2026
-}
+{ "property_id": "uuid", "billing_month": 1, "billing_year": 2026 }
 ```
 
-**Response (201):**
-```json
-{
-  "data": {
-    "generated_count": 42,
-    "skipped_count": 3,
-    "invoices": [
-      {
-        "id": "uuid",
-        "invoice_number": "INV-A1B2C3D4",
-        "room_id": "uuid",
-        "tenant_id": "uuid",
-        "total_amount": "7500.00",
-        "due_date": "2026-02-05"
-      }
-    ]
-  }
-}
-```
+**Response (201)** — `InvoiceCreateResponse` (single generated batch result per invoice, shape follows `InvoiceResponse`).
 
 ---
 
-### `GET /api/v1/invoices`
+### `GET /api/v1/billing/invoices`
 
-List invoices with pagination and filters.
-
-**Query:** `?property_id=uuid&status=overdue&page=1&limit=20`
-
-**Status values:** `draft`, `issued`, `paid`, `partial`, `overdue`, `cancelled`
+**Query:** `property_id: uuid | None` — that is the only filter implemented; there is no `status`, `page`, or `limit` query parameter on this endpoint despite what a generic list endpoint might imply.
 
 ---
 
-### `GET /api/v1/invoices/{id}`
+### `GET /api/v1/billing/invoices/{invoice_id}`
 
-Get invoice detail with line items.
+Returns 404 via a plain `HTTPException`, **not** the standard `{"error": {...}}` envelope — this endpoint's error path is `{"detail": "Invoice not found"}`.
 
 ---
 
-## 💳 Payments
+### `POST /api/v1/billing/payments`
 
-### `POST /api/v1/payments`
-
-Record payment for an invoice.
-
-**Request:**
+Body — `RecordPaymentRequest`:
 ```json
 {
   "invoice_id": "uuid",
   "amount": 7500.00,
-  "payment_method": "cash",
-  "paid_at": "2026-01-25T14:30:00Z",
+  "method": "cash",
+  "reference_number": "REF123",
+  "slip_image_url": null,
   "notes": "January rent"
 }
 ```
+`method` pattern accepted: `cash | bank_transfer | credit_card | qr_code | wallet` — **this does not match** the `PaymentMethod` enum used elsewhere (`bank_transfer | cash | promptpay | qr_code | credit_card`): `wallet` is accepted here but isn't a real enum value, and `promptpay` is a valid enum value but rejected by this endpoint's pattern. See [Known Inconsistencies](#known-inconsistencies).
 
-**Response (201):** Payment object with updated invoice status
-
-**Idempotency:** Supports `Idempotency-Key` header for safe retries
+**Response (200)** — note this is **200, not 201**, unlike every other create endpoint in this API.
 
 ---
 
 ## 📝 Contracts
 
-### `POST /api/v1/contracts`
+Router: `app/modules/contract/routers/contract_router.py`, mounted at `/api/v1/contracts`.
 
-Create lease contract.
+### `POST /api/v1/contracts/`
 
-**Request:**
+Body — `CreateContractRequest` (`extra="forbid"`):
 ```json
 {
-  "property_id": "uuid",
   "room_id": "uuid",
   "tenant_id": "uuid",
+  "property_id": "uuid",
   "start_date": "2026-02-01",
   "end_date": "2027-01-31",
-  "rent_amount": 5000.00,
+  "monthly_rent": 5000.00,
   "deposit_amount": 10000.00,
-  "billing_day": 5
+  "special_conditions": "No pets"
 }
 ```
+Field names are `monthly_rent` / `deposit_amount` (not `rent_amount`), and there is no `billing_day` field on this request. `end_date` must be after `start_date`.
 
-**Response (201):** Contract object with `id`, `status: "active"`
+**Response (201)** — `ContractCreateResponse` (`data: ContractResponse`, `status: "active"`).
 
-**Business Rule (BR-01):** Only one active contract per room (partial unique index)
+**Business rules enforced in the service layer:** one active contract per room; minimum deposit months; no overlapping date ranges for the same room.
 
 ---
 
-### `POST /api/v1/contracts/{id}/terminate`
+### `GET /api/v1/contracts/active`
 
-Terminate contract early.
+**Query:** `property_id: uuid | None`
 
-**Request:**
+---
+
+### `GET /api/v1/contracts/{contract_id}`
+
+Returns full contract detail including `termination` and `extensions` sub-objects when present.
+
+---
+
+### `PATCH /api/v1/contracts/{contract_id}/terminate`
+
+Method is **`PATCH`, not `POST`**. Body — `TerminateContractRequest`:
 ```json
 {
+  "reason": "tenant_request",
   "termination_date": "2026-06-30",
-  "reason": "Tenant moving out"
+  "notes": "Tenant moving out"
 }
 ```
+`reason` is an enum (`TerminationReason`), not a free-text string.
+
+---
+
+### `POST /api/v1/contracts/{contract_id}/extend`
+
+Body — `ExtendLeaseRequest`:
+```json
+{ "new_end_date": "2027-07-31", "reason": "Tenant requested extension" }
+```
+
+---
+
+### `POST /api/v1/contracts/{contract_id}/renew`
+
+Body — `RenewContractRequest`:
+```json
+{
+  "new_start_date": "2027-02-01",
+  "new_end_date": "2028-01-31",
+  "new_monthly_rent": 5200.00,
+  "new_deposit_amount": 10400.00
+}
+```
+**Response (201)** — creates a brand-new contract linked via `renewed_from_id`; the original must already be terminated/expired.
+
+---
+
+### `GET /api/v1/contracts/leases/{room_id}/history`
+
+Full lease history (all past + present contracts) for a room, newest first. **Note the real path is `/api/v1/contracts/leases/{room_id}/history`** (nested under the `/contracts` prefix) — the router's own internal docstrings incorrectly reference `/api/v1/leases/{room_id}/history`; the mount prefix in `app/main.py` is what actually governs the path.
 
 ---
 
 ## 🔧 Maintenance
 
-### `POST /api/v1/maintenance`
+Router: `app/modules/maintenance/routers/maintenance_router.py`, mounted at `/api/v1/maintenance`.
 
-Create maintenance request.
+### `POST /api/v1/maintenance/`
 
-**Request:**
+Body — `CreateMaintenanceRequest`:
 ```json
 {
   "room_id": "uuid",
+  "property_id": "uuid",
   "title": "Air conditioner not cooling",
   "description": "AC blowing warm air since yesterday",
   "priority": "high"
 }
 ```
+`title`: 3-255 chars. `description`: ≥10 chars. `priority` enum: `low | medium | high | urgent` (default `medium`).
 
-**Response (201):**
-```json
-{
-  "data": {
-    "id": "uuid",
-    "room_id": "uuid",
-    "title": "Air conditioner not cooling",
-    "status": "pending",
-    "priority": "high",
-    "created_at": "2026-01-20T09:00:00Z"
-  }
-}
-```
-
-**Status Flow (BR-09):** `pending` → `in_progress` → `completed` / `cancelled`
+**Response (201)** — `MaintenanceCreateResponse`.
 
 ---
 
-### `GET /api/v1/maintenance`
+### `GET /api/v1/maintenance/pending`
 
-List maintenance requests.
+**This is the only list endpoint** — it always returns pending requests; there is no generic `GET /maintenance?status=&priority=` filterable list.
 
-**Query:** `?status=pending&priority=high&page=1&limit=20`
+**Query:** `property_id: uuid` (**required**).
+
+---
+
+### `GET /api/v1/maintenance/{request_id}`
+
+---
+
+### `PATCH /api/v1/maintenance/{request_id}/status`
+
+Body — `UpdateMaintenanceStatusRequest`:
+```json
+{ "status": "in_progress" }
+```
+Status enum: `pending | in_progress | resolved | cancelled` (note: `resolved`, not `completed`). Invalid transitions are rejected (`MAINT-003`).
+
+---
+
+### `PATCH /api/v1/maintenance/{request_id}/assign`
+
+Body — `AssignMaintenanceRequest`:
+```json
+{ "assigned_to": "uuid" }
+```
 
 ---
 
 ## 📊 Dashboard
 
-### `GET /api/v1/dashboard`
+Router: `app/modules/dashboard/routers/dashboard_router.py`, mounted at `/api/v1/dashboard`. There is **no single combined `GET /dashboard` endpoint** and **no separate `/reports` module** — three distinct endpoints cover this ground.
 
-Get aggregated business metrics.
+### `GET /api/v1/dashboard/summary`
 
-**Response (200):**
+**Query:** `property_id: uuid` (required).
+
+**Response (200)** — `DashboardSummaryWrapper`:
 ```json
 {
   "data": {
-    "total_properties": 3,
+    "property_id": "uuid",
     "total_rooms": 150,
     "occupied_rooms": 135,
-    "available_rooms": 10,
-    "maintenance_rooms": 5,
+    "occupancy_rate": 90.0,
     "monthly_revenue": "675000.00",
-    "overdue_invoices": 8,
+    "overdue_count": 8,
     "overdue_amount": "45000.00",
-    "occupancy_rate": 90.0
+    "pending_maintenance": 5,
+    "active_contracts": 135
   }
 }
 ```
 
 ---
 
-## 📈 Reports
+### `GET /api/v1/dashboard/revenue`
 
-### `GET /api/v1/reports/revenue`
+**Query:** `property_id: uuid` (required), `start_date`, `end_date` — plain `YYYY-MM-DD` strings, not validated by Pydantic (parsed manually).
 
-Revenue report by month.
-
-**Query:** `?property_id=uuid&year=2026`
+**Response (200)** — `RevenueReportResponse`, a list of monthly metrics: `period`, `collected`, `outstanding`, `total_billed`.
 
 ---
 
-### `GET /api/v1/reports/overdue`
+### `GET /api/v1/dashboard/occupancy`
 
-Overdue invoices report.
+**Query:** `property_id: uuid` (required).
 
-**Query:** `?property_id=uuid`
+**Response (200)** — untyped `dict` (schema declares `data: dict`): `{property_id, total_rooms, occupied_rooms, occupancy_rate, active_contracts}` — note this is a subset of `summary`'s fields (no revenue/overdue/maintenance data), despite both calling the same underlying service method.
+
+---
+
+## 🔔 Notifications
+
+Router: `app/modules/notification/routers/notification_router.py`, mounted at `/api/v1/notifications`. **This entire module was previously undocumented.**
+
+### `POST /api/v1/notifications/test`
+
+Body — `SendNotificationRequest`:
+```json
+{
+  "user_id": "uuid",
+  "property_id": "uuid",
+  "channel": "email",
+  "subject": "Test notification",
+  "body": "This is a test"
+}
+```
+`channel` enum: `email | line | sms` (default `email`).
+
+**Response (201)** — `NotificationCreateResponse`.
+
+---
+
+### `GET /api/v1/notifications/history`
+
+**Query:** `property_id: uuid | None`.
+
+**Response (200)** — `NotificationListResponse`.
+
+---
+
+### `PATCH /api/v1/notifications/{notif_id}/resend`
+
+**Response (200)** — `NotificationCreateResponse` (reused, no distinct "resend" schema).
 
 ---
 
 ## ⚙️ Admin
 
+Router: `app/modules/admin/routers/admin_router.py`, mounted at `/api/v1/admin`. Both routes require the `owner` role (`@require_role("owner")`).
+
 ### `GET /api/v1/admin/audit-logs`
 
-View audit logs (requires admin role).
+**Query:** `property_id: uuid | None`, `action: string | None`, `page: int = 1 (≥1)`, `limit: int = 50 (1-200)`.
 
-**Query:** `?user_id=uuid&action=login&from=2026-01-01&to=2026-01-31&page=1&limit=50`
-
----
-
-### `GET /api/v1/admin/system-config`
-
-Get system configuration.
+**Response (200)** — `AuditLogListResponse`.
 
 ---
 
-### `PUT /api/v1/admin/system-config`
+### `GET /api/v1/admin/config`
 
-Update system configuration.
+Path is `/config`, **not** `/system-config`.
+
+**Response (200)** — `SystemConfigListResponse`: `[{"key": "...", "value": "...", "masked": false}, ...]`.
+
+**There is no `PUT`/`PATCH /admin/config` endpoint.** `UpdateSystemConfigRequest` exists as a schema class but is dead code — no router imports or wires it to a handler. Config is read-only via this API today.
 
 ---
 
 ## ⚠️ Error Codes
 
-| Code | HTTP | Description |
-|------|------|-------------|
-| `AUTH-001` | 401 | Invalid email or password |
-| `AUTH-002` | 403 | Account is not active |
-| `AUTH-003` | 410 | Invite token expired |
-| `AUTH-004` | 409 | Email already in use |
-| `AUTH-005` | 403 | Insufficient property scope |
-| `AUTH-007` | 401 | Invalid or expired refresh token |
-| `AUTH-008` | 403 | Token revoked |
-| `AUTH-009` | 401 | Invalid or expired access token |
-| `VAL-001` | 400 | Validation error (details in response) |
-| `VAL-003` | 400 | billing_due_day must be 1-28 |
-| `VAL-006` | 400 | Invalid floor_id or room_number format |
-| `VAL-400` | 400 | Generic validation error |
-| `PROP-001` | 409 | Room number already exists in building |
-| `BILL-001` | 400 | Current meter reading must be ≥ previous |
-| `SYS-500` | 500 | Internal server error |
-
-**Error Response Format:**
+Envelope for `APIError`-derived failures:
 ```json
-{
-  "error": {
-    "code": "AUTH-001",
-    "message": "Invalid email or password",
-    "details": {}
-  }
-}
+{ "error": { "code": "AUTH-001", "message": "Invalid email or password", "details": {} } }
 ```
+Endpoints that raise a plain `HTTPException` instead (e.g. `GET /billing/invoices/{id}` on 404) return Starlette's default `{"detail": "..."}` shape instead — this is an inconsistency in the code, not a documentation simplification.
+
+| Code | HTTP | Description | Notes |
+|------|------|--------------|-------|
+| `AUTH-001` | 401 | Invalid email or password | |
+| `AUTH-002` | 403 | Account is not active | |
+| `AUTH-003` | 401 | Invite link expired/invalid/used | |
+| `AUTH-004` | 409 | Email already in use | |
+| `AUTH-005` | — | Insufficient property scope | Defined, **never actually raised** in code |
+| `AUTH-006` | — | User already invited | Defined, **never actually raised** in code |
+| `AUTH-007` | 401 | Invalid, expired, revoked, or mismatched refresh token | All 4 conditions collapse to this one code |
+| `AUTH-008` | — | Refresh token revoked | Defined, **never actually raised** — `AUTH-007` is used for revocation instead |
+| `AUTH-009` | 401 | Invalid or expired access token | |
+| `PROP-001`…`PROP-009` | 400/404 | Property/building/floor/room validation (duplicate room number, invalid ref, not found, invalid status transition, etc.) | See `app/modules/property/constants.py` |
+| `VAL-003` | 400 | `billing_due_day` must be 1-28 | Defensive re-check in service layer, in addition to the schema-level constraint |
+| `TENANT-001`…`TENANT-009` | 400/404/409 | Tenant validation (duplicate phone/email, invalid ID card, not found, query too short, etc.) | See `app/modules/tenant/constants.py` |
+| `BILL-001`…`BILL-009` | 400/404/409/500 | Meter reading / invoice / payment validation | See `app/modules/billing/constants.py` |
+| `CONT-001`…`CONT-009` | 400/404/409 | Contract validation — room already has active contract, deposit too low, overlapping dates, not active, not found, etc. | See `app/modules/contract/constants.py` |
+| `MAINT-001`…`MAINT-009` | 400/404 | Maintenance validation — not found, invalid transition, already resolved/cancelled, etc. | See `app/modules/maintenance/constants.py` |
+| `NOTIF-001`…`NOTIF-005` | 400/404 | Notification validation | See `app/modules/notification/constants.py` |
+| `ADMIN-001`…`ADMIN-005` | 401/403/404 | Admin resource/permission errors | See `app/modules/admin/constants.py` |
+| `SYS-429` | 429 | Rate limit exceeded | See [Rate Limiting](#rate-limiting) |
+| `SYS-{status}` | varies | Generic fallback — any unhandled `create_api_error()` call without an explicit code auto-generates `SYS-{status_code}` (e.g. `SYS-500`) | Not a fixed enumerable list |
+
+`VAL-400` does **not** exist as an implemented error — it only appears in a stale docstring comment in `auth_router.py` and is never actually raised.
 
 ---
 
 ## 🚦 Rate Limiting
 
-| Endpoint | Limit | Window |
-|----------|-------|--------|
-| `/auth/login` | 10 req | 1 minute |
-| `/auth/register` | 5 req | 1 minute |
-| `/auth/invite` | 20 req | 1 minute |
-| All other auth | 100 req | 1 minute |
-| General API | 1000 req | 1 minute |
+**There is no per-endpoint rate limiting.** The previous version of this doc described per-endpoint limits (`/auth/login`: 10/min, etc.) — that does not exist in the code.
 
-**Headers:**
-- `X-RateLimit-Limit`: Maximum requests allowed
-- `X-RateLimit-Remaining`: Requests remaining in window
-- `Retry-After`: Seconds until next request allowed (on 429)
+What actually exists (`app/middleware/security.py`): a single **in-memory**, per-client-IP sliding-window limiter applied uniformly to every route except `/health`:
 
----
+| Setting | Value |
+|---|---|
+| Max requests | 10,000 |
+| Window | 60 seconds |
+| Scope | Per client IP, all routes combined |
+| Storage | In-process memory (not Redis-backed, not shared across worker processes) |
 
-## 📄 OpenAPI Specification
+On limit exceeded: `429` with body `{"error": {"code": "SYS-429", "message": "Too many requests. Please try again later.", "details": {}}}`.
 
-Full machine-readable specification available at:
-- **Development**: `GET /openapi.json` (when `DEBUG=true`)
-- **File**: `openapi.json` in repository root
-- **Generated Types**: `shared-contracts/types/frontend/api.ts`
+**No `X-RateLimit-*` or `Retry-After` headers are set anywhere in the codebase.** Treat login/register as effectively unthrottled at the endpoint level today — this is a real gap, not just a documentation gap, since brute-force protection on `/auth/login` was assumed in the previous doc but isn't implemented.
 
 ---
 
-## 🔄 Versioning Policy
+## Known Inconsistencies
 
-- **v1** — Current stable (this document)
-- **Breaking changes** → New version `/v2/`
-- **Additive changes** — Added to v1 without version bump
-- **Deprecation** — 6-month notice via `Deprecation` header
+These are real inconsistencies in the current codebase (not documentation errors) — flagged here so they aren't silently "fixed" by describing an idealized version instead of what ships:
+
+1. **Payment method mismatch** — `RecordPaymentRequest.method` accepts `wallet` (not a real enum value) and rejects `promptpay` (a real `PaymentMethod` enum value).
+2. **Inconsistent create status codes** — `POST /billing/payments` returns `200`; every other create endpoint returns `201`.
+3. **Inconsistent error envelope** — `GET /billing/invoices/{id}` 404s via `HTTPException` (`{"detail": ...}`), not the standard `{"error": {...}}` shape used elsewhere.
+4. **Dead error codes** — `AUTH-005`, `AUTH-006`, `AUTH-008` are defined in constants but never raised.
+5. **Dead schema** — `UpdateSystemConfigRequest` (admin module) and `RoomListResponse` (property module) are defined but never wired to any route.
+6. **No config write path** — `/admin/config` is read-only despite a request schema existing for updates.
+7. **Rate limiting is effectively global and non-differentiated** — see [Rate Limiting](#rate-limiting).
+8. **No `/reports`, `/buildings`, `/floors`, or top-level `/rooms` modules** — if product intent requires these, they need to be built; they are not simply undocumented, they don't exist.
 
 ---
 
-**Last Updated**: 2026-07-02  
-**API Version**: 1.0.0  
-**OpenAPI Spec**: 3.1.0
+**Last reconciled against codebase**: 2026-07-10
+**API Version**: v1 only (no versioning scheme implemented)
