@@ -1,5 +1,6 @@
 """Dependency injection helpers (SDD.md §9.1, §3.3)."""
 
+import uuid
 from typing import Annotated
 
 from fastapi import Depends, Request, status
@@ -58,21 +59,76 @@ async def get_current_user(
 CurrentUser = Annotated[dict, Depends(get_current_user)]
 
 
-def require_property_scope():
-    """Build a FastAPI dependency enforcing property scope for ``/invite``.
+def is_global_scope(current_user: dict) -> bool:
+    """Return ``True`` if the caller bypasses per-property scope checks.
 
-    The ``property_id`` to check is read from the request body (the same
-    JSON the endpoint's ``InviteRequest`` parsed).  The dependency raises
-    ``AUTH-005`` (403) unless the caller is a global owner/admin or holds
-    a ``user_property_scopes`` row for that property.  The check reads the
-    live DB so scope changes take effect immediately.
+    A global ``owner``/``admin`` (surfaced as the ``is_owner`` /
+    ``is_superuser`` token claims) may read/mutate any property.  This is
+    the single source of truth for the bypass condition so every scope
+    check — the dependency below and the list-filter helper — stays
+    consistent (no divergent duplicate logic).
+    """
+    return bool(current_user.get("is_owner") or current_user.get("is_superuser"))
+
+
+async def user_has_property_scope(
+    current_user: dict,
+    db: AsyncSession,
+    property_id: uuid.UUID,
+) -> bool:
+    """Return ``True`` if the caller may access ``property_id``.
+
+    Global owner/admin callers always pass.  Otherwise the caller must
+    hold a ``user_property_scopes`` row for that property.  Reads the live
+    DB so scope changes take effect immediately.  Used both by the
+    ``require_property_scope()`` dependency and by list endpoints that need
+    to *filter* (rather than gate) their results by scope.
+    """
+    if is_global_scope(current_user):
+        return True
+
+    user_id = current_user.get("user_id")
+    if not user_id:
+        return False
+
+    import uuid as _uuid
+
+    from app.modules.auth.repository import UserRepository
+
+    repo = UserRepository(db)
+    scopes = await repo.get_property_scopes(_uuid.UUID(str(user_id)))
+    return any(s.property_id == property_id for s in scopes)
+
+
+def require_property_scope(path_param: str | None = None):
+    """Build a FastAPI dependency enforcing property scope.
+
+    The ``property_id`` to check is sourced in one of two ways:
+
+    - ``path_param is None`` (default, backward-compatible with
+      ``/auth/invite``): read ``property_id`` from the JSON request body.
+    - ``path_param`` given (e.g. ``"property_id"``): read it from the
+      matching path parameter, so path-scoped reads like
+      ``GET /properties/{property_id}`` can reuse the same check.
+
+    The dependency raises ``AUTH-005`` (403) unless the caller is a global
+    owner/admin or holds a ``user_property_scopes`` row for that property.
+    The check reads the live DB so scope changes take effect immediately.
 
     Usage::
 
+        # body-sourced (unchanged)
         @router.post("/invite")
         async def invite(
             payload: InviteRequest,
             _: Annotated[None, require_property_scope()],
+        ): ...
+
+        # path-sourced
+        @router.get("/{property_id}")
+        async def get_property(
+            property_id: uuid.UUID,
+            _: Annotated[None, require_property_scope("property_id")],
         ): ...
     """
 
@@ -84,13 +140,15 @@ def require_property_scope():
         import uuid as _uuid
 
         from app.modules.auth.constants import AUTH_005
-        from app.modules.auth.repository import UserRepository
 
-        # Read property_id from the buffered request body (FastAPI has
-        # already read it for the InviteRequest parse above).
+        # Resolve the property_id from the configured source.
         try:
-            body = await request.json()
-            property_id = _uuid.UUID(body.get("property_id"))
+            if path_param is not None:
+                raw = request.path_params[path_param]
+            else:
+                body = await request.json()
+                raw = body.get("property_id")
+            property_id = _uuid.UUID(str(raw))
         except Exception:
             raise APIError(
                 code="AUTH-005",
@@ -98,21 +156,7 @@ def require_property_scope():
                 status_code=status.HTTP_403_FORBIDDEN,
             ) from None
 
-        # Global owner/admin bypass (schema-free admin allowlist).
-        if current_user.get("is_owner") or current_user.get("is_superuser"):
-            return
-
-        user_id = current_user.get("user_id")
-        if not user_id:
-            raise APIError(
-                code="AUTH-005",
-                message=AUTH_005,
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
-
-        repo = UserRepository(db)
-        scopes = await repo.get_property_scopes(_uuid.UUID(user_id))
-        if any(s.property_id == property_id for s in scopes):
+        if await user_has_property_scope(current_user, db, property_id):
             return
 
         raise APIError(

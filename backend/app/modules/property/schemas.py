@@ -54,7 +54,11 @@ class UpdateRoomStatusRequest(BaseModel):
 
 
 class PropertyResponse(BaseModel):
-    """Response body for a single Property resource (SDD §3.1 format)."""
+    """Response body for a single Property resource (SDD §3.1 format).
+
+    ``created_by`` is intentionally NOT exposed here (anti-pattern #10):
+    it is an internal ownership column with no documented client use case.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -63,7 +67,6 @@ class PropertyResponse(BaseModel):
     address: str
     billing_due_day: int
     min_deposit_months: int
-    created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -87,13 +90,26 @@ class RoomResponse(BaseModel):
     images: dict | None = None
 
 
-class PropertyWithRoomsResponse(BaseModel):
-    """Response for GET /api/v1/properties/{id}/rooms."""
+class PropertyWithRoomsData(BaseModel):
+    """Inner ``data`` payload for GET /api/v1/properties/{id}/rooms."""
 
     model_config = ConfigDict(from_attributes=True)
 
     property: PropertyResponse
     rooms: list[RoomResponse]
+
+
+class PropertyWithRoomsResponse(BaseModel):
+    """Enveloped response for GET /api/v1/properties/{id}/rooms.
+
+    Wraps the property + paginated rooms in the standard
+    ``{"data": ..., "meta": ...}`` envelope (anti-pattern #11 fix); the
+    ``property`` object is a single unpaginated record while ``rooms`` is
+    paginated via ``meta`` (anti-pattern #13 fix).
+    """
+
+    data: PropertyWithRoomsData
+    meta: dict | None = None
 
 
 # ── Paginated list wrapper ─────────────────────────────────────────────
@@ -112,7 +128,20 @@ class PropertyCreateResponse(BaseModel):
     meta: None = None
 
 
-class PropertyListResponse(BaseModel):
-    """Response for GET /api/v1/properties — list all properties."""
-    data: list[PropertyResponse]
+class PropertyDetailResponse(BaseModel):
+    """Wrapper for GET /api/v1/properties/{id} (anti-pattern #11 fix).
+
+    Same data shape as ``PropertyCreateResponse`` but a dedicated class so
+    the read endpoint no longer reuses the create-response wrapper.
+    """
+    data: PropertyResponse
     meta: None = None
+
+
+class PropertyListResponse(BaseModel):
+    """Response for GET /api/v1/properties — paginated list (anti-pattern #13).
+
+    ``meta`` carries ``{"page", "limit", "total", "has_next"}``.
+    """
+    data: list[PropertyResponse]
+    meta: dict | None = None

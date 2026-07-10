@@ -43,8 +43,38 @@ class PropertyService:
         self.room_repo = RoomRepository(db)
 
     async def list_properties(self) -> list:
-        """Return all properties."""
+        """Return all properties (unpaginated — legacy/internal helper)."""
         return await self.property_repo.get_all()
+
+    async def list_properties_paginated(
+        self,
+        *,
+        page: int,
+        limit: int,
+        user_id: uuid.UUID | None,
+        is_global: bool,
+    ) -> tuple[list[Property], int]:
+        """Return a page of properties visible to the caller + total count.
+
+        Global owner/admin callers (``is_global``) see every property;
+        everyone else sees only the properties they hold a
+        ``user_property_scopes`` row for (anti-pattern #5 fix). Pagination
+        follows the ``page``/``limit`` contract (anti-pattern #13 fix).
+        """
+        offset = (page - 1) * limit
+        if is_global:
+            items = await self.property_repo.get_paginated(offset, limit)
+            total = await self.property_repo.count_all()
+            return items, total
+
+        if user_id is None:
+            return [], 0
+
+        items = await self.property_repo.get_paginated_for_user(
+            user_id, offset, limit
+        )
+        total = await self.property_repo.count_for_user(user_id)
+        return items, total
 
     async def get_property_by_id(self, property_id: uuid.UUID) -> Property:
         """Retrieve a single Property by its UUID.
@@ -116,6 +146,10 @@ class PropertyService:
         )
         property_obj = await self.property_repo.create(property_obj)
 
+        # Auto-grant the creator an ``owner`` scope row for the new property
+        # (anti-pattern #5 fix) — same session/transaction as the create.
+        await self.property_repo.add_owner_scope(created_by, property_obj.id)
+
         # Audit log (fail-silent per CODE_STYLE.md §5.3)
         await log_audit(
             db=self.db,
@@ -140,6 +174,7 @@ class PropertyService:
         room_id: uuid.UUID,
         new_status: RoomStatus,
         changed_by: uuid.UUID,
+        property_id: uuid.UUID | None = None,
     ) -> Room:
         """Change the status of a room with validation and audit logging.
 
@@ -156,6 +191,11 @@ class PropertyService:
             Target status from the RoomStatus enum.
         changed_by
             UUID of the user performing the action.
+        property_id
+            When provided, the room must belong to this property; a
+            mismatch (or missing room) raises PROP-007 (404). This closes
+            the gap where a mismatched room/property pair had no defined
+            behavior (anti-pattern #11 / #3).
 
         Returns
         -------
@@ -165,11 +205,14 @@ class PropertyService:
         Raises
         ------
         APIError
-            PROP-007 if room does not exist.
+            PROP-007 if room does not exist (or does not belong to the
+            given ``property_id``).
             PROP-008 if the status transition is invalid.
         """
         room = await self.room_repo.get_by_id(room_id)
-        if room is None:
+        if room is None or (
+            property_id is not None and room.property_id != property_id
+        ):
             raise APIError(
                 code=PROP_007_ROOM_NOT_FOUND,
                 message="Room not found",
@@ -248,6 +291,37 @@ class PropertyService:
             )
         rooms = await self.room_repo.get_rooms_by_property(property_id)
         return property_obj, rooms
+
+    async def get_property_with_rooms_paginated(
+        self,
+        property_id: uuid.UUID,
+        *,
+        page: int,
+        limit: int,
+    ) -> tuple[Property, list[Room], int]:
+        """Retrieve a property and a page of its rooms + total room count.
+
+        The ``property`` is a single unpaginated record; the rooms are
+        paginated (anti-pattern #13 fix).
+
+        Raises
+        ------
+        APIError
+            PROP-004 if the property does not exist.
+        """
+        property_obj = await self.property_repo.get_by_id(property_id)
+        if property_obj is None:
+            raise APIError(
+                code=PROP_004_PROPERTY_NOT_FOUND,
+                message="Property not found",
+                status_code=HTTPStatus.NOT_FOUND,
+            )
+        offset = (page - 1) * limit
+        rooms = await self.room_repo.get_rooms_by_property_paginated(
+            property_id, offset, limit
+        )
+        total = await self.room_repo.count_rooms_by_property(property_id)
+        return property_obj, rooms, total
 
     # ── Private helpers ────────────────────────────────────────────────
 
