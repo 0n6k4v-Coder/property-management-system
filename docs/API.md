@@ -17,7 +17,9 @@ This document is generated from the actual routers under `backend/app/modules/*/
 - [Properties & Rooms](#properties--rooms)
 - [Proposed Redesign — Property & Rooms Module (Target Design)](#-proposed-redesign--property--rooms-module-target-design-not-yet-implemented)
 - [Tenants](#tenants)
+- [Proposed Redesign — Tenant Module (Target Design)](#-proposed-redesign--tenant-module-target-design-not-yet-implemented)
 - [Billing (Meter Readings, Invoices, Payments)](#billing)
+- [Proposed Redesign — Billing Module (Target Design)](#-proposed-redesign--billing-module-target-design-not-yet-implemented)
 - [Contracts](#contracts)
 - [Maintenance](#maintenance)
 - [Dashboard](#dashboard)
@@ -482,7 +484,53 @@ Response is a raw `dict` — no dedicated schema class; `data` contains `TenantR
 
 ---
 
-## 💰 Billing
+## 🔧 Proposed Redesign — Tenant Module (Target Design, NOT Yet Implemented)
+
+> ⚠️ **Everything above this box is the current, real, shipped Tenant API.** Everything in this box is a **target design** produced to fix every anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #1, #7, #20`). **No backend code has been changed to match this yet.** Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+
+### Fix map (anti-pattern → design decision)
+
+| # | Anti-pattern | Design fix below |
+|---|---|---|
+| #5 | Any authenticated user can create/search tenants under *any* `property_id` — no scope check | Apply `require_property_scope()` (the shared dependency introduced by the Auth redesign, generalized by the Property & Rooms redesign to support non-body sources) to both endpoints |
+| #1 | `POST /tenants/` has no idempotency protection | Reuse the existing `Idempotency-Key` mechanism (`app/shared/idempotency.py`) |
+| #7 | `search_by` accepts any string; invalid values silently fall back to a name search instead of being rejected (`TENANT-009` exists but is never raised) | Constrain `search_by` to a `Literal["name", "phone", "email"]` type so FastAPI rejects anything else with a clean `422`, instead of the repository silently coercing bad input |
+| #20 | No `Cache-Control`/`ETag` on the search endpoint | Explicitly set `Cache-Control: private, no-store` — this endpoint returns tenant PII (name, phone, email), so the correct fix is an explicit no-caching policy, not making PII cacheable |
+
+Also inherited as **already fixed** by the Auth redesign (cross-cutting, not re-designed here): CORS, the unified `RequestValidationError` envelope, and the logging middleware (`X-Request-ID`).
+
+---
+
+### Authorization (fixes #5)
+
+- **`POST /api/v1/tenants/`** — `property_id` is already in the request body, so this endpoint can use `require_property_scope()`'s **existing, unmodified** body-reading form (the same one `/auth/invite` already uses) — no generalization needed here.
+- **`GET /api/v1/tenants/search`** — `property_id` arrives as a **query parameter**, not a path segment or body field. This depends on whichever generalization the Property & Rooms redesign implements for path-based scope checks (see that module's design section) — if that work only special-cased path parameters, this endpoint will need its own small query-param-reading variant of the same underlying scope-check logic (reuse the DB lookup/bypass logic, don't duplicate the `AUTH-005`-raising boilerplate a third time). Whichever implementation task picks this up should read the *actual* generalized dependency's signature at that time rather than assume it already covers query params.
+- Both endpoints raise `403 AUTH-005` on failure, same as Auth and the redesigned Property endpoints.
+
+### `POST /api/v1/tenants/` (redesigned)
+
+No request/response shape change. Adds:
+- **Authorization (fixes #5):** requires a `user_property_scopes` row for the body's `property_id` (or global owner/admin).
+- **Idempotency (fixes #1):** optional `Idempotency-Key` header, same 24h dedupe window as `/auth/register` and the redesigned `POST /properties/`.
+
+**Errors add:** `403 AUTH-005`, `409 VAL-409` (idempotency key reused with a different body — same convention as the other idempotent endpoints)
+
+### `GET /api/v1/tenants/search` (redesigned)
+
+**Query Parameters (changed row in bold):**
+| Param | Type | Required | Notes |
+|-------|------|----------|-------|
+| `property_id` | UUID | yes | now also gates access via `require_property_scope()` (fixes #5) |
+| `query` | string | yes | min length 3 |
+| **`search_by`** | **`Literal["name","phone","email"]`** | no | default `"name"` — **invalid values now rejected with 422, not silently coerced (fixes #7)** |
+| `page` | int | no | default 1, ≥1 |
+| `limit` | int | no | default 20, 1-100 |
+
+**Response headers (fixes #20):** `Cache-Control: private, no-store` on every response — this endpoint returns tenant PII, so responses must never be cached by a shared cache or stored by the client beyond the immediate request.
+
+**Errors add:** `403 AUTH-005`; `422` for an invalid `search_by` value (was previously silently treated as `"name"`)
+
+---
 
 Router: `app/modules/billing/routers/billing_router.py`, mounted at **`/api/v1/billing`** — meter readings, invoices, and payments are all under this one prefix, not top-level resources.
 
@@ -529,6 +577,8 @@ Body — `MeterReadingRequest` (no `strict`/`forbid` — extra fields are allowe
 
 **Query:** `limit: int = 12` (plain default, no bound enforced).
 
+**⚠️ No authentication at all** — this endpoint has no `Depends(get_current_user)` (verified directly in `billing_router.py`). Any unauthenticated caller can read a room's meter-reading history.
+
 ---
 
 ### `POST /api/v1/billing/invoices/generate`
@@ -546,11 +596,15 @@ Body — `GenerateInvoiceRequest`:
 
 **Query:** `property_id: uuid | None` — that is the only filter implemented; there is no `status`, `page`, or `limit` query parameter on this endpoint despite what a generic list endpoint might imply.
 
+**⚠️ No authentication at all** — no `Depends(get_current_user)` on this handler. Any unauthenticated caller can list every invoice in the system (all properties, if `property_id` is omitted).
+
 ---
 
 ### `GET /api/v1/billing/invoices/{invoice_id}`
 
 Returns 404 via a plain `HTTPException`, **not** the standard `{"error": {...}}` envelope — this endpoint's error path is `{"detail": "Invoice not found"}`.
+
+**⚠️ No authentication at all** — no `Depends(get_current_user)` on this handler either. Any unauthenticated caller can fetch any invoice (and its line items) by guessing/enumerating a UUID.
 
 ---
 
@@ -570,6 +624,76 @@ Body — `RecordPaymentRequest`:
 `method` pattern accepted: `cash | bank_transfer | credit_card | qr_code | wallet` — **this does not match** the `PaymentMethod` enum used elsewhere (`bank_transfer | cash | promptpay | qr_code | credit_card`): `wallet` is accepted here but isn't a real enum value, and `promptpay` is a valid enum value but rejected by this endpoint's pattern. See [Known Inconsistencies](#known-inconsistencies).
 
 **Response (200)** — note this is **200, not 201**, unlike every other create endpoint in this API.
+
+---
+
+## 🔧 Proposed Redesign — Billing Module (Target Design, NOT Yet Implemented)
+
+> ⚠️ **Everything above this box is the current, real, shipped Billing API.** Everything in this box is a **target design** produced to fix every anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md`. **No backend code has been changed to match this yet.** Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+
+### Fix map (anti-pattern → design decision)
+
+| # | Anti-pattern | Design fix below |
+|---|---|---|
+| #5 | **3 of 6 endpoints have no authentication at all** (verified: `get_meter_reading_history`, `list_invoices`, `get_invoice_detail` have no `Depends(get_current_user)`); the 3 POSTs authenticate but don't check property scope | Add auth + `require_property_scope()` to all 6 endpoints |
+| #4 | `POST /payments` returns 200, not 201 like every other create endpoint | Change to `status_code=201` |
+| #3 | `GET /invoices/{id}` 404 uses `HTTPException`/`{"detail":...}` instead of the module's own `APIError`/`{"error":...}` envelope | Raise `APIError(code="BILL-007", ...)` like every other billing error path |
+| #13 | `GET /invoices` has no pagination; history `limit` has no upper bound | Add `page`/`limit` to invoice list; bound history's `limit` to `le=100` |
+| #1 | No idempotency on the 3 POSTs | Reuse the existing `Idempotency-Key` mechanism |
+| #11 | `RecordPaymentRequest.method` regex contradicts the real `PaymentMethod` enum (accepts `wallet`, rejects `promptpay`) | Use the actual `PaymentMethod` enum as the field type instead of a hand-maintained regex, so the two can never drift apart again |
+| #12 | Money modeled as `float` end-to-end, coerced to `Decimal` via a `str()` round-trip | Model `amount`/`total_amount`/`paid_amount` as `Decimal` directly in both request and response schemas |
+| #19 | `read_date` in meter-reading history drops time-of-day and UTC offset | Return the full `created_at` timestamp with an explicit `Z`/offset instead of a bare date |
+| #20 | No `Cache-Control`/`ETag` on the 3 GET endpoints | `Cache-Control: private, no-store` — this is financial data, same conservative default as the Tenant module's PII endpoint |
+| #15 | `POST /invoices/generate` runs the entire bulk-generation synchronously in the request | See "Known limitation" below — a full fix needs job-queue infrastructure this codebase doesn't have yet; documented honestly as a larger follow-up rather than half-designed here |
+
+Also inherited as **already fixed** by the Auth redesign (cross-cutting): CORS, the unified `RequestValidationError` envelope, and the logging middleware. **#6** (rate limiting) and **#9** (versioning) remain deliberate platform-wide gaps, same status as documented for every other module — not re-designed per-module.
+
+---
+
+### Authorization (fixes #5) — applies to all 6 endpoints
+
+- **`POST /meter-readings`, `POST /invoices/generate`, `POST /payments`** — already authenticate; add `require_property_scope()` using whichever generalized form the Property & Rooms redesign produces (`property_id` is in the body for the first two; `POST /payments` only has `invoice_id`, so its scope check must resolve the invoice's `property_id` first, then check scope — same "resolve-then-check" pattern needed for `get_invoice_detail` below).
+- **`GET /meter-readings/{room_id}/history`** — add `Depends(get_current_user)` (currently missing entirely) plus a scope check that resolves the room's `property_id` first (same pattern the Property & Rooms redesign uses for its room-status endpoint).
+- **`GET /invoices`** — add `Depends(get_current_user)` (currently missing entirely). If `property_id` is supplied, scope-check it; if omitted, filter results to only properties the caller holds a scope for (same list-filtering pattern as the redesigned `GET /properties/`) — never return the unfiltered global invoice list to a non-owner/admin caller.
+- **`GET /invoices/{invoice_id}`** — add `Depends(get_current_user)` (currently missing entirely) plus a scope check that resolves the invoice's `property_id` first, then checks it, before returning the invoice or its line items.
+
+All six raise `403 AUTH-005` on a failed scope check, `401 AUTH-009` if unauthenticated — consistent with every other redesigned module.
+
+### `POST /api/v1/billing/meter-readings` (redesigned)
+
+No shape change beyond the fixes already listed. Adds `require_property_scope()` and optional `Idempotency-Key` support (fixes #1).
+
+### `GET /api/v1/billing/meter-readings/{room_id}/history` (redesigned)
+
+- Adds `Depends(get_current_user)` + scope check (fixes #5 — this endpoint currently has **zero** auth).
+- `limit: int = Query(12, ge=1, le=100)` (fixes #13's unbounded half).
+- `read_date` in the response becomes a full timestamp with explicit offset, e.g. `"2026-01-20T08:30:00+00:00"`, instead of `"2026-01-20"` (fixes #19).
+- `Cache-Control: private, no-store` (fixes #20).
+
+### `POST /api/v1/billing/invoices/generate` (redesigned)
+
+Adds `require_property_scope()` and optional `Idempotency-Key` support (fixes #1).
+
+**Known limitation, not fully fixed here (relates to #15):** this endpoint synchronously generates invoices for every occupied room in a property before responding. A proper fix (returning `202 Accepted` + a job-status resource, or a webhook) requires background-job infrastructure (e.g. a task queue) that does not exist anywhere else in this codebase today — introducing one is a larger architectural decision than a per-module redesign should make unilaterally. Documented here as a known, unresolved risk rather than half-designing a job queue with no precedent to follow. Recommend: if this becomes a real production timeout risk, raise it as its own initiative, not bundled into this pass.
+
+### `GET /api/v1/billing/invoices` (redesigned)
+
+- Adds `Depends(get_current_user)` + scope-based filtering (fixes #5 — currently **zero** auth, and no isolation between properties).
+- `page: int = Query(1, ge=1)`, `limit: int = Query(20, ge=1, le=100)`; response `meta` gains `{"page", "limit", "total", "has_next"}` (fixes #13).
+- `Cache-Control: private, no-store` (fixes #20).
+
+### `GET /api/v1/billing/invoices/{invoice_id}` (redesigned)
+
+- Adds `Depends(get_current_user)` + resolve-then-check scope (fixes #5 — currently **zero** auth).
+- 404 now raises `APIError(code="BILL-007", message="Invoice not found", status_code=404)` instead of a bare `HTTPException` — same `{"error": {...}}` envelope as every other error in this module (fixes #3).
+- `Cache-Control: private, no-store` (fixes #20).
+
+### `POST /api/v1/billing/payments` (redesigned)
+
+- `status_code=201` instead of `200` (fixes #4).
+- Adds `require_property_scope()` (resolve via the invoice's `property_id`) and optional `Idempotency-Key` support (fixes #1).
+- `method` field type changes from a hand-written regex to the actual `PaymentMethod` enum (`bank_transfer | cash | promptpay | qr_code | credit_card`) — `wallet` is removed (not a real payment method in this system), `promptpay` now works (fixes #11).
+- `amount` becomes `Decimal` in the request schema (Pydantic supports this natively — no behavior change for callers sending a JSON number, but removes the internal `float → str → Decimal` round-trip); response `amount`/`total_amount`/`paid_amount` fields also become `Decimal`, serialized as JSON strings (e.g. `"7500.00"`) rather than floats, to avoid IEEE-754 precision drift on monetary values (fixes #12).
 
 ---
 
@@ -891,3 +1015,5 @@ These are real inconsistencies in the current codebase (not documentation errors
 **API Version**: v1 only (no versioning scheme implemented — see footer note below)
 **Auth module redesign**: 2026-07-10 — the target design is now **implemented in code** (anti-patterns `#5, #23, #6, #7, #17, #3, #11, #12, #1`; see the resolution note in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md`). `#9` (API versioning policy) remains a deliberate platform-wide gap and is documented as such above.
 **Property & Rooms module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Property & Rooms Module](#-proposed-redesign--property--rooms-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #3, #13, #11, #10, #1`; `#23` was already resolved app-wide by the Auth redesign implementation).
+**Tenant module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Tenant Module](#-proposed-redesign--tenant-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #1, #7, #20`; depends on the Property & Rooms redesign's generalization of `require_property_scope()` for the query-param case on `GET /tenants/search`).
+**Billing module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Billing Module](#-proposed-redesign--billing-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #4, #3, #13, #1, #11, #12, #19, #20`; also corrected this doc's "current" section to flag 3 endpoints — `GET /meter-readings/{room_id}/history`, `GET /invoices`, `GET /invoices/{invoice_id}` — that have **zero authentication today**, verified directly in `billing_router.py`, not previously called out. `#15` — synchronous bulk invoice generation — is flagged as a known limitation requiring job-queue infrastructure this codebase doesn't have; not fully designed here. `#6`/`#9` remain deliberate platform-wide gaps, same as every other module).
