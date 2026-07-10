@@ -273,7 +273,7 @@ await page.waitForFunction(() => {
 ---
 
 ## ⚙️ TEMPLATE: BACKEND_API_AUDIT
-**Name:** `backend-api-audit`  
+**Name:** `backend-api-audit`   
 **Attach when:** Before any backend API work (new endpoint, refactor, bug fix)
 
 ``````markdown
@@ -341,7 +341,7 @@ Audit router → service → repository → model chain before backend work.
 ---
 
 ## 🎭 TEMPLATE: AGENT_PROMPT_GENERATOR
-**Name:** `agent-prompt-generator`
+**Name:** `agent-prompt-generator`    
 **Attach when:** The task is to delegate work to a separate AI agent (a spawned subagent, a different model/session, a background worker) rather than to write the code yourself.
 
 ``````markdown
@@ -386,7 +386,7 @@ Produce the final prompt as a single self-contained markdown block, ready to han
 ---
 
 ## TEMPLATE: SELF_CRITIC
-**Name:** `self-critic`
+**Name:** `self-critic`   
 **Attach when:** 
 
 ``````markdown
@@ -396,11 +396,44 @@ Produce the final prompt as a single self-contained markdown block, ready to han
 ---
 
 ## TEMPLATE: GIT COMMIT
-**Name:** `git-commit`
+**Name:** `git-commit`    
 **Attach when:** 
 
 ``````markdown
 ใช้ git commit skill **สำคัญ:** อ่านก่อนใช้ และ Proceed อย่าง Strictly
+``````
+
+---
+
+## TEMPLATE: ZERO TOLERANCE FOR GUESSING
+**Name:** `zero-tolerance-for-guessing`   
+**Attach when:** 
+
+``````markdown
+# **Zero tolerance for guessing**
+
+1) read_file before diagnosing — ก่อนวินิจฉัย/สรุปอะไร ต้องอ่านไฟล์จริงก่อน ไม่เดาจากชื่อไฟล์หรือความจำ
+2) verify ด้วยของจริง ไม่ใช่เชื่อคำว่า success — เช็คด้วยคำสั่งจริง เช่น docker compose config ไม่ใช่แค่พอพ่น patch 'success' แล้วเชื่อว่าทำงานได้
+``````
+
+---
+
+## TEMPLATE: ANTI HALLUCINATION
+**Name:** `anti-hallucination`    
+**Attach when:** 
+
+``````markdown
+answer when grounded, state when evidence is missing, do not conflate sources or fabricate data
+``````
+
+---
+
+## TEMPLATE: CLEAR-ALL-OF-DOCKER-CONTAINER
+**Name:** `clear-all-of-docker-container`    
+**Attach when:** 
+
+``````markdown
+1. ดู Docker Container ทั้งหมดที่ Run อยู่ 2. เลือก compose down container ทั้งหมดที่มีของ Project นี้ 3. docker prune ทุกอย่างทิ้งให้หมดอย่าให้เหลือ 4. Finish
 ``````
 
 ---
