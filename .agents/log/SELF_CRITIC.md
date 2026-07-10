@@ -711,3 +711,50 @@ Process 7~9/10 → coordination ดี แต่ verify discipline หละห�
 > ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2 · Archive E2 · Archive META · ทำ backend feature + multi-agent orchestration → อ่าน Archive F
 
 > ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2 · Archive E2 · Archive META
+
+---
+
+## SESSION G — Property & Rooms Module Redesign + API Anti-Pattern Remediation (2026-07-10)
+
+**Task:** Implement the Property & Rooms target design from `docs/API.md` fixing 6 API anti-patterns (`#5, #3, #13, #11, #10, #1`; `#23/#6/#17` already resolved/N-A) in a single fresh Worker session. Explicit constraints: Docker off-limits (reserved for a separate concurrent project on this machine), no commit/push, scope limited to `app/modules/property/`, `app/shared/deps.py`, `tests/modules/property/`. The trickiest piece was generalizing the shared `require_property_scope()` (used by Auth's `/invite`) without regressing it.
+
+### 1. Performance Summary
+| Metric | Score | Basis |
+|---|---|---|
+| Time | 8/10 | No free re-runs from rule violations. Lost a little to 2 tiny follow-up patches (D1) + 1 timed-out test run (D2) |
+| Quality | 8/10 | All 6 fixes landed, 24 new DB-free unit tests pass, Auth 27/27 not regressed; −2 because the live-DB paths (owner-scope INSERT commit, idempotency replay from DB) are unverified — mocks prove "called," not "persisted" |
+| Process | 9/10 | Audit-first, verify-before-claim, honest caveat, correct scope, no unrequested file writes |
+
+### 2. Bottlenecks (ranked)
+1. **B1 — Test suite mixes live-DB tests with DB-free ones (env, not logic).** First `pytest -m unit tests/modules/property/` hit the 60s timeout because `test_property_service.py`/`test_property_api.py` hang connecting to Postgres host `db` (Docker-only) → `socket.gaierror`. Cost ~1 round to confirm it was a DNS/connect hang, not a logic failure. This is why new DB-free unit tests were added in a separate file instead.
+2. **B2 — ruff baseline needed per-file measurement.** `Found N errors` aggregates across a path, so separating "pre-existing vs newly introduced" required several grep/uniq passes rather than one clean number.
+3. **B3 — Two tiny follow-up patches on deps.py.** First patch left `uuid` unimported (LSP `reportUndefinedVariable`), then the fix used a quoted `"uuid.UUID"` annotation → ruff `UP037`. Both trivial but each cost a patch cycle.
+
+### 3. Mistakes
+- **D1:** Wrote `property_id: "uuid.UUID"` (quoted) after already adding `import uuid` at module top → redundant, tripped `UP037`. Should have written the correct unquoted annotation the first time (−1 patch).
+- **D2:** Ran the whole property unit suite with a 60s timeout before checking `conftest.py`'s `db_session` fixture — that fixture opens a real connection, so the live-DB tests were always going to hang without Docker. Reading the fixture first would have let me target only the DB-free tests from the start (−1 timed-out run).
+- **D3 (verification gap, disclosed not hidden):** The most security-critical behaviors — the `add_owner_scope` INSERT committing in the same transaction as property creation, and idempotency replay reading a real `idempotency_keys` row — were never exercised against a live DB (Docker forbidden). Unit tests with `AsyncMock` prove the calls are *made*, not that the rows *persist*. Reported explicitly as a NOT-VERIFIED item (carrying forward SESSION F I2), not implied as done.
+
+### 4. What Went Well
+- **Audit-first, exactly as the Task warned:** read the real `require_property_scope()` before designing, then generalized it backward-compatibly (added optional `path_param`; `path_param=None` keeps the body-sourced `/invite` behavior). Proved non-regression with Auth unit 27/27 + a dedicated `test_body_source_still_works_for_invite` guard.
+- **Root-cause, no duplicate logic:** extracted `is_global_scope()` + `user_has_property_scope()` as the single source of truth, reused by both the dependency and the list-scope filter (the Task explicitly forbade divergent bypass logic).
+- **Verify-before-claim + honest caveat:** reported the Docker/live-DB gap plainly instead of claiming full confidence — the exact opposite of SESSION F's headline mistake ("declared done on unit evidence alone").
+- **Scope discipline:** touched only the authorized files; measured a ruff baseline (38) and confirmed the change *reduced* it (34) rather than adding new lint classes; the new test file is ruff-clean.
+- **File-safety on this very log:** followed R8 — `git ls-files` + `read_file` tail before appending, then `patch` (append-only), never `write_file` overwrite.
+
+### 5. Improvements to carry forward
+- **I1 — Read `conftest.py` fixtures before running an unfamiliar test suite.** Know which tests need a live DB up front so you can target DB-free ones directly and skip the timeout (property/auth *service* + *api* tests = live-DB; *_security.py mock everything).
+- **I2 — Write type annotations in the project's convention on the first pass** (unquoted when the import already exists) to avoid `UP037`/undefined-name follow-up patches.
+- **I3 — Measure ruff baselines per-file or with `--statistics` once**, up front, instead of repeated grep/uniq passes.
+- **I4 — Keep the NOT-VERIFIED list explicit** whenever Docker is withheld (integration tests, `alembic upgrade head`, live persistence of the owner-scope INSERT + idempotency replay) — don't let a passing unit run imply full coverage.
+
+### 6. Pre-Task Checklist (for the next backend-feature session under a Docker-off constraint)
+- [ ] Read `conftest.py` fixtures first; identify live-DB vs DB-free tests before running anything
+- [ ] Read the real signature of any shared dependency you must generalize; keep the existing caller's path backward-compatible + add a regression guard test for it
+- [ ] Extract shared authz/bypass logic to one helper; reuse it — never duplicate the bypass condition
+- [ ] Capture a ruff/lint baseline before editing; prove at the end you didn't raise it
+- [ ] Write correct unquoted annotations first pass; run import + ruff after each file
+- [ ] Keep an explicit NOT-VERIFIED list for everything Docker would have proven; don't let unit-pass imply integration-pass
+- [ ] This log is append-only: `git ls-files` + `read_file` + `patch`, never `write_file` overwrite (R8)
+
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2 · Archive E2 · Archive META · ทำ backend feature (Auth) → อ่าน Archive F · ทำ backend feature (Property, Docker-off) → อ่าน Archive G
