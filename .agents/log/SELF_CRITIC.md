@@ -757,4 +757,61 @@ Process 7~9/10 → coordination ดี แต่ verify discipline หละห�
 - [ ] Keep an explicit NOT-VERIFIED list for everything Docker would have proven; don't let unit-pass imply integration-pass
 - [ ] This log is append-only: `git ls-files` + `read_file` + `patch`, never `write_file` overwrite (R8)
 
-> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2 · Archive E2 · Archive META · ทำ backend feature (Auth) → อ่าน Archive F · ทำ backend feature (Property, Docker-off) → อ่าน Archive G
+> ทำ E2E/error test → อ่าน Archive A · ทำ Docker cleanup → อ่าน Archive B · แก้ไฟล์เล็กๆ → อ่าน Archive C · ทำ parallel E2E → อ่าน Archive D · Archive E · Archive C2 · Archive D2 · Archive E2 · Archive META · ทำ backend feature (Auth) → อ่าน Archive F · ทำ backend feature (Property, Docker-off) → อ่าน Archive G · ทำ backend feature (Tenant, Docker-off) → อ่าน Archive H
+
+══════════════════════════════════════════════
+SESSION H — Tenant Module Redesign + API Anti-Pattern Remediation (2026-07-10)
+══════════════════════════════════════════════
+
+Task: Implement Tenant target design จาก docs/API.md แก้ 4 anti-pattern (#5, #1, #7, #20) ใน single Worker session เดียว
+Constraints: Docker off-limits (สงวนให้โปรเจกต์อื่น), ไม่ commit/push, scope จำกัดแค่ app/modules/tenant/, app/shared/deps.py, tests/modules/tenant/
+
+### 1. Performance Summary
+| Metric  | Score | Basis |
+|---------|-------|-------|
+| Time    | 7/10  | โค้ดหลักเขียนถูกต้องตั้งแต่รอบแรก (deps/router/repo) เสียเวลาไป ~1 รอบ timeout + 2 รอบแก้แพตช์เล็กๆ ที่ตัวเองทำพลาด |
+| Quality | 8/10  | ทุกฟิกซ์ลงตัว unit-test ผ่าน 34/34 ไม่เพิ่ม lint class ใหม่ แต่ live-DB path ไม่ได้ verify (Docker ปิด — ข้อจำกัดที่รู้อยู่) |
+| Process | 8/10  | Audit-first ดีเยี่ยม (อ่าน source จริงก่อนแก้) แต่ไปละเมิดบทเรียน I1 ของ SESSION G เอง (รัน test suite กว้างแล้ว timeout) |
+
+### 2. Bottlenecks
+- **B1 — รัน test suite กว้างแล้ว timeout 60s (env, not logic) — กับดักเดียวกับ SESSION G B1.** รัน `pytest -m unit tests/modules/tenant/ tests/modules/auth/ tests/modules/property/` คิดว่า `-m unit` = ไม่ต้อง DB แต่ `test_property_service.py` / `test_auth_service.py` แปะ `@pytest.mark.unit` แล้วใช้ fixture `db_session` (ต่อ Postgres จริง) → Docker ปิด → `socket.gaierror` → hang จน timeout 1 รอบ + ได้ผลบางส่วน fail จาก live-DB. บทเรียน SESSION G เขียนไว้ชัดเจน (I1: "read conftest before running") ผมไม่ทำตาม → เสีย ~1 รอบ
+- **B2 — Router param ordering ผิด (syntax) 2 จุด (logic, cheap).** วาง `_: Annotated[None, require_property_scope()]` หลัง param ที่มี default (Query/Depends) → "non-default argument follows default argument" จับได้ทันทีจาก write-time lint แก้ด้วยการย้าย `_` มาอยู่หน้าสุด (เหมือน auth/property router) ใช้ 2 patch cycle
+- **B3 — ลืม `await` ใน test 2 ตัว (logic, cheap).** `repo.search(...)` / `repo.count_search(...)` เป็น async แต่เขียนเป็น sync ใน test → "DID NOT RAISE" เพราะ coroutine ไม่ถูกเรียก จับได้รอบแรก แก้เป็น `async def` + `await` ทันที
+
+### 3. Mistakes
+- **D1 (สำคัญที่สุด): ละเมิด SESSION G I1** — รัน broad `-m unit` suite ก่อนอ่าน conftest/fixtures → เจอ live-DB timeout นี่คือการ "ทำผิดซ้ำจากบทเรียนที่เขียนไว้ใน log เอง" → ต้องระวังเรื่อง compliance ไม่ใช่ coverage
+- **D2:** วาง FastAPI dependency param ผิดลำดับ 2 จุด (create + search) → syntax error ชั่วคราว
+- **D3:** เขียน async test ไม่สมมาตร (ลืม await) 2 ตัว → false fail ชั่วคราว
+
+### 4. What Went Well
+- **Audit-first ตรงตามคำเตือนของ Task:** อ่าน `require_property_scope()` จริงก่อนออกแบบ แล้ว generalize แบบ backward-compatible (เพิ่ม `query_param`, คง `path_param`/`body` เดิม) — ไม่ regress 2 usage เดิม
+- **Reuse single source of truth:** ใช้ `is_global_scope()` / `user_has_property_scope()` จาก deps.py ไม่เขียน bypass logic ซ้ำ
+- **Honest caveat:** แจ้งชัดเจนว่าส่วน live-DB (search 200 ผ่าน HTTP, idempotency replay จากตาราง, 422 จริง) ยังไม่ได้ verify เพราะ Docker ปิด (สืบทอด SESSION F I2 / G I4) ไม่แกล้งอ้างว่าเสร็จ
+- **วัด ruff baseline per-file (9 → 7, ลดลง, 0 class ใหม่)** และยืนยัน deps.py ผ่าน clean
+- **เพิ่ม regression guard ครบ:** query-source + ยืนยัน body/path ยังทำงาน (`test_body_source_still_works_for_invite` / `test_path_source_still_works_for_property`)
+- **Root-cause แทนการฝืน:** test 422 ผ่าน TestClient ดันไปติด DB (FastAPI รัน dependency ก่อนโยน 422) → เปลี่ยนเป็นเช็ค OpenAPI schema (generate ได้โดยไม่ต่อ DB) ยังพิสูจน์ #7 ได้ โดยไม่ต้อง Docker
+- **Scope discipline:** แตะเฉพาะไฟล์ที่ได้รับอนุญาต ไม่แตะ CORS/logging middleware (#23/#17/#3 ออก scope ตาม Task)
+
+### 5. Improvements to carry forward
+- **I1 — ใน repo นี้ `@pytest.mark.unit` ไม่เท่ากับ "ไม่ต้อง DB".** `test_property_service.py`/`test_auth_service.py` แปะ unit แต่ใช้ `db_session` live → ให้เล็งไฟล์ `*_security.py` (mock ทุกอย่าง) โดยตรง หรือรัน broad ด้วย timeout สั้น + `-k` filter ห้ามเท่ากับ "unit marker = ปลอด DB"
+- **I2 — เวลาเขียน FastAPI router ให้วาง guard dependency param (`_: Annotated[None, require_property_scope()]`) ไว้หน้าสุด** ก่อน param ใดที่มี default (Query/Depends-with-default) เลียนแบบ auth/property router เป๊ะ
+- **I3 — test ที่เรียก method `async def` ของ repo/service ต้องเป็น `async def` + `await` ด้วย** อย่าปล่อย coroutine ลอย
+- **I4 — test 422 จาก query-validation ภายใต้ Docker-off ให้ใช้ OpenAPI-schema assertion** (generate ได้โดยไม่ต่อ DB) แทน TestClient round-trip เพราะ FastAPI รัน dependency (อาจต่อ DB) ก่อนโยน 422 → วิธีนี้พิสูจน์ contract โดยไม่ต้อง Docker
+- **I5 — คง NOT-VERIFIED list ชัดเจนทุกครั้งที่ Docker ถูกห้าม** (integration / alembic / live persistence ของ scope INSERT + idempotency replay)
+
+### 6. Pre-Task Checklist (สำหรับ session ถัดไปที่แตะ backend ภายใต้ Docker-off)
+- [ ] อ่าน conftest fixtures ก่อนรัน suite แปลกหน้า — แยก live-DB vs DB-free ให้ชัด (อย่าเท่ากับ `-m unit`)
+- [ ] อ่าน signature จริงของ shared dependency ที่จะ generalize; คง caller เดิม backward-compatible + เขียน regression guard
+- [ ] วาง FastAPI guard param ไว้หน้าสุดก่อน param ที่มี default
+- [ ] test เรียก async method → ต้อง `async def` + `await`
+- [ ] 422-from-validation ภายใต้ Docker-off → ใช้ OpenAPI schema assertion ไม่ใช้ TestClient
+- [ ] capture ruff baseline per-file ก่อนแก้; พิสูจน์ตอนจบว่าไม่เพิ่ม class
+- [ ] คง NOT-VERIFIED list ชัดเจนสำหรับสิ่งที่ Docker จะพิสูจน์ได้
+- [ ] log นี้ append-only: `git ls-files` + `read_file` + `patch` ห้าม `write_file` ทับ (R8)
+
+### NOT-VERIFIED (Docker forbidden this round — ไม่ได้ปล่อยผ่าน quietly)
+- `GET /tenants/search` คืน 200 จริงผ่าน HTTP พร้อม `Cache-Control: private, no-store` (unit พิสูจน์ว่า header ถูกเซ็ตใน handler)
+- `require_property_scope(query_param=...)` ผ่าน path จริง (unit สับ `get_property_scopes` จาก `auth.repository` แล้วทดสอบ dependency โดยตรง — review จริงว่ามาถูกที่)
+- `Idempotency-Key` replay อ่านแถว `idempotency_keys` จริง + dedupe ภายใน 24h (unit พิสูจน์ว่า endpoint เรียก helper ถูกตัว)
+- `search_by` 422 จริงจาก request (พิสูจน์ผ่าน OpenAPI enum แทน เพราะ TestClient round-trip ดันไปต่อ DB ก่อนโยน 422)
+- `alembic upgrade head` / integration suite / การ INSERT scope row ลง DB จริง — ทั้งหมด "not run — requires Docker, out of scope"
