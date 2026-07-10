@@ -2,6 +2,7 @@
 
 import re
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
@@ -58,15 +59,55 @@ class InviteRequest(BaseModel):
 
     An admin sends an invitation for a specific email address and property.
 
-    .. note::
-       Not strict so that string-encoded UUIDs from JSON deserialisation
-       are automatically coerced to ``uuid.UUID``.
+    Strict (like the other Auth schemas) — the string→UUID coercion for
+    ``property_id`` is made explicit via a field validator rather than by
+    disabling strict mode for the whole module (anti-pattern #12 fix).
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", strict=True)
 
     email: EmailStr = Field(..., max_length=255)
     property_id: uuid.UUID
+
+    @field_validator("property_id", mode="before")
+    @classmethod
+    def coerce_uuid_string(cls, v: object) -> uuid.UUID:
+        """Explicit, documented coercion — JSON UUIDs arrive as strings.
+
+        Keeps strict mode enabled while still accepting the string form
+        that every JSON client sends.
+        """
+        if isinstance(v, uuid.UUID):
+            return v
+        if isinstance(v, str):
+            return uuid.UUID(v)
+        raise ValueError(f"property_id must be a UUID, got {type(v).__name__}")
+
+
+class RefreshRequest(BaseModel):
+    """Payload for ``POST /api/v1/auth/refresh`` (SDD §3.3).
+
+    Replaces the previous raw ``dict`` body (anti-pattern #7 fix) with a
+    strict, validated schema.
+    """
+
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    refresh_token: str = Field(..., min_length=1)
+
+
+class InviteResponse(BaseModel):
+    """Typed response for ``POST /api/v1/auth/invite`` (SDD §3.3).
+
+    Replaces the previous ad-hoc ``{"invite_link": ...}`` dict
+    (anti-pattern #11 fix).
+    """
+
+    model_config = ConfigDict(strict=True)
+
+    invite_link: str
+    property_id: uuid.UUID
+    expires_at: datetime
 
 
 class UserResponse(BaseModel):

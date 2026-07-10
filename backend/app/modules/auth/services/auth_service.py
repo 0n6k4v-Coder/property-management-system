@@ -12,6 +12,7 @@ References:
 
 import uuid
 from datetime import timedelta
+from typing import Any
 
 from fastapi import status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,6 +26,7 @@ from app.shared.audit import log_audit
 from app.shared.exceptions import APIError
 from app.shared.security import (
     create_access_token,
+    decode_token,
     hash_password,
     verify_password,
 )
@@ -54,6 +56,31 @@ class AuthService:
     def __init__(self, db: AsyncSession) -> None:
         self._repo = UserRepository(db)
         self._db = db
+
+    async def _property_scopes_claim(self, user_id: uuid.UUID) -> list[str]:
+        """Build the real ``property_scopes`` claim from ``user_property_scopes``.
+
+        Returns the list of property UUID strings the user has a scope row
+        for.  The owner/admin *bypass* is evaluated at enforcement time via
+        ``require_property_scope`` rather than by widening this list.
+        """
+        scopes = await self._repo.get_property_scopes(user_id)
+        return [str(s.property_id) for s in scopes]
+
+    async def _build_user_response(self, user: User) -> dict:
+        """Build the ``user`` sub-document of ``TokenResponse``/``UserResponse``.
+
+        ``property_scopes`` is populated from the real DB relationship, not
+        from a hardcoded empty list.
+        """
+        property_scopes = await self._property_scopes_claim(user.id)
+        return {
+            "id": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "property_scopes": property_scopes,
+            "is_active": user.is_active,
+        }
 
     async def authenticate(self, email: str, password: str) -> tuple[User, dict[str, str]]:
         """Verify credentials and issue a token pair (FR-USER-01).
@@ -142,11 +169,13 @@ class AuthService:
         """
         now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
 
+        property_scopes = await self._property_scopes_claim(user.id)
+
         access_token = create_access_token(
             data={
                 "user_id": str(user.id),
                 "email": user.email,
-                "property_scopes": [],
+                "property_scopes": property_scopes,
                 "is_owner": _is_admin_email(user.email),
                 "is_superuser": _is_admin_email(user.email),
                 "token_type": "access",
@@ -160,6 +189,17 @@ class AuthService:
             },
             expires_delta=timedelta(days=_settings.REFRESH_TOKEN_EXPIRE_DAYS),
         )
+
+        # Persist the new refresh token's jti so that the previous one is
+        # invalidated on the next rotation (refresh-token rotation).
+        refresh_payload = decode_token(refresh_token)
+        if not refresh_payload:
+            raise APIError(
+                code="AUTH-007",
+                message=constants.AUTH_007,
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+        await self._repo.set_current_refresh_jti(user.id, refresh_payload["jti"])
 
         return {"access": access_token, "refresh": refresh_token}
 
@@ -229,12 +269,14 @@ class AuthService:
 
         return user
 
-    async def refresh_access_token(self, refresh_token: str) -> dict[str, str]:
-        """Issue a new access token from a valid refresh token.
+    async def refresh_access_token(self, refresh_token: str) -> dict[str, Any]:
+        """Rotate a valid refresh token into a fresh token pair.
 
-        Decodes the refresh token, validates the ``token_type`` claim,
-        fetches the user by ``user_id`` embedded in the claims, and
-        generates a fresh access token only (no new refresh token).
+        Decodes the refresh token, validates the ``token_type`` claim and
+        the ``jti`` against the user's currently-stored refresh ``jti``
+        (so an already-rotated/revoked token is rejected), then issues a
+        brand-new access + refresh pair and invalidates the presented
+        token by overwriting the stored ``jti``.
 
         Parameters
         ----------
@@ -245,16 +287,16 @@ class AuthService:
         Returns
         -------
         dict[str, str]
-            Dictionary with a single ``access`` key.
+            Dictionary with ``access`` and ``refresh`` (rotated) keys,
+            plus a ``user`` sub-document (mirrors ``TokenResponse``).
 
         Raises
         ------
         APIError
             ``AUTH-007`` if the token is invalid, expired, or malformed.
-            ``AUTH-008`` if the token has been revoked (future).
+            ``AUTH-008`` if the token has been revoked or superseded by a
+            prior rotation (its ``jti`` no longer matches the stored one).
         """
-        from app.shared.security import decode_token
-
         payload = decode_token(refresh_token)
         if not payload:
             raise APIError(
@@ -286,18 +328,26 @@ class AuthService:
                 status_code=status.HTTP_401_UNAUTHORIZED,
             )
 
-        access_token = create_access_token(
-            data={
-                "user_id": str(user.id),
-                "email": user.email,
-                "property_scopes": [],
-                "is_owner": _is_admin_email(user.email),
-                "is_superuser": _is_admin_email(user.email),
-                "token_type": "access",
-            },
-        )
+        # Rotation guard: reject a refresh token whose jti has been
+        # superseded by a previous rotation (this is what closes the
+        # replay window on the old token).
+        presented_jti = payload.get("jti")
+        if not presented_jti or presented_jti != user.current_refresh_jti:
+            raise APIError(
+                code="AUTH-008",
+                message=constants.AUTH_008,
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
 
-        return {"access": access_token}
+        # Issue a new pair. generate_tokens() persists the new refresh jti,
+        # which automatically invalidates the presented token.
+        tokens = await self.generate_tokens(user)
+        user_doc = await self._build_user_response(user)
+        return {
+            "access": tokens["access"],
+            "refresh": tokens["refresh"],
+            "user": user_doc,
+        }
 
     async def get_current_user_info(self, token_payload: dict) -> User:
         """Retrieve the full User ORM instance from a JWT payload.

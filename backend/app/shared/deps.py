@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import Depends, status
+from fastapi import Depends, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,3 +56,69 @@ async def get_current_user(
 
 # Type-annotated dependency for FastAPI routes
 CurrentUser = Annotated[dict, Depends(get_current_user)]
+
+
+def require_property_scope():
+    """Build a FastAPI dependency enforcing property scope for ``/invite``.
+
+    The ``property_id`` to check is read from the request body (the same
+    JSON the endpoint's ``InviteRequest`` parsed).  The dependency raises
+    ``AUTH-005`` (403) unless the caller is a global owner/admin or holds
+    a ``user_property_scopes`` row for that property.  The check reads the
+    live DB so scope changes take effect immediately.
+
+    Usage::
+
+        @router.post("/invite")
+        async def invite(
+            payload: InviteRequest,
+            _: Annotated[None, require_property_scope()],
+        ): ...
+    """
+
+    async def _enforce(
+        current_user: Annotated[dict, Depends(get_current_user)],
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_db)],
+    ) -> None:
+        import uuid as _uuid
+
+        from app.modules.auth.constants import AUTH_005
+        from app.modules.auth.repository import UserRepository
+
+        # Read property_id from the buffered request body (FastAPI has
+        # already read it for the InviteRequest parse above).
+        try:
+            body = await request.json()
+            property_id = _uuid.UUID(body.get("property_id"))
+        except Exception:
+            raise APIError(
+                code="AUTH-005",
+                message=AUTH_005,
+                status_code=status.HTTP_403_FORBIDDEN,
+            ) from None
+
+        # Global owner/admin bypass (schema-free admin allowlist).
+        if current_user.get("is_owner") or current_user.get("is_superuser"):
+            return
+
+        user_id = current_user.get("user_id")
+        if not user_id:
+            raise APIError(
+                code="AUTH-005",
+                message=AUTH_005,
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+
+        repo = UserRepository(db)
+        scopes = await repo.get_property_scopes(_uuid.UUID(user_id))
+        if any(s.property_id == property_id for s in scopes):
+            return
+
+        raise APIError(
+            code="AUTH-005",
+            message=AUTH_005,
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+    return Depends(_enforce)
