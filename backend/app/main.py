@@ -9,13 +9,15 @@ from typing import Any
 
 # Configure structlog
 import structlog
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.health import router as health_router
 from app.middleware.auth import setup_auth_middleware
 from app.middleware.cors import setup_cors_middleware
+from app.middleware.logging import setup_logging_middleware
 from app.middleware.security import register_security_middleware
 
 # Router imports (lazy, all modules)
@@ -141,9 +143,14 @@ def create_app() -> FastAPI:
     )
 
     # Register middleware (order matters)
+    # CORS is set up exactly once, via the explicit-allowlist helper in
+    # app/middleware/cors.py — never paired with a wildcard, even in DEBUG
+    # (anti-pattern #23 fix).  The security middleware wires headers + the
+    # global rate limiter (it no longer registers CORS itself).
     register_security_middleware(app)
     setup_cors_middleware(app, settings)
     setup_auth_middleware(app)
+    setup_logging_middleware(app)
 
     # Register exception handlers
     @app.exception_handler(APIError)
@@ -155,6 +162,22 @@ def create_app() -> FastAPI:
                     "code": exc.code,
                     "message": exc.message,
                     "details": exc.details,
+                }
+            },
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_error_handler(_: Request, exc: RequestValidationError):
+        # Unified error envelope (anti-pattern #3 fix): a 422 on any
+        # endpoint returns the same ``{"error": {...}}`` shape as every
+        # domain error instead of FastAPI's default ``{"detail": [...]}``.
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                "error": {
+                    "code": "VAL-001",
+                    "message": "Request validation failed",
+                    "details": {"errors": exc.errors()},
                 }
             },
         )

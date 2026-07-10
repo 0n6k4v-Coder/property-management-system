@@ -107,7 +107,12 @@ def setup_cors_middleware(app: FastAPI) -> None:
 
 
 def register_security_middleware(app: FastAPI) -> None:
-    """Register all security middleware. Must be called BEFORE routes."""
+    """Register all security middleware. Must be called BEFORE routes.
+
+    CORS is registered separately via ``app.middleware.cors.setup_cors_middleware``
+    using an explicit origin allowlist (never a wildcard, even in DEBUG) — see
+    the anti-pattern #23 fix in docs/API.md.  This function therefore only
+    wires the security headers and rate-limit middleware.
+    """
     app.middleware("http")(security_headers_middleware)
     app.middleware("http")(rate_limit_middleware)
-    setup_cors_middleware(app)
