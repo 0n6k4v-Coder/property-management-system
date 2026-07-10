@@ -15,7 +15,7 @@ This document is generated from the actual routers under `backend/app/modules/*/
 
 - [Authentication](#authentication)
 - [Properties & Rooms](#properties--rooms)
-- [Proposed Redesign — Property & Rooms Module (Target Design)](#-proposed-redesign--property--rooms-module-target-design-not-yet-implemented)
+- [Proposed Redesign — Property & Rooms Module (Implemented)](#-proposed-redesign--property--rooms-module-implemented-in-code)
 - [Tenants](#tenants)
 - [Proposed Redesign — Tenant Module (Target Design)](#-proposed-redesign--tenant-module-target-design-not-yet-implemented)
 - [Billing (Meter Readings, Invoices, Payments)](#billing)
@@ -313,9 +313,9 @@ Body — `UpdateRoomStatusRequest`:
 
 ---
 
-## 🔧 Proposed Redesign — Property & Rooms Module (Target Design, NOT Yet Implemented)
+## 🔧 Proposed Redesign — Property & Rooms Module (Implemented in Code)
 
-> ⚠️ **Everything above this box is the current, real, shipped Property & Rooms API.** Everything in this box is a **target design** produced to fix every anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #3, #13, #23, #11, #10, #1`). **No backend code has been changed to match this yet** — this is the blueprint an implementation task should follow. Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+> ⚠️ **Everything above this box is the current, real, shipped Property & Rooms API.** The target design in this box — produced to fix every anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #3, #13, #23, #11, #10, #1`) — is now **implemented in code** (2026-07-10, branch `feat/property-rooms-redesign`). Per this doc's own rule ("code beats documentation"), the code above and the routers under `backend/app/modules/property/` are now ground truth; this section is kept as the design rationale for that implementation.
 
 ### Fix map (anti-pattern → design decision)
 
@@ -1014,6 +1014,6 @@ These are real inconsistencies in the current codebase (not documentation errors
 **Last reconciled against codebase**: 2026-07-10
 **API Version**: v1 only (no versioning scheme implemented — see footer note below)
 **Auth module redesign**: 2026-07-10 — the target design is now **implemented in code** (anti-patterns `#5, #23, #6, #7, #17, #3, #11, #12, #1`; see the resolution note in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md`). `#9` (API versioning policy) remains a deliberate platform-wide gap and is documented as such above.
-**Property & Rooms module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Property & Rooms Module](#-proposed-redesign--property--rooms-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #3, #13, #11, #10, #1`; `#23` was already resolved app-wide by the Auth redesign implementation).
+**Property & Rooms module redesign**: 2026-07-10 — the target design is now **implemented in code** (branch `feat/property-rooms-redesign`; anti-patterns `#5, #3, #13, #11, #10, #1`; `#23` was already resolved app-wide by the Auth redesign implementation). See [Proposed Redesign — Property & Rooms Module](#-proposed-redesign--property--rooms-module-implemented-in-code) for the design rationale.
 **Tenant module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Tenant Module](#-proposed-redesign--tenant-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #1, #7, #20`; depends on the Property & Rooms redesign's generalization of `require_property_scope()` for the query-param case on `GET /tenants/search`).
 **Billing module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Billing Module](#-proposed-redesign--billing-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #4, #3, #13, #1, #11, #12, #19, #20`; also corrected this doc's "current" section to flag 3 endpoints — `GET /meter-readings/{room_id}/history`, `GET /invoices`, `GET /invoices/{invoice_id}` — that have **zero authentication today**, verified directly in `billing_router.py`, not previously called out. `#15` — synchronous bulk invoice generation — is flagged as a known limitation requiring job-queue infrastructure this codebase doesn't have; not fully designed here. `#6`/`#9` remain deliberate platform-wide gaps, same as every other module).
