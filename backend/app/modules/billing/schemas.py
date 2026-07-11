@@ -7,9 +7,26 @@ keep both in sync when either side changes.
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import UTC
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.modules.billing.constants import PaymentMethod
+
+
+def _iso_utc(value) -> str:
+    """Serialize a (possibly tz-naive) datetime with an explicit UTC offset.
+
+    The ``MeterReading.created_at`` column is stored as a naive UTC value, so
+    we attach ``tzinfo=UTC`` on the way out to satisfy anti-pattern #19
+    (timestamps must carry an explicit offset, never a bare date).
+    """
+    if value is None:
+        return ""
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=UTC)
+    return value.isoformat()
 
 
 # ── Meter Readings ──────────────────────────────────────────────────────
@@ -67,7 +84,7 @@ class MeterReadingResponse(BaseModel):
             water_previous=reading.water_previous,
             water_current=reading.water_current,
             water_used=reading.water_used,
-            read_date=reading.created_at.date().isoformat() if reading.created_at else "",
+            read_date=_iso_utc(reading.created_at),
         )
 
 
@@ -91,8 +108,8 @@ class InvoiceResponse(BaseModel):
     billing_year: int
     due_date: str
     status: str
-    total_amount: float
-    paid_amount: float
+    total_amount: Decimal
+    paid_amount: Decimal
     notes: str | None = None
     created_at: str | None = None
 
@@ -109,8 +126,8 @@ class InvoiceResponse(BaseModel):
             billing_year=invoice.billing_year,
             due_date=invoice.due_date.isoformat() if invoice.due_date else "",
             status=invoice.status,
-            total_amount=float(invoice.total_amount),
-            paid_amount=float(invoice.paid_amount),
+            total_amount=invoice.total_amount,
+            paid_amount=invoice.paid_amount,
             notes=None,
             created_at=invoice.created_at.isoformat() if invoice.created_at else None,
         )
@@ -129,7 +146,7 @@ class InvoiceLineItemResponse(BaseModel):
     description: str
     quantity: float
     unit_price: float
-    amount: float
+    amount: Decimal
 
     @classmethod
     def from_model(cls, item) -> "InvoiceLineItemResponse":
@@ -140,7 +157,7 @@ class InvoiceLineItemResponse(BaseModel):
             description=item.description,
             quantity=float(item.quantity),
             unit_price=float(item.unit_price),
-            amount=float(item.amount),
+            amount=item.amount,
         )
 
 
@@ -161,10 +178,8 @@ class InvoiceDetailResponse(BaseModel):
 
 class RecordPaymentRequest(BaseModel):
     invoice_id: uuid.UUID = Field(..., description="Invoice ID to record payment for")
-    amount: float = Field(..., ge=0, description="Payment amount")
-    method: str = Field(
-        ..., pattern="^(cash|bank_transfer|credit_card|qr_code|wallet)$", description="Payment method"
-    )
+    amount: Decimal = Field(..., ge=0, description="Payment amount")
+    method: PaymentMethod = Field(..., description="Payment method")
     reference_number: str | None = Field(None, description="Transaction ID / slip number")
     slip_image_url: str | None = Field(None, description="Uploaded payment slip URL")
     notes: str | None = Field(None, description="Free-text notes")
@@ -173,7 +188,7 @@ class RecordPaymentRequest(BaseModel):
 class PaymentResponse(BaseModel):
     id: uuid.UUID
     invoice_id: uuid.UUID
-    amount: float
+    amount: Decimal
     payment_date: str
     method: str
     reference_number: str | None = None
@@ -185,7 +200,7 @@ class PaymentResponse(BaseModel):
         return cls(
             id=payment.id,
             invoice_id=payment.invoice_id,
-            amount=float(payment.amount),
+            amount=payment.amount,
             payment_date=payment.payment_date.isoformat() if payment.payment_date else "",
             method=payment.method,
             reference_number=payment.reference,
@@ -213,7 +228,7 @@ class InvoiceCreateResponse(BaseModel):
 
 
 class InvoiceListWrapperResponse(BaseModel):
-    data: list[InvoiceListResponse]
+    data: list[InvoiceResponse]
     meta: dict | None = None
 
 

@@ -7,8 +7,8 @@ References:
 - CODE_STYLE.md §3.2: Service layer patterns
 """
 
-from decimal import Decimal
 import uuid
+from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,15 +21,11 @@ from app.modules.billing.constants import (
     BILL_006_PAYMENT_EXCEEDS_BALANCE,
     BILL_007_INVOICE_NOT_FOUND,
     BILL_009_CONTRACT_NOT_FOUND,
-    EVENT_INVOICE_GENERATED,
     EVENT_PAYMENT_RECORDED,
-    InvoiceStatus,
-    LineItemType,
 )
 from app.modules.billing.events import publish_billing_event
 from app.modules.billing.models import (
     Invoice,
-    InvoiceLineItem,
     MeterReading,
     Payment,
     UtilityRate,
@@ -38,6 +34,7 @@ from app.modules.billing.repository import BillingRepository
 from app.modules.billing.services.rate_service import RateService
 from app.modules.property.models import Room
 from app.shared.audit import log_audit
+from app.shared.deps import is_global_scope
 from app.shared.exceptions import APIError
 
 
@@ -377,3 +374,24 @@ class BillingService:
     async def list_invoices(self, property_id: uuid.UUID | None = None) -> list[Invoice]:
         """List invoices, optionally filtered by property."""
         return await self.repo.list_invoices(property_id)
+
+    async def get_current_user_property_ids(
+        self, current_user: dict
+    ) -> list[uuid.UUID] | None:
+        """Return the property ids the caller may access, or ``None`` for global.
+
+        Global owners/admins get ``None`` (no scope restriction). Other callers
+        get the explicit list of property ids from their ``user_property_scopes``
+        rows. Used by ``GET /invoices`` to filter results to the caller's scope.
+        """
+        if is_global_scope(current_user):
+            return None
+        user_id_str = current_user.get("user_id")
+        if not user_id_str:
+            return []
+        from app.modules.auth.repository import UserRepository
+
+        scopes = await UserRepository(self.db).get_property_scopes(
+            uuid.UUID(str(user_id_str))
+        )
+        return [s.property_id for s in scopes]
