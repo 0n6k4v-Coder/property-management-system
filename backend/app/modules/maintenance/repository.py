@@ -64,3 +64,15 @@ class MaintenanceRepository:
         Convenience wrapper around ``get_by_property(property_id, status)``.
         """
         return await self.get_by_property(property_id, status=None)
+
+    async def get_request_property_id(self, request_id: uuid.UUID) -> uuid.UUID | None:
+        """Return the property_id of a maintenance request, or None if not found.
+
+        Used by the router for resolve-then-check authorization on endpoints
+        that don't carry property_id directly.
+        """
+        stmt = select(MaintenanceRequest.property_id).where(
+            MaintenanceRequest.id == request_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()

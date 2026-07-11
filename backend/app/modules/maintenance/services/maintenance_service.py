@@ -10,7 +10,6 @@ References:
 """
 
 import uuid
-from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -82,6 +81,7 @@ class MaintenanceService:
         """
         # Validate room exists
         from sqlalchemy import select
+
         from app.modules.property.models import Room
         stmt = select(Room).where(Room.id == room_id)
         result = await self.db.execute(stmt)
@@ -266,8 +266,9 @@ class MaintenanceService:
             )
 
         # Validate assigned user exists
-        from app.modules.auth.models import User
         from sqlalchemy import select
+
+        from app.modules.auth.models import User
         stmt = select(User).where(User.id == assigned_to)
         result = await self.db.execute(stmt)
         if result.scalars().first() is None:
