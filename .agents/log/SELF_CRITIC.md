@@ -975,3 +975,52 @@ SESSION K — Maintenance Module Redesign Implementation (2026-07-11)
 - `GET /maintenance/{id}`, `PATCH /status`, `PATCH /assign` resolve-then-check via real DB
 - `Idempotency-Key` replay reads `idempotency_keys` table + 24h dedupe
 - `alembic upgrade head` / integration suite / INSERT scope row
+
+SESSION M — Dashboard Module Redesign Implementation (2026-07-11)
+════════════════════════════════════════════════════════════════════════
+
+### 1. Performance Summary
+| Metric | Score | Basis |
+|--------|-------|-------|
+| **Time** | 7/10 | Core implementation quick (3 endpoints), but test file + docs needed separate session |
+| **Quality** | 8/10 | All 5 anti-patterns fixed (#5, #7, #13, #20, #11); typed OccupancyResponse; date validation |
+| **Process** | 8/10 | Followed billing pattern; delegation worked; NOT-VERIFIED honest |
+
+### 2. Bottlenecks
+| # | Bottleneck | Impact |
+|---|------------|--------|
+| **B1** | Test file + docs update needed separate delegation round | Acceptable — tool limits per session |
+| **B2** | `patch` tool failed on API.md update (complex markdown) | Needs `write_file` for complex markdown updates |
+
+### 3. Mistakes
+| # | Mistake | Severity |
+|---|---------|----------|
+| **D1** | `require_property_scope(query_param="property_id")` in Task Contract but deps.py has positional overload only — caught by executor | Low (fixed by executor) |
+| **D2** | Forgot to include `RevenueReportResponse` import in schemas.py initially | Low (fixed in implementation) |
+
+### 4. What Went Well
+1. **Simplest authorization fix** — all 3 endpoints already had `property_id` query param, direct field check via `require_property_scope(query_param="property_id")`
+2. **Date validation via Pydantic** — `date | None = Query(None)` handles malformed input automatically (422 vs 500)
+3. **Cross-field validation** — 24-month span cap + start <= end enforced in service with VAL-001
+4. **Typed OccupancyResponse** — replaces bare dict, matches DashboardSummaryWrapper convention
+5. **Pattern reuse** — exact same cache-control + scope pattern as Billing/Contract
+
+### 5. Improvements to Carry Forward
+| # | Improvement | Source |
+|---|-------------|--------|
+| **I1** | In Task Contract: copy `require_property_scope` overload signatures from `shared/deps.py` directly | D1 |
+| **I2** | Create router snippet template for: scope check + cache-control + typed response wrapper | B1 |
+| **I3** | For complex markdown updates (API.md), use `write_file` not `patch` | B2 |
+
+### 6. Pre-Task Checklist (for next Dashboard session)
+- [ ] Load Task Contract template if exists
+- [ ] Copy `require_property_scope` overload signatures from `shared/deps.py`
+- [ ] Verify `ruff check` + `mypy` on changed files before declaring done
+- [ ] For complex markdown updates: use `write_file` + full content
+- [ ] Append Session self-critique to SELF_CRITIC.md
+
+### NOT-VERIFIED (Docker forbidden)
+- `GET /dashboard/summary` scope-check via `require_property_scope` → 200 + Cache-Control via real HTTP
+- `GET /dashboard/revenue` date validation (Pydantic 422, cross-field 400) + scope-check + Cache-Control via real HTTP
+- `GET /dashboard/occupancy` typed response + scope-check + Cache-Control via real HTTP
+- `alembic upgrade head` / integration suite / INSERT scope row
