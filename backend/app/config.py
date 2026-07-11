@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = "pms-files"
 
     # ── CORS ───────────────────────────────────────────────────────────
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
 
     # ── Admin access (RBAC owner-gated endpoints: /admin/*) ────────────
     # Emails granted owner + superuser privileges for admin views

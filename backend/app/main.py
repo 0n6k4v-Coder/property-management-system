@@ -148,7 +148,7 @@ def create_app() -> FastAPI:
     # (anti-pattern #23 fix).  The security middleware wires headers + the
     # global rate limiter (it no longer registers CORS itself).
     register_security_middleware(app)
-    setup_cors_middleware(app, settings)
+    setup_cors_middleware(app, settings.CORS_ORIGINS)
     setup_auth_middleware(app)
     setup_logging_middleware(app)
 

@@ -1170,9 +1170,31 @@ These are real inconsistencies in the current codebase (not documentation errors
 7. **Rate limiting now has a dedicated per-route limiter** — `POST /api/v1/auth/login` is protected by a separate 10 req/min IP bucket (`app/middleware/rate_limit.py`); see [Rate Limiting](#rate-limiting). The global 10,000/60s limiter remains for everything else. Both are in-process memory only (not Redis-shared).
 8. **No `/reports`, `/buildings`, `/floors`, or top-level `/rooms` modules** — if product intent requires these, they need to be built; they are not simply undocumented, they don't exist.
 
----
+**Dashboard module redesign**: 2026-07-11 — the target design is now **implemented in code** (anti-patterns `#5, #7, #13, #20, #11` fixed; `#3` and `#17` from the original audit were already resolved app-wide by the Auth redesign. All 3 endpoints already required `property_id` as a query param, making this the simplest authorization fix of the whole series — no resolve-then-check needed anywhere. `start_date`/`end_date` typed as `date | None` with cross-field validation (max 24-month span). Typed `OccupancyResponse` schema. `Cache-Control: private, no-store` on all 3 GETs. Unit tests in `tests/modules/dashboard/test_dashboard_security.py` (DB-free, mocking all DB access). `#6` remains a deliberate platform-wide gap.
 
-**Last reconciled against codebase**: 2026-07-10
+**Notification module security audit findings (2026-07-11)**: A post-implementation security audit (Advisor A + Advisor B + Orchestrator) identified critical gaps in the Notification module that were not addressed by prior redesigns:
+
+| Anti-pattern | Status | Details |
+|--------------|--------|---------|
+| **#5 — No property-scope authorization (IDOR)** | **CRITICAL — UNFIXED** | `GET /notifications/history?property_id=<victim>` returns full history to any authenticated user. `notification_service.py:185-188` checks `if property_id:` before `if user_id:`, allowing cross-property data access. `require_property_scope()` missing from all 3 endpoints. |
+| **#3 — Fail-silent error handling** | **UNFIXED** | `POST /notifications/test` returns `201` even when send fails (service catches all exceptions, sets status=FAILED but returns 201). |
+| **#15 — Synchronous external I/O in request path** | **UNFIXED** | `POST /notifications/test` sends notification synchronously in request path (no 202 + async). |
+| **#1 — No idempotency on mutating endpoint** | **UNFIXED** | `POST /notifications/test` lacks `Idempotency-Key` support. |
+| **#20 — No Cache-Control on PII endpoints** | **UNFIXED** | Missing `Cache-Control: private, no-store` on notification endpoints. |
+
+**Immediate remediation required**: Add `require_property_scope(query_param="property_id")` to `GET /notifications/history`; change `POST /test` to return `202 Accepted` with async processing (Celery); add `Idempotency-Key` support; add `Cache-Control: private, no-store` headers.
+
+**CORS Configuration Regression (2026-07-11)**: A security audit (Advisor B) identified a regression in CORS configuration. `main.py:151` calls `setup_cors_middleware(app, settings)` passing the entire `Settings` object as `allowed_origins`. In `cors.py:21`, the function treats any truthy non-list as an allowlist, causing CORS to misbehave (empty allowlist or wildcard misconfiguration in production). Fix: pass `settings.CORS_ORIGINS` (list) explicitly and add type guard in `cors.py`.
+
+**JWT Token Revocation Gap**: Security audit (Advisor B) identified that JWT HS256 tokens have no revocation mechanism. Stolen access tokens remain valid for 15 minutes; logout is only client-side. Recommendation: Add Redis-based token blocklist with TTL matching access token expiry, checked in `verify_token()`.
+
+**JWT Algorithm**: Currently HS256 (symmetric). For multi-service readiness, long-term migration to RS256 with JWKS is recommended.
+
+**Maintenance /pending Pagination**: The `GET /maintenance/pending` endpoint returns all pending requests without pagination (unbounded). Add `page`/`limit` query params with `le=100` bound, consistent with other list endpoints.
+
+**Rate Limiting Gaps**: Per-endpoint limiters exist only for `POST /api/v1/auth/login`. `POST /auth/register`, `POST /auth/invite`, `POST /auth/refresh` lack dedicated limiters. Global limiter (10,000 req/60s/IP) applies uniformly without `X-RateLimit-*` headers.
+
+**Last reconciled against codebase**: 2026-07-11
 **API Version**: v1 only (no versioning scheme implemented — see footer note below)
 **Auth module redesign**: 2026-07-10 — the target design is now **implemented in code** (anti-patterns `#5, #23, #6, #7, #17, #3, #11, #12, #1`; see the resolution note in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md`). `#9` (API versioning policy) remains a deliberate platform-wide gap and is documented as such above.
 **Property & Rooms module redesign**: 2026-07-10 — the target design is now **implemented in code** (branch `feat/property-rooms-redesign`; anti-patterns `#5, #3, #13, #11, #10, #1`; `#23` was already resolved app-wide by the Auth redesign implementation). See [Proposed Redesign — Property & Rooms Module](#-proposed-redesign--property--rooms-module-implemented-in-code) for the design rationale.
