@@ -6,10 +6,9 @@ References:
 """
 
 import uuid
-from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class DashboardSummaryResponse(BaseModel):
@@ -45,14 +44,26 @@ class RevenueReportResponse(BaseModel):
 
 
 class OccupancyResponse(BaseModel):
-    """Response for GET /api/v1/dashboard/occupancy."""
+    """Response for GET /api/v1/dashboard/occupancy — typed schema (fixes #11)."""
 
-    data: dict
-    meta: None = None
+    model_config = ConfigDict(from_attributes=True)
+
+    property_id: uuid.UUID
+    total_rooms: int
+    occupied_rooms: int
+    occupancy_rate: float  # percentage (0-100)
+    active_contracts: int
 
 
 class DashboardSummaryWrapper(BaseModel):
     """Wrapper for the summary endpoint."""
 
     data: DashboardSummaryResponse
+    meta: None = None
+
+
+class OccupancyWrapper(BaseModel):
+    """Wrapper for the occupancy endpoint (typed response)."""
+
+    data: OccupancyResponse
     meta: None = None
