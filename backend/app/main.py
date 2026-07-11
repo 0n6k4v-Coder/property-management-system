@@ -86,7 +86,7 @@ async def wait_for_shutdown(db_pool: Any, redis_client: Any | None = None) -> No
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_: FastAPI):
     """Application lifespan — startup/shutdown hooks."""
     # Configure structured logging
     structlog.configure(
