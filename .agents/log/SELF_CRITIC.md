@@ -815,3 +815,66 @@ Constraints: Docker off-limits (สงวนให้โปรเจกต์อ
 - `Idempotency-Key` replay อ่านแถว `idempotency_keys` จริง + dedupe ภายใน 24h (unit พิสูจน์ว่า endpoint เรียก helper ถูกตัว)
 - `search_by` 422 จริงจาก request (พิสูจน์ผ่าน OpenAPI enum แทน เพราะ TestClient round-trip ดันไปต่อ DB ก่อนโยน 422)
 - `alembic upgrade head` / integration suite / การ INSERT scope row ลง DB จริง — ทั้งหมด "not run — requires Docker, out of scope"
+
+SESSION I — Billing Module Redesign + API Anti-Pattern Remediation (2026-07-10)
+════════════════════════════════════════════════════════════════════════
+
+Task: Implement Billing target design จาก docs/API.md แก้ 9 anti-pattern (#5, #4, #3, #13, #1, #11, #12, #19, #20) ใน single Worker session เดียว
+Constraints: Docker off-limits (สงวนให้โปรเจกต์อื่น), ไม่ commit/push, scope จำกัดแค่ app/modules/billing/ + tests/modules/billing/ (ไม่แตะ shared/deps.py)
+
+### 1. Performance Summary
+| Metric  | Score | Basis |
+|---------|-------|-------|
+| Time    | 6/10  | โค้ดหลักทำงานได้ แต่เสียเทิร์นไปหลายรอบกับ rework ที่ "เจอตอนรัน" ไม่ใช่ "เจอก่อนเขียน" (ผิดพลาดระดับ syntax/schema ไม่ใช่ logic สำคัญ) |
+| Quality | 8/10  | ทุกฟิกซ์ลงตัว 27/27 DB-free tests ผ่าน, import app.main OK, ไม่แตะ deps.py, lint baseline ไม่แย่ลง vs HEAD |
+| Process | 7/10  | Audit-first ทำได้ดี (อ่าน source จริงก่อนแก้, แยก test DB-free ตามคำเตือน SESSION H I1) แต่มีเขียน-then-fix 4 รอบที่ป้องกันได้ |
+
+### 2. Bottlenecks
+- **B1 — Router เขียนผิดชื่อ response-wrapper + helper ฟุ่มเฟือย (logic-cheap, หลายรอบ).** write_file ทั้งไฟล์แล้วอ้าง `InvoiceListResponse` (ความจริง schemas.py ใช้ `InvoiceResponse`), เขียน helper ซ้ำซ้อน `_current_request()`, แล้วอ้าง `get_invoice_property_id` ที่ยังไม่มีใน repo → โดน syntax/lint เตือน ต้องแก้แพตช์หลายรอบ
+- **B2 — FastAPI param signature ผิด 2 ชั้น (syntax, หลายรอบ).** ประกาศ `current_user: CurrentUser = Depends(get_current_user)` ซ้ำซ้อน (CurrentUser ครอบ Depends มาแล้ว) → import พัง; ตอนแก้ก็ไปวาง `current_user` หลัง param ที่มี default (Query/Depends) → "non-default argument follows default argument" เสีย 2-3 patch cycle
+- **B3 — ใช้ AsyncMock เป็นตัวแทน ORM row ใน test (logic-cheap, 2 รอบ).** ส่ง AsyncMock invoice เข้า Pydantic `from_model` → ได้ coroutine/AsyncMock กลายเป็น ValidationError ต้องทำคลาส `_FakeInvoice` (concrete) แทน
+- **B4 — รัน `ruff --fix` บน schemas.py 盲目 (logic-broken, 1 รอบ).** มัน "แก้" UP037 ด้วยการเอาคำพาดหัว `"MeterReadingResponse"` ออก → NameError ตอน import → ต้องใส่ quotes กลับ 5 จุด
+
+### 3. Mistakes
+- **D1 (สำคัญ): ไม่ตรวจชื่อ response-wrapper จริงใน schemas.py ก่อนเขียน router** → เดาชื่อได้ class ผี ต้องมานั่งแก้
+- **D2:** ไม่เช็ค definition ของ `CurrentUser` และกฎเรียงลำดับ param ของ FastAPI ก่อนเขียน 6 signature → signature พัง 2 ชั้น
+- **D3:** ใช้ AsyncMock แทน ORM row ใน test มากเกินไป (AsyncMock ใช้ได้แค่ระดับ dependency/service patch ไม่ใช่ row ที่ส่งเข้า from_model)
+- **D4:** ไว้ใจ `ruff --fix` บนไฟล์มี forward-ref ใน class โดยไม่ดู diff → ทำลาย import
+- **D5 (ไม่แก้, นอก scope):** พบ `F821` — `select` หายใน `generate_invoice_for_room` (มีมาแต่ HEAD ไม่ใช่หน้าฉัน) ตัดสินใจไม่แก้เพราะนอก scope + เป็น latent bug ที่ไม่ถูก test/routes เรียก → แจ้ง human ผ่าน report แล้ว (ถูกต้องตามกฎ แต่ควร flag ชัด)
+
+### 4. What Went Well
+- **Audit-first ตรงตาม Task:** อ่าน SELF_CRITIC (STANDING RULES + SESSION F/G/H), 2 เปเปอร์สเปค (API.md + REVIEW), แล้ว source จริงทุกไฟล์ก่อนแก้
+- **遵守 SESSION H I1:** แยก test DB-free (`test_billing_security.py`) ออกจาก `test_billing_service.py` (ใช้ live db_session) ไม่หลงรันแบบ blind
+- **ไม่แตะ shared/deps.py** → ข้ามรัน regression Auth/Property/Tenant ตามที่สเปคอนุญาต (verify ด้วย git status ว่าดังเดิม)
+- **Reuse single source of truth:** ใช้ `user_has_property_scope()` / `is_global_scope()` จาก deps.py โดยตรง ไม่เขียน bypass ซ้ำ; idempotency ใช้ `shared/idempotency.py` เป๊ะ
+- **Honest caveat:** แจ้งชัดเจนว่าส่วน live-DB (scope SQL join, pagination query, idempotency round-trip, alembic) ยังไม่ verify เพราะ Docker ปิด
+- **ruff baseline per-file:** ยืนยันทุกไฟล์ที่แก้ = parity หรือดีกว่า HEAD (non-B008 findings ลดลงทุกไฟล์); B008 (Depends/Query ใน default) เป็น baseline pattern เดียวกับ tenant_router.py
+- **ทุกแก้ไขมี real output** (import OK, 27 passed, git status) ไม่เคลมสำเร็จด้วยคำพูดเปล่า
+
+### 5. Improvements to carry forward
+- **I1 — ก่อนเขียน router signature: อ่าน `CurrentUser` definition + กฎเรียงลำดับ param** (guard/required param ต้องมาก่อน param ที่มี default) เลียนแบบ router ที่ผ่านมา
+- **I2 — ก่อน write_file router: grep ชื่อ response-wrapper จริงใน schemas.py** ห้ามเดาชื่อ class (เช่น `InvoiceResponse` ไม่ใช่ `InvoiceListResponse`)
+- **I3 — ใน DB-free test: ใช้ concrete fake สำหรับ ORM row ที่ส่งเข้า `from_model`**; AsyncMock กันแค่ระดับ service/dependency
+- **I4 — ห้ามรัน `ruff --fix` บนไฟล์มี forward-ref ใน class โดยไม่ดู diff** — ถ้าจะใช้ จำกัดแค่ import-sort/newline หรือเติม `# noqa: UP037` (quotes จำเป็นสำหรับ runtime forward-ref)
+- **I5 — หลัง rewrite ใหญ่: re-read ทั้งไฟล์รอบหนึ่งก่อน patch** (ระบบเตือนเรื่องนี้หลายรอบ)
+- **I6 — คง NOT-VERIFIED list ชัดเจนทุกครั้งที่ Docker ถูกห้าม** (สืบทอด SESSION F/G/H)
+
+### 6. Pre-Task Checklist (สำหรับ session ถัดไปที่แตะ backend ภายใต้ Docker-off)
+- [ ] อ่าน conftest/fixtures ก่อนรัน suite แปลกหน้า — แยก live-DB vs DB-free (อย่าเท่ากับ `-m unit`) [SESSION H I1]
+- [ ] อ่าน signature จริงของ shared dependency; คง caller เดิม backward-compatible + regression guard
+- [ ] วาง FastAPI guard/required param ไว้หน้าสุดก่อน param ที่มี default [I2]
+- [ ] grep ชื่อ response-wrapper จริงใน schemas.py ก่อนเขียน router [I2]
+- [ ] test เรียก async method → `async def` + `await`; ORM row ที่เข้า from_model → concrete fake ไม่ใช่ AsyncMock [I3]
+- [ ] 422-from-validation ภายใต้ Docker-off → OpenAPI schema assertion ไม่ใช้ TestClient [SESSION H I4]
+- [ ] `ruff --fix` บนไฟล์มี forward-ref → ดู diff ก่อน หรือจำกัด scope [I4]
+- [ ] capture ruff baseline per-file; พิสูจน์ตอนจบว่าไม่แย่ลง vs HEAD
+- [ ] คง NOT-VERIFIED list ชัดเจนสำหรับสิ่งที่ Docker พิสูจน์ได้
+- [ ] log นี้ append-only: `git ls-files` + `read_file` + `patch` ห้าม `write_file` ทับ (R8)
+
+### NOT-VERIFIED (Docker forbidden this round — ไม่ได้ปล่อยผ่าน quietly)
+- `GET /invoices` scope-filter SQL (JOIN `user_property_scopes`) คืน 200 จริงผ่าน HTTP + `Cache-Control: private, no-store` (unit พิสูจน์ว่า header ถูกเซ็ต + logic เรียก `user_has_property_scope` ถูกตัว)
+- `GET /meter-readings/{room_id}/history` resolve room→property แล้ว scope-check จริงผ่าน DB (unit สับ `get_room_property_id` แล้วทดสอบ handler โดยตรง)
+- `Idempotency-Key` replay อ่านแถว `idempotency_keys` จริง + dedupe 24h (unit พิสูจน์ว่า endpoint เรียก helper ถูกตัว)
+- Pagination query (`OFFSET/LIMIT`, `has_next`) คืน meta จริงจาก Postgres (unit พิสูจน์ meta shape ด้วย stub repo)
+- `POST /payments` 201 + Decimal `amount` persist เป็น `NUMERIC` จริง (unit พิสูจน์ type-level; wire format `"7500.00"` พิสูจน์ผ่าน model_dump)
+- `alembic upgrade head` / integration suite / การ INSERT scope row ลง DB จริง / F821 latent ใน `generate_invoice_for_room` — ทั้งหมด "not run — requires Docker, out of scope" (F821 เป็น pre-existing ที่ HEAD ไม่ใช่หน้าฉัน)

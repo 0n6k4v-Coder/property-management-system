@@ -17,12 +17,15 @@ This document is generated from the actual routers under `backend/app/modules/*/
 - [Properties & Rooms](#properties--rooms)
 - [Proposed Redesign — Property & Rooms Module (Implemented)](#-proposed-redesign--property--rooms-module-implemented-in-code)
 - [Tenants](#tenants)
-- [Proposed Redesign — Tenant Module (Target Design)](#-proposed-redesign--tenant-module-target-design-not-yet-implemented)
+- [Proposed Redesign — Tenant Module (Implemented)](#-proposed-redesign--tenant-module-implemented-in-code)
 - [Billing (Meter Readings, Invoices, Payments)](#billing)
 - [Proposed Redesign — Billing Module (Target Design)](#-proposed-redesign--billing-module-target-design-not-yet-implemented)
 - [Contracts](#contracts)
+- [Proposed Redesign — Contract Module (Target Design)](#-proposed-redesign--contract-module-target-design-not-yet-implemented)
 - [Maintenance](#maintenance)
+- [Proposed Redesign — Maintenance Module (Target Design)](#-proposed-redesign--maintenance-module-target-design-not-yet-implemented)
 - [Dashboard](#dashboard)
+- [Proposed Redesign — Dashboard Module (Target Design)](#-proposed-redesign--dashboard-module-target-design-not-yet-implemented)
 - [Notifications](#notifications)
 - [Admin](#admin)
 - [Error Codes](#error-codes)
@@ -484,9 +487,9 @@ Response is a raw `dict` — no dedicated schema class; `data` contains `TenantR
 
 ---
 
-## 🔧 Proposed Redesign — Tenant Module (Target Design, NOT Yet Implemented)
+## 🔧 Proposed Redesign — Tenant Module (Implemented in Code)
 
-> ⚠️ **Everything above this box is the current, real, shipped Tenant API.** Everything in this box is a **target design** produced to fix every anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #1, #7, #20`). **No backend code has been changed to match this yet.** Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+> ✅ **This design has been implemented in code** (2026-07-10) — anti-patterns `#5, #1, #7, #20` are fixed (`require_property_scope()` further generalized with a `query_param` source for `GET /tenants/search`; `Idempotency-Key` support on `POST /tenants/`; `search_by` constrained to a `Literal`; `Cache-Control: private, no-store` on search). Verified Docker-free (unit tests only) — live-DB paths (search over real HTTP, idempotency table replay) remain unverified per the Docker-off constraint for this task. The section below is left as-authored (originally a target design) since it still accurately describes the shipped behavior — treat it as current documentation, not a future proposal.
 
 ### Fix map (anti-pattern → design decision)
 
@@ -780,6 +783,68 @@ Full lease history (all past + present contracts) for a room, newest first. **No
 
 ---
 
+## 🔧 Proposed Redesign — Contract Module (Target Design, NOT Yet Implemented)
+
+> ⚠️ **Everything above this box is the current, real, shipped Contract API.** Everything in this box is a **target design** produced to fix every actionable anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #13, #1, #20`). **No backend code has been changed to match this yet.** Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+
+### Fix map (anti-pattern → design decision)
+
+| # | Anti-pattern | Design fix below |
+|---|---|---|
+| #5 | No property-scope authorization on any of the 7 endpoints | Apply scope checks everywhere — direct field check where `property_id` is available, resolve-then-check (via room or contract lookup) where it isn't |
+| #13 | `GET /active` and `GET /leases/{room_id}/history` are fully unbounded | Add `page`/`limit` pagination to both |
+| #1 | `POST /`, `POST /{id}/extend`, `POST /{id}/renew` have no idempotency protection | Reuse the existing `Idempotency-Key` mechanism |
+| #20 | No `Cache-Control` on the 3 GET endpoints | `Cache-Control: private, no-store` — contract terms (rent, deposit) are financial data, same conservative default as Billing/Tenant |
+
+Also inherited as **already fixed** by the Auth redesign (cross-cutting, not re-designed here): CORS, the unified `RequestValidationError` envelope (this closes the original audit's `#3` finding — validation errors and domain errors now share the same `{"error": {...}}` shape everywhere, including this module), and the logging middleware (`X-Request-ID`, closing the original `#17` finding). **#6** (rate limiting) and **#9** (versioning) remain deliberate platform-wide gaps, same as every other module.
+
+---
+
+### Authorization (fixes #5) — applies to all 7 endpoints
+
+Two different mechanisms, depending on whether `property_id` is directly available on the request (same split as the Billing redesign):
+
+- **Direct field check** — `POST /contracts/` (`property_id` in body) and `GET /contracts/active` (`property_id` as an optional query param, when present) use `require_property_scope()` unchanged.
+- **Resolve-then-check** — `GET /contracts/{contract_id}`, `PATCH /{contract_id}/terminate`, `POST /{contract_id}/extend`, `POST /{contract_id}/renew` don't have `property_id` directly; each must resolve the contract's `property_id` first (a lookup that's already happening in the service layer to fetch the contract), then call the shared `user_has_property_scope(current_user, db, property_id)` helper directly and raise `403 AUTH-005` if it returns `False` — same pattern as Billing's invoice/room resolution, not a dependency-signature change.
+- **`GET /contracts/leases/{room_id}/history`** — resolves the room's `property_id` first, same resolve-then-check pattern.
+- **`GET /contracts/active` when `property_id` is omitted** — filters results to only properties the caller holds a scope for (same list-filtering pattern as `GET /properties/`), unless the caller is a global owner/admin.
+
+All raise `403 AUTH-005` on a failed check, `401 AUTH-009` if unauthenticated.
+
+### `POST /api/v1/contracts/` (redesigned)
+
+No shape change. Adds `require_property_scope()` (direct, body-sourced) and optional `Idempotency-Key` support (fixes #1).
+
+### `GET /api/v1/contracts/active` (redesigned)
+
+**Query Parameters (fixes #13):** adds `page: int = Query(1, ge=1)`, `limit: int = Query(20, ge=1, le=100)` alongside the existing `property_id`. Response `meta` gains `{"page", "limit", "total", "has_next"}`.
+
+**Response headers (fixes #20):** `Cache-Control: private, no-store`.
+
+### `GET /api/v1/contracts/{contract_id}` (redesigned)
+
+Adds resolve-then-check authorization (fixes #5) and `Cache-Control: private, no-store` (fixes #20). No shape change.
+
+### `PATCH /api/v1/contracts/{contract_id}/terminate` (redesigned)
+
+Adds resolve-then-check authorization (fixes #5). No shape change.
+
+### `POST /api/v1/contracts/{contract_id}/extend` (redesigned)
+
+Adds resolve-then-check authorization (fixes #5) and optional `Idempotency-Key` support (fixes #1).
+
+### `POST /api/v1/contracts/{contract_id}/renew` (redesigned)
+
+Adds resolve-then-check authorization against the **original** contract's `property_id` (fixes #5) and optional `Idempotency-Key` support (fixes #1).
+
+### `GET /api/v1/contracts/leases/{room_id}/history` (redesigned)
+
+**Query Parameters (fixes #13):** adds `page: int = Query(1, ge=1)`, `limit: int = Query(20, ge=1, le=100)`. Response `meta` gains `{"page", "limit", "total", "has_next"}`.
+
+Adds resolve-then-check authorization via the room's `property_id` (fixes #5) and `Cache-Control: private, no-store` (fixes #20).
+
+---
+
 ## 🔧 Maintenance
 
 Router: `app/modules/maintenance/routers/maintenance_router.py`, mounted at `/api/v1/maintenance`.
@@ -833,6 +898,50 @@ Body — `AssignMaintenanceRequest`:
 
 ---
 
+## 🔧 Proposed Redesign — Maintenance Module (Target Design, NOT Yet Implemented)
+
+> ⚠️ **Everything above this box is the current, real, shipped Maintenance API.** Everything in this box is a **target design** produced to fix every actionable anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #1`). **No backend code has been changed to match this yet.** Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+
+### Fix map (anti-pattern → design decision)
+
+| # | Anti-pattern | Design fix below |
+|---|---|---|
+| #5 | No property-scope authorization on any of the 5 endpoints | Direct field check where `property_id` is already present (`POST /`, `GET /pending`); resolve-then-check via the maintenance request's `property_id` elsewhere |
+| #1 | `POST /maintenance/` (the only POST in this module) has no idempotency protection | Reuse the existing `Idempotency-Key` mechanism |
+
+This module has the **shortest** actionable list of the five redesigned so far, because most of its original findings were already cross-cutting gaps resolved elsewhere: **#3** (validation error envelope) and **#17** (logging/request-ID middleware) were fixed app-wide by the Auth redesign; **#23** (CORS double-registration + wildcard/credentials) was also fixed app-wide by the Auth redesign. **#6** (rate limiting) and **#9** (versioning) remain deliberate platform-wide gaps, same as every other module — not re-designed per-module. The original audit also explicitly did **not** flag `GET /pending`'s lack of pagination as a defect (small, property-scoped result set by design) — no `#13` fix needed here.
+
+---
+
+### Authorization (fixes #5) — applies to all 5 endpoints
+
+- **Direct field check** — `POST /maintenance/` (`property_id` already in the body) and `GET /maintenance/pending` (`property_id` already a required query param) use `require_property_scope()` unchanged, no resolution needed.
+- **Resolve-then-check** — `GET /maintenance/{request_id}`, `PATCH /{request_id}/status`, `PATCH /{request_id}/assign` don't have `property_id` directly; each resolves the maintenance request's `property_id` first (a lookup already happening in the service layer to fetch the request), then calls the shared `user_has_property_scope(current_user, db, property_id)` helper directly and raises `403 AUTH-005` if it returns `False` — same pattern introduced by the Billing and Contract redesigns, not a change to the shared dependency's signature.
+
+All five raise `403 AUTH-005` on a failed check, `401 AUTH-009` if unauthenticated.
+
+### `POST /api/v1/maintenance/` (redesigned)
+
+No shape change. Adds `require_property_scope()` (direct, body-sourced) and optional `Idempotency-Key` support (fixes #1) — same mechanism as every other redesigned module.
+
+### `GET /api/v1/maintenance/pending` (redesigned)
+
+Adds `require_property_scope()` (direct, query-sourced — `property_id` is already required here, so there's no "omitted" case to handle, unlike the optional `property_id` on `GET /contracts/active` or `GET /billing/invoices`).
+
+### `GET /api/v1/maintenance/{request_id}` (redesigned)
+
+Adds resolve-then-check authorization (fixes #5). No shape change.
+
+### `PATCH /api/v1/maintenance/{request_id}/status` (redesigned)
+
+Adds resolve-then-check authorization (fixes #5). No shape change.
+
+### `PATCH /api/v1/maintenance/{request_id}/assign` (redesigned)
+
+Adds resolve-then-check authorization (fixes #5). No shape change.
+
+---
+
 ## 📊 Dashboard
 
 Router: `app/modules/dashboard/routers/dashboard_router.py`, mounted at `/api/v1/dashboard`. There is **no single combined `GET /dashboard` endpoint** and **no separate `/reports` module** — three distinct endpoints cover this ground.
@@ -873,6 +982,58 @@ Router: `app/modules/dashboard/routers/dashboard_router.py`, mounted at `/api/v1
 **Query:** `property_id: uuid` (required).
 
 **Response (200)** — untyped `dict` (schema declares `data: dict`): `{property_id, total_rooms, occupied_rooms, occupancy_rate, active_contracts}` — note this is a subset of `summary`'s fields (no revenue/overdue/maintenance data), despite both calling the same underlying service method.
+
+---
+
+## 🔧 Proposed Redesign — Dashboard Module (Target Design, NOT Yet Implemented)
+
+> ⚠️ **Everything above this box is the current, real, shipped Dashboard API.** Everything in this box is a **target design** produced to fix every actionable anti-pattern finding against this module in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md` (`#5, #7, #13, #20, #11`). **No backend code has been changed to match this yet.** Per this doc's own rule ("code beats documentation"), until implemented, the code above remains ground truth.
+
+### Fix map (anti-pattern → design decision)
+
+| # | Anti-pattern | Design fix below |
+|---|---|---|
+| #5 | Any authenticated user can read any property's financials/occupancy — no scope check | All three endpoints already require `property_id` as a query param, so this is the **simplest** authorization fix of any module so far — direct field check everywhere, no resolve-then-check needed |
+| #7 | `/revenue`'s `start_date`/`end_date` are typed as plain `str`, manually parsed with unguarded `date.fromisoformat()` → uncaught 500 on bad input | Type both as `date \| None` directly in the query signature so FastAPI/Pydantic validates and rejects bad input with a clean `422`, plus a cross-field check that `start_date <= end_date` |
+| #13 | `/revenue` accepts an arbitrarily wide date range with no cap | Add a maximum span validation (e.g. reject a range wider than 24 months) rather than page/limit pagination, since this is a monthly aggregate report, not a row-level list |
+| #20 | No `Cache-Control` on any of the 3 GETs | `Cache-Control: private, no-store` — same conservative default as every other financial-data endpoint redesigned so far (Billing, Contract) |
+| #11 | `OccupancyResponse.data` is an untyped `dict`, diverging from `/summary`'s typed `DashboardSummaryWrapper` | Give occupancy its own typed response schema |
+
+Also inherited as **already fixed** by the Auth redesign (cross-cutting, not re-designed here): the unified `RequestValidationError` envelope (closes this module's `#3` finding — the mixed `{"error"}`/`{"detail"}`/bare-500 situation goes away once `/revenue`'s date fields are typed, since there's no longer an uncaught `ValueError` path, and any remaining validation failures already use the unified envelope), and the logging middleware (`X-Request-ID`, closing `#17`). **#6** (rate limiting) remains a deliberate platform-wide gap, same as every other module.
+
+---
+
+### Authorization (fixes #5) — applies to all 3 endpoints
+
+`property_id` is a required query parameter on every dashboard endpoint already — so all three simply add `require_property_scope(query_param="property_id")` unchanged, no dependency generalization or entity resolution needed (the easiest authorization fix of any module in this series). Raises `403 AUTH-005` on a failed check, `401 AUTH-009` if unauthenticated.
+
+### `GET /api/v1/dashboard/summary` (redesigned)
+
+Adds `require_property_scope(query_param="property_id")` (fixes #5) and `Cache-Control: private, no-store` (fixes #20). No shape change.
+
+### `GET /api/v1/dashboard/revenue` (redesigned)
+
+- Adds `require_property_scope(query_param="property_id")` (fixes #5).
+- `start_date`/`end_date` become `date | None = Query(None)` — typed, not manually parsed (fixes #7). A malformed value now yields a clean `422` via the unified validation envelope instead of a 500.
+- A `field_validator`/cross-field check rejects `start_date > end_date`, and rejects a span wider than 24 months (fixes #13) — returns `400 VAL-001` with a message explaining the cap, rather than silently truncating the range.
+- `Cache-Control: private, no-store` (fixes #20).
+
+### `GET /api/v1/dashboard/occupancy` (redesigned)
+
+- Adds `require_property_scope(query_param="property_id")` (fixes #5) and `Cache-Control: private, no-store` (fixes #20).
+- **Response (200)** — new typed `OccupancyResponse` data schema instead of a bare `dict` (fixes #11):
+```json
+{
+  "data": {
+    "property_id": "uuid",
+    "total_rooms": 150,
+    "occupied_rooms": 135,
+    "occupancy_rate": 90.0,
+    "active_contracts": 135
+  }
+}
+```
+Same fields as today's ad-hoc dict, just backed by an actual Pydantic model so the contract is enforced and documented like every other endpoint's response, instead of diverging from `/summary`'s typed-wrapper convention.
 
 ---
 
@@ -1015,5 +1176,8 @@ These are real inconsistencies in the current codebase (not documentation errors
 **API Version**: v1 only (no versioning scheme implemented — see footer note below)
 **Auth module redesign**: 2026-07-10 — the target design is now **implemented in code** (anti-patterns `#5, #23, #6, #7, #17, #3, #11, #12, #1`; see the resolution note in `docs/FEEDBACK/reviews/REVIEW-2026-07-10-api-anti-pattern-audit.md`). `#9` (API versioning policy) remains a deliberate platform-wide gap and is documented as such above.
 **Property & Rooms module redesign**: 2026-07-10 — the target design is now **implemented in code** (branch `feat/property-rooms-redesign`; anti-patterns `#5, #3, #13, #11, #10, #1`; `#23` was already resolved app-wide by the Auth redesign implementation). See [Proposed Redesign — Property & Rooms Module](#-proposed-redesign--property--rooms-module-implemented-in-code) for the design rationale.
-**Tenant module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Tenant Module](#-proposed-redesign--tenant-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #1, #7, #20`; depends on the Property & Rooms redesign's generalization of `require_property_scope()` for the query-param case on `GET /tenants/search`).
+**Tenant module redesign**: 2026-07-10 — the target design is now **implemented in code** (fixes `#5, #1, #7, #20`; `require_property_scope()` extended with a `query_param` source for `GET /tenants/search`, verified not to regress the Auth/Property usages). See [Proposed Redesign — Tenant Module](#-proposed-redesign--tenant-module-implemented-in-code) for the design rationale.
 **Billing module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Billing Module](#-proposed-redesign--billing-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #4, #3, #13, #1, #11, #12, #19, #20`; also corrected this doc's "current" section to flag 3 endpoints — `GET /meter-readings/{room_id}/history`, `GET /invoices`, `GET /invoices/{invoice_id}` — that have **zero authentication today**, verified directly in `billing_router.py`, not previously called out. `#15` — synchronous bulk invoice generation — is flagged as a known limitation requiring job-queue infrastructure this codebase doesn't have; not fully designed here. `#6`/`#9` remain deliberate platform-wide gaps, same as every other module).
+**Contract module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Contract Module](#-proposed-redesign--contract-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #13, #1, #20`; `#3` and `#17` from the original audit are already resolved app-wide by the Auth redesign implementation, so this module's design only needed to cover the remaining 4. Authorization uses the same direct-field-check / resolve-then-check split introduced by the Billing redesign, since most Contract endpoints only have `contract_id` or `room_id`, not `property_id`, directly available. `#6`/`#9` remain deliberate platform-wide gaps).
+**Maintenance module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Maintenance Module](#-proposed-redesign--maintenance-module-target-design-not-yet-implemented); not yet implemented in code, fixes only `#5, #1` — the shortest list yet, since `#3`/`#17`/`#23` from the original audit were already resolved app-wide by the Auth redesign, `#6`/`#9` remain deliberate platform-wide gaps, and the audit explicitly did not flag `GET /pending`'s list size as a defect. 2 of 5 endpoints already have `property_id` directly available (direct field check); the other 3 need resolve-then-check via the maintenance request's `property_id`).
+**Dashboard module target-design added**: 2026-07-10 (design only — see [Proposed Redesign — Dashboard Module](#-proposed-redesign--dashboard-module-target-design-not-yet-implemented); not yet implemented in code, fixes `#5, #7, #13, #20, #11`; `#3` and `#17` from the original audit are already resolved app-wide by the Auth redesign (and `#7`'s fix incidentally removes the last uncaught-500 path that made `#3` acute here). All 3 endpoints already require `property_id` as a query param, making this the simplest authorization fix of the whole series — no resolve-then-check needed anywhere. `#6` remains a deliberate platform-wide gap).
