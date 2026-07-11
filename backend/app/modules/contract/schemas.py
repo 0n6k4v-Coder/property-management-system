@@ -16,7 +16,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.modules.contract.constants import ContractStatus, TerminationReason
 
-
 # ── Request Schemas ────────────────────────────────────────────────────
 
 
@@ -193,4 +192,5 @@ class LeaseHistoryResponse(BaseModel):
     """Response for GET /api/v1/leases/{room_id}/history."""
 
     data: list[LeaseHistoryItem]
-    meta: None = None
+    meta: dict | None = None
+

@@ -8,7 +8,6 @@ References:
 
 from enum import StrEnum
 
-
 # ── Error Codes (CONT-0xx) ──────────────────────────────────────────
 
 CONT_001_ROOM_HAS_ACTIVE_CONTRACT: str = "CONT-001"
@@ -91,3 +90,4 @@ EVENT_CONTRACT_TERMINATED: str = "contract.terminated"
 EVENT_CONTRACT_RENEWED: str = "contract.renewed"
 EVENT_CONTRACT_EXPIRED: str = "contract.expired"
 EVENT_CONTRACT_EXTENDED: str = "contract.extended"
+

@@ -12,7 +12,7 @@ References:
 """
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,21 +21,21 @@ from app.modules.contract.constants import (
     CONT_002_DEPOSIT_TOO_LOW,
     CONT_003_DATE_OVERLAP,
     CONT_004_CONTRACT_NOT_ACTIVE,
+    CONT_005_RENEW_INVALID_STATE,
     CONT_006_CONTRACT_NOT_FOUND,
     CONT_007_ROOM_NOT_FOUND,
     CONT_008_TENANT_NOT_FOUND,
     CONT_009_INVALID_TERMINATION_REASON,
     ERROR_MESSAGES,
-    ContractStatus,
     EVENT_CONTRACT_CREATED,
     EVENT_CONTRACT_EXTENDED,
     EVENT_CONTRACT_RENEWED,
     EVENT_CONTRACT_TERMINATED,
+    ContractStatus,
 )
 from app.modules.contract.events import publish_contract_event
 from app.modules.contract.models import Contract, ContractTermination, LeaseExtension
 from app.modules.contract.repository import ContractRepository
-from app.modules.property.models import Room
 from app.modules.property.repository import RoomRepository
 from app.modules.tenant.models import Tenant
 from app.modules.tenant.repository import TenantRepository
@@ -486,8 +486,9 @@ class ContractService:
             )
 
         # BR-02 validation
-        from app.modules.property.models import Property
         from sqlalchemy import select
+
+        from app.modules.property.models import Property
 
         stmt = select(Property).where(Property.id == original.property_id)
         result = await self.db.execute(stmt)
@@ -570,6 +571,39 @@ class ContractService:
         """
         return await self.repo.get_active_contracts(property_id)
 
+    async def get_active_contracts_paginated(
+        self,
+        property_ids: list[uuid.UUID] | None,
+        page: int,
+        limit: int,
+    ) -> tuple[list[Contract], int]:
+        """Return paginated active contracts for scope-filtered list.
+
+        Returns (contracts, total_count).
+        """
+        return await self.repo.get_active_contracts_paginated(property_ids, page, limit)
+
+    async def get_current_user_property_ids(self, current_user: dict) -> list[uuid.UUID] | None:
+        """Return property IDs the caller may access, or None for global owner/admin.
+
+        Used by list endpoints when property_id is omitted to filter results
+        to only the properties the caller holds a scope for. Global owners/admins
+        see everything (return None means no filtering).
+        """
+        from app.shared.deps import is_global_scope
+
+        if is_global_scope(current_user):
+            return None
+
+        user_id = current_user.get("user_id")
+        if not user_id:
+            return []
+
+        from app.modules.auth.repository import UserRepository
+        repo = UserRepository(self.db)
+        scopes = await repo.get_property_scopes(uuid.UUID(str(user_id)))
+        return [s.property_id for s in scopes]
+
     async def get_contract(self, contract_id: uuid.UUID) -> Contract:
         """Get a single contract by ID with all relations loaded.
 
@@ -590,3 +624,15 @@ class ContractService:
     async def get_lease_history(self, room_id: uuid.UUID) -> list[Contract]:
         """Return all contracts for a room (lease history), newest first."""
         return await self.repo.get_lease_history(room_id)
+
+    async def get_lease_history_paginated(
+        self,
+        room_id: uuid.UUID,
+        page: int,
+        limit: int,
+    ) -> tuple[list[Contract], int]:
+        """Return paginated lease history for a room.
+
+        Returns (contracts, total_count).
+        """
+        return await self.repo.get_lease_history_paginated(room_id, page, limit)

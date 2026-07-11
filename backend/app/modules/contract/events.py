@@ -51,3 +51,4 @@ async def publish_contract_event(event_name: str, contract_id: str, metadata: di
         )
     except Exception:
         logger.warning("contract.event.publish_failed", event_name=event_name, exc_info=True)
+

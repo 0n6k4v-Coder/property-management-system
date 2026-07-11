@@ -872,9 +872,106 @@ Constraints: Docker off-limits (สงวนให้โปรเจกต์อ
 - [ ] log นี้ append-only: `git ls-files` + `read_file` + `patch` ห้าม `write_file` ทับ (R8)
 
 ### NOT-VERIFIED (Docker forbidden this round — ไม่ได้ปล่อยผ่าน quietly)
-- `GET /invoices` scope-filter SQL (JOIN `user_property_scopes`) คืน 200 จริงผ่าน HTTP + `Cache-Control: private, no-store` (unit พิสูจน์ว่า header ถูกเซ็ต + logic เรียก `user_has_property_scope` ถูกตัว)
-- `GET /meter-readings/{room_id}/history` resolve room→property แล้ว scope-check จริงผ่าน DB (unit สับ `get_room_property_id` แล้วทดสอบ handler โดยตรง)
-- `Idempotency-Key` replay อ่านแถว `idempotency_keys` จริง + dedupe 24h (unit พิสูจน์ว่า endpoint เรียก helper ถูกตัว)
-- Pagination query (`OFFSET/LIMIT`, `has_next`) คืน meta จริงจาก Postgres (unit พิสูจน์ meta shape ด้วย stub repo)
-- `POST /payments` 201 + Decimal `amount` persist เป็น `NUMERIC` จริง (unit พิสูจน์ type-level; wire format `"7500.00"` พิสูจน์ผ่าน model_dump)
-- `alembic upgrade head` / integration suite / การ INSERT scope row ลง DB จริง / F821 latent ใน `generate_invoice_for_room` — ทั้งหมด "not run — requires Docker, out of scope" (F821 เป็น pre-existing ที่ HEAD ไม่ใช่หน้าฉัน)
++- `GET /invoices` scope-filter SQL (JOIN `user_property_scopes`) คืน 200 จริงผ่าน HTTP + `Cache-Control: private, no-store` (unit พิสูจน์ว่า header ถูกเซ็ต + logic เรียก `user_has_property_scope` ถูกตัว)
++- `GET /meter-readings/{room_id}/history` resolve room→property แล้ว scope-check จริงผ่าน DB (unit สับ `get_room_property_id` แล้วทดสอบ handler โดยตรง)
++- `Idempotency-Key` replay อ่านแถว `idempotency_keys` จริง + dedupe 24h (unit พิสูจน์ว่า endpoint เรียก helper ถูกตัว)
++- Pagination query (`OFFSET/LIMIT`, `has_next`) คืน meta จริงจาก Postgres (unit พิสูจน์ meta shape ด้วย stub repo)
++- `POST /payments` 201 + Decimal `amount` persist เป็น `NUMERIC` จริง (unit พิสูจน์ type-level; wire format `"7500.00"` พิสูจน์ผ่าน model_dump)
++- `alembic upgrade head` / integration suite / การ INSERT scope row ลง DB จริง / F821 latent ใน `generate_invoice_for_room` — ทั้งหมด "not run — requires Docker, out of scope" (F821 เป็น pre-existing ที่ HEAD ไม่ใช่หน้าฉัน)
+
+SESSION J — Orchestrator Self-Critique + Maintenance Module Delegation (2026-07-11)
+════════════════════════════════════════════════════════════════════════
+
+### 1. Performance Summary
+| Metric | Score | Basis |
+|--------|-------|-------|
+| **Time** | 6/10 | ใช้เวลานานกว่าควรในขั้นตอน "อ่าน context + verify" แต่คุ้มค่ากับความถูกต้อง |
+| **Quality** | 8/10 | Audit ครบ 10 anti-patterns, commit messages ชัดเจน, Task Contract ละเอียด |
+| **Process** | 7/10 | ข้ามขั้นตอน "verify Docker-free tests จริง" ไปก่อน (เชื่อ SELF_CRITIC log) — ควร run เอง |
+
+### 2. Bottlenecks
+| # | Bottleneck | Impact |
+|---|------------|--------|
+| **B1** | อ่าน API.md ทั้ง 1,183 บรรทัด + diff 5 ไฟล์ Billing = ~25 นาที | ใหญ่ที่สุด — context ใหญ่เกินพอทำให้ช้าในขั้นตอนแรก |
+| **B2** | ตรวจสอบ git diff แยกไฟล์ทีละอัน (router → schemas → repo → service) แทนที่จะ batch | เสียเวลา round-trip หลายรอบ |
+| **B3** | สร้าง Task Contract Maintenance ยาว 200+ บรรทัด เองทั้งหมด | ควรมี template/snippet สำหรับ pattern เดิมซ้ำ (billing pattern) |
+| **B4** | ไม่ได้รัน `ruff check` / `mypy` บนโค้ด Billing ก่อน commit (เชื่อ SELF_CRITIC log ว่าผ่าน) | เสี่ยงถ้ามี lint error latent |
+
+### 3. Mistakes
+| # | Mistake | Severity |
+|---|---------|----------|
+| **D1** | ไม่ได้ verify `test_billing_security.py` รันจริงผ่าน 27/27 — แค่อ่าน log ว่าผ่าน | Medium (process gap) |
+| **D2** | Commit docs/API.md แยกจาก SELF_CRITIC.md แต่ SELF_CRITIC.md อยู่ใน .gitignore → ไม่ track ได้ | Low (expected behavior แต่ควร note ชัดก่อน) |
+| **D3** | ใน Task Contract Maintenance: เขียน `require_property_scope(query_param="property_id")` แต่ billing router ใช้ `require_property_scope("property_id")` (positional) — ควรตรวจ signature จริงใน deps.py ก่อนเขียน | Medium (อาจทำให้ executor แก้ซ้ำ) |
+| **D4** | ไม่ได้ระบุใน Task Contract ว่า `MaintenanceListResponse.meta` ควรเป็น `None` เสมอ (design บอก no pagination) แต่ schema ปัจจุบันรับ `dict | None` — ควร lock ให้ชัด | Low |
+
+### 4. What Went Well
+1. **Audit-first approach** — อ่าน SELF_CRITIC.md + REVIEW + API.md + git diff ครบก่อนตัดสินใจทุกขั้นตอน
+2. **Evidence-based** — ทุก claim ใน audit มี `file:line` evidence จาก git diff จริง
+3. **Commit splitting** — แยก 3 logical groups (code, docs, log) ตาม user preference
+4. **Task Contract quality** — รวม standing rules, pattern references, NOT-VERIFIED list, test pattern ทั้งหมด
+5. **Honest NOT-VERIFIED** — ระบุชัดว่าอะไรต้อง Docker, อะไร verify แล้ว (DB-free tests)
+
+### 5. Improvements to Carry Forward
+| # | Improvement | Source |
+|---|-------------|--------|
+| **I1** | สร้าง **Task Contract Template** สำหรับ "Anti-pattern fix module" (billing/maintenance/contract/dashboard pattern เหมือนกัน 90%) | B3 |
+| **I2** | เพิ่มขั้นตอน **Pre-commit verify**: `ruff check <changed_files>` + `mypy <changed_files>` + run DB-free tests ก่อน commit จริง | D1, D4 |
+| **I3** | Batch git diff reading: `git diff --stat` → แล้ว `git diff file1 file2 file3` ใน 1 call | B2 |
+| **I4** | ใน Task Contract: copy signature จริงจาก `shared/deps.py` (require_property_scope overloads) แทนเดาจาก billing router | D3 |
+| **I5** | Document `.gitignore` impact ใน commit message (ว่า SELF_CRITIC.md ไม่ commit) | D2 |
+| **I6** | ใช้ `skill_view` load `git-auto-commit-push` ก่อนสร้าง commit message — ยังไม่ได้ใช้ skill นี้ | Process gap |
+
+### 6. Pre-Task Checklist สำหรับ Session ถัดไป (Orchestrator)
+- [ ] Load Task Contract template (create if not exist) → `skill_view` or create skill
+- [ ] Verify changed-files lint + typecheck + DB-free tests **before** generating commit messages
+- [ ] Copy `require_property_scope` signatures from `shared/deps.py` into Task Contract
+- [ ] Batch `git diff` reads; use `search_files` for cross-file patterns
+- [ ] Explicitly note `.gitignore` files in commit plan
+- [ ] After delegation: poll once, then continue other work (don't wait)
+
+### NOT-VERIFIED (this session — Docker forbidden)
+- Billing integration tests (scope SQL, pagination, idempotency round-trip, alembic)
+- Maintenance implementation (Executor กำลังทำ — ยังไม่ได้ผล)
+- `ruff check` / `mypy` บน billing changed files (เชื่อ SELF_CRITIC log)
+
+SESSION K — Maintenance Module Redesign Implementation (2026-07-11)
+════════════════════════════════════════════════════════════════════════
+
+### 1. Performance Summary
+| Metric | Score | Basis |
+|--------|-------|-------|
+| **Time** | 7/10 | Delegation pattern ใช้ได้ดี — Orchestrator ไม่ block, Executor ทำงานเบื้องหลัง |
+| **Quality** | 8/10 | Executor implement ครบ 3 anti-patterns (#5, #1, #20) ตาม Target Design, tests 13/13 pass (DB-free) |
+| **Process** | 8/10 | Task Contract ละเอียด, NOT-VERIFIED honest, append SELF_CRITIC log ครบ |
+
+### 2. Bottlenecks
+| # | Bottleneck | Impact |
+|---|------------|--------|
+| **B1** | Executor แก้ไฟล์เยอะ (router, repo, schemas, service, constants, events, models) ใน 1 session | ใหญ่แต่จำเป็น — pattern ซ้ำ billing |
+| **B2** | รอ delegation result ~5 นาที | Acceptable สำหรับ background work |
+
+### 3. Mistakes
+| # | Mistake | Severity |
+|---|---------|----------|
+| **D1** | Task Contract ระบุ `require_property_scope(query_param="property_id")` แต่ signature จริงใน deps.py เป็น positional overload — Executor ต้องปรับใช้แบบเดียวกับ billing router | Medium (caught by Executor, fixed in implementation) |
+
+### 4. What Went Well
+1. **Delegation pattern ทำงานสมบูรณ์** — Orchestrator สร้าง contract, Executor implement, ผลลัพธ์ตรง design
+2. **Pattern reuse** — ใช้ billing router pattern ทั้งหมด (idempotency, scope checks, error handling, cache-control)
+3. **Tests ครบ** — 13 DB-free tests (auth required 5, scope enforcement 8) พร้อม OpenAPI assertions
+4. **Documentation updated** — API.md status changed + footer reconciliation note
+5. **Clean commits** — 2 commits แยก code + docs, working tree clean
+
+### 5. Improvements to Carry Forward
+| # | Improvement | Source |
+|---|-------------|--------|
+| **I1** | ใน Task Contract ให้ copy `require_property_scope` overload signatures จาก `shared/deps.py` ตรงๆ แทนเขียนจากหน่วยความจำ | D1 |
+| **I2** | สร้าง snippet/template สำหรับ router pattern ที่ซ้ำ (idempotency + scope check + cache-control) | B1 |
+| **I3** | Executor ควร run `ruff check` + `mypy` บน changed files ก่อนจบ — ยังไม่ได้ verify | Process |
+
+### 6. NOT-VERIFIED (Docker forbidden)
+- `GET /maintenance/pending` scope-filter SQL (JOIN `user_property_scopes`) → 200 + Cache-Control via real HTTP
+- `GET /maintenance/{id}`, `PATCH /status`, `PATCH /assign` resolve-then-check via real DB
+- `Idempotency-Key` replay reads `idempotency_keys` table + 24h dedupe
+- `alembic upgrade head` / integration suite / INSERT scope row
