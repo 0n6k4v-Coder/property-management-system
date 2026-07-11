@@ -13,7 +13,7 @@
 |-----------|--------|---------|
 | **Backend** | ✅ v1.0.0 Ready | 9 modules, 139 tests, production Docker, Local CI preferred |
 | **Frontend** | ✅ v1.0.0 Ready | 9 feature modules, E2E suite, PWA, Lighthouse CI, A11y audit |
-| **Documentation** | ⚠️ 85% Complete | **Exists (referenced):** PROMPT.md, E2E_TEST_STRATEGY.md, shared-contracts/, backend SDD, frontend SDD, ARCHITECTURE.md, REQUIREMENTS.md, DOMAIN_MODEL.md, USER_STORIES.md, GLOSSARY.md  |  **Missing at root:** README.md, SECURITY.md, UX_SPEC/, API.md |
+| **Documentation** | ⚠️ 85% Complete | **Exists (referenced):** PROMPT.md, E2E_TEST_STRATEGY.md, shared-contracts/, backend SDD, frontend SDD, ARCHITECTURE.md, REQUIREMENTS.md, DOMAIN_MODEL.md, USER_STORIES.md, GLOSSARY.md, API.md (docs/API.md — central API contract, kept in sync with routers)  |  **Missing at root:** SECURITY.md, UX_SPEC/ |
 | **Infrastructure** | ✅ Ready | Local CI preferred, backup/restore scripts, prod compose, MinIO, Redis |
 | **Testing** | ✅ 100% Pass | 139/139 tests, coverage ≥85%, async_client pattern stable |
 
@@ -46,7 +46,7 @@ property-management-system/
 │   │   │   ├── contract/          # ✅ Sprint 4 (BR-01 partial index)
 │   │   │   ├── maintenance/       # ✅ Sprint 5 (BR-09 status transition)
 │   │   │   ├── dashboard/         # ✅ Sprint 6 (read-optimized aggregation)
-│   │   │   ├── notification/      # ✅ Sprint 6 (fail-silent, cron delivery)
+│   │   │   ├── notification/      # ✅ Sprint 6 (fail-silent, cron delivery) + 2026-07-11 anti-pattern redesign: #5 scope, #3/#15 202+Celery, #1 idempotency, #20 Cache-Control, #13 pagination (23 DB-free tests)
 │   │   │   └── admin/             # ✅ Sprint 7 (audit viewer, config)
 │   │   ├── shared/                # ✅ database, deps, security(Argon2id), audit, events, etc.
 │   │   ├── middleware/            # ✅ security.py, rbac.py, logging.py, auth.py, rate_limit.py, cors.py

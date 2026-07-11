@@ -55,7 +55,7 @@ backend/
 |   │   ├── contract/       # ✅ Sprint 4 Complete (FR-CONTRACT-01~05)
 │   │   ├── dashboard/      # ✅ Sprint 6 Complete (FR-DASH-01~04)
 │   │   ├── maintenance/    # ✅ Sprint 5 Complete (FR-MAINT-01~03)
-│   │   ├── notification/   # ✅ Sprint 7 Complete (notification stubs)
+│   │   ├── notification/   # ✅ Sprint 7 Complete + 2026-07-11 anti-pattern redesign: #5/#3/#15/#1/#20/#13 fixed, router/service/repository/schemas + 23 DB-free tests
 │   │   └── admin/          # ✅ Sprint 7 Complete (audit log, RBAC, system config)
 │   │       └── __init__.py # Public exports only
 │   ├── shared/
