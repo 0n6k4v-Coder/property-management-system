@@ -19,14 +19,15 @@ This document is generated from the actual routers under `backend/app/modules/*/
 - [Tenants](#tenants)
 - [Proposed Redesign — Tenant Module (Implemented)](#-proposed-redesign--tenant-module-implemented-in-code)
 - [Billing (Meter Readings, Invoices, Payments)](#billing)
-- [Proposed Redesign — Billing Module (Target Design)](#-proposed-redesign--billing-module-target-design-not-yet-implemented)
+- [Proposed Redesign — Billing Module (Implemented)](#-proposed-redesign--billing-module-implemented-in-code)
 - [Contracts](#contracts)
-- [Proposed Redesign — Contract Module (Target Design)](#-proposed-redesign--contract-module-target-design-not-yet-implemented)
+- [Proposed Redesign — Contract Module (Implemented)](#-proposed-redesign--contract-module-implemented-in-code)
 - [Maintenance](#maintenance)
-- [Proposed Redesign — Maintenance Module (Target Design)](#-proposed-redesign--maintenance-module-target-design-not-yet-implemented)
+- [Proposed Redesign — Maintenance Module (Implemented)](#-proposed-redesign--maintenance-module-implemented-in-code)
 - [Dashboard](#dashboard)
-- [Proposed Redesign — Dashboard Module (Target Design)](#-proposed-redesign--dashboard-module-target-design-not-yet-implemented)
+- [Proposed Redesign — Dashboard Module (Implemented)](#-proposed-redesign--dashboard-module-implemented-in-code)
 - [Notifications](#notifications)
+- [Proposed Redesign — Notification Module (Implemented)](#-proposed-redesign--notification-module-implemented-in-code)
 - [Admin](#admin)
 - [Error Codes](#error-codes)
 - [Rate Limiting](#rate-limiting)
@@ -1030,9 +1031,9 @@ Body — `SendNotificationRequest`:
 
 ---
 
-## 🔧 Proposed Redesign — Notification Module (Target Design)
+## 🔧 Proposed Redesign — Notification Module (Implemented in Code)
 
-> **Status**: NOT YET IMPLEMENTED — This design addresses all critical/high findings from the 2026-07-11 security audit (Advisor A + Advisor B + Orchestrator). The Notification module is the **only remaining module** without property-scope authorization (#5) and carries multiple unfixed anti-patterns (#3, #15, #1, #20, #13).
+> **Status**: **Implemented in Code** (2026-07-11) — This design addresses all critical/high findings from the 2026-07-11 security audit (Advisor A + Advisor B + Orchestrator). The Notification module now enforces property-scope authorization (#5) on all 3 endpoints, returns 202 Accepted with async Celery processing (#3, #15), supports Idempotency-Key (#1), includes Cache-Control headers (#20), and implements pagination on GET /history (#13).
 
 ---
 
@@ -1636,7 +1637,7 @@ These are real inconsistencies in the current codebase (not documentation errors
 
 **Dashboard module redesign**: 2026-07-11 — the target design is now **implemented in code** (anti-patterns `#5, #7, #13, #20, #11` fixed; `#3` and `#17` from the original audit were already resolved app-wide by the Auth redesign. All 3 endpoints already required `property_id` as a query param, making this the simplest authorization fix of the whole series — no resolve-then-check needed anywhere. `start_date`/`end_date` typed as `date | None` with cross-field validation (max 24-month span). Typed `OccupancyResponse` schema. `Cache-Control: private, no-store` on all 3 GETs. Unit tests in `tests/modules/dashboard/test_dashboard_security.py` (DB-free, mocking all DB access). `#6` remains a deliberate platform-wide gap.
 
-**Notification module redesign**: 2026-07-11 — the target design is now **implemented in code** (fixes `#5, #3, #15, #1, #20, #13`). All three endpoints enforce property-scope authorization, POST /test returns 202 Accepted with async Celery processing, Idempotency-Key support on mutating endpoints, pagination on GET /history, and Cache-Control: private, no-store on all endpoints. See [Proposed Redesign — Notification Module](#-proposed-redesign--notification-module-target-design-not-yet-implemented) for the design rationale.
+**Notification module redesign**: 2026-07-11 — the target design is now **implemented in code** (fixes `#5, #3, #15, #1, #20, #13`). All three endpoints enforce property-scope authorization, POST /test returns 202 Accepted with async Celery processing, Idempotency-Key support on mutating endpoints, pagination on GET /history, and Cache-Control: private, no-store on all endpoints. See [Proposed Redesign — Notification Module (Implemented in Code)](#-proposed-redesign--notification-module-implemented-in-code) for the design rationale.
 
 **CORS Configuration (2026-07-11)**: Fixed — `main.py:151` now calls `setup_cors_middleware(app, settings.CORS_ORIGINS)` passing the explicit origins list. The helper in `cors.py:21` was hardened with a type guard to reject non-list inputs.
 
