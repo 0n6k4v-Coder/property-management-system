@@ -6,7 +6,6 @@ References:
 
 from enum import StrEnum
 
-
 # Error codes
 NOTIF_001_NOT_FOUND: str = "NOTIF-001"
 NOTIF_002_SEND_FAILED: str = "NOTIF-002"
@@ -25,6 +24,7 @@ ERROR_MESSAGES: dict[str, str] = {
 
 class NotificationStatus(StrEnum):
     PENDING = "pending"
+    QUEUED = "queued"
     SENT = "sent"
     FAILED = "failed"
 

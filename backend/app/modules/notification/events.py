@@ -1,5 +1,6 @@
 """Domain event stubs for Notification module (SDD §2.7)."""
 import structlog
+
 logger = structlog.get_logger()
 
 async def publish_notification_event(event_name: str, notification_id: str, metadata: dict | None = None) -> None:

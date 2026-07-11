@@ -1,10 +1,11 @@
 """Pydantic v2 schemas for Notification module (SDD §2.7)."""
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.modules.notification.constants import NotificationChannel, NotificationStatus
+from app.modules.notification.constants import NotificationChannel
 
 
 class SendNotificationRequest(BaseModel):
@@ -33,6 +34,24 @@ class NotificationResponse(BaseModel):
     sent_at: datetime | None = None
 
 
+class NotificationQueuedResponse(BaseModel):
+    """Response for 202 Accepted — notification queued for async delivery."""
+    model_config = ConfigDict(extra="forbid")
+
+    notification_id: uuid.UUID
+    status: Literal["queued"] = "queued"
+
+
+class NotificationMeta(BaseModel):
+    """Pagination metadata for notification list responses."""
+    model_config = ConfigDict(extra="forbid")
+
+    page: int
+    limit: int
+    total: int
+    has_next: bool
+
+
 class NotificationCreateResponse(BaseModel):
     data: NotificationResponse
     meta: None = None
@@ -40,4 +59,4 @@ class NotificationCreateResponse(BaseModel):
 
 class NotificationListResponse(BaseModel):
     data: list[NotificationResponse]
-    meta: dict | None = None
+    meta: NotificationMeta | None = None
