@@ -1636,17 +1636,7 @@ These are real inconsistencies in the current codebase (not documentation errors
 
 **Dashboard module redesign**: 2026-07-11 — the target design is now **implemented in code** (anti-patterns `#5, #7, #13, #20, #11` fixed; `#3` and `#17` from the original audit were already resolved app-wide by the Auth redesign. All 3 endpoints already required `property_id` as a query param, making this the simplest authorization fix of the whole series — no resolve-then-check needed anywhere. `start_date`/`end_date` typed as `date | None` with cross-field validation (max 24-month span). Typed `OccupancyResponse` schema. `Cache-Control: private, no-store` on all 3 GETs. Unit tests in `tests/modules/dashboard/test_dashboard_security.py` (DB-free, mocking all DB access). `#6` remains a deliberate platform-wide gap.
 
-**Notification module security audit findings (2026-07-11)**: A post-implementation security audit (Advisor A + Advisor B + Orchestrator) identified critical gaps in the Notification module that were not addressed by prior redesigns:
-
-| Anti-pattern | Status | Details |
-|--------------|--------|---------|
-| **#5 — No property-scope authorization (IDOR)** | **CRITICAL — UNFIXED** | `GET /notifications/history?property_id=<victim>` returns full history to any authenticated user. `notification_service.py:185-188` checks `if property_id:` before `if user_id:`, allowing cross-property data access. `require_property_scope()` missing from all 3 endpoints. |
-| **#3 — Fail-silent error handling** | **UNFIXED** | `POST /notifications/test` returns `201` even when send fails (service catches all exceptions, sets status=FAILED but returns 201). |
-| **#15 — Synchronous external I/O in request path** | **UNFIXED** | `POST /notifications/test` sends notification synchronously in request path (no 202 + async). |
-| **#1 — No idempotency on mutating endpoint** | **UNFIXED** | `POST /notifications/test` lacks `Idempotency-Key` support. |
-| **#20 — No Cache-Control on PII endpoints** | **UNFIXED** | Missing `Cache-Control: private, no-store` on notification endpoints. |
-
-**Immediate remediation required**: Add `require_property_scope(query_param="property_id")` to `GET /notifications/history`; change `POST /test` to return `202 Accepted` with async processing (Celery); add `Idempotency-Key` support; add `Cache-Control: private, no-store` headers.
+**Notification module redesign**: 2026-07-11 — the target design is now **implemented in code** (fixes `#5, #3, #15, #1, #20, #13`). All three endpoints enforce property-scope authorization, POST /test returns 202 Accepted with async Celery processing, Idempotency-Key support on mutating endpoints, pagination on GET /history, and Cache-Control: private, no-store on all endpoints. See [Proposed Redesign — Notification Module](#-proposed-redesign--notification-module-target-design-not-yet-implemented) for the design rationale.
 
 **CORS Configuration (2026-07-11)**: Fixed — `main.py:151` now calls `setup_cors_middleware(app, settings.CORS_ORIGINS)` passing the explicit origins list. The helper in `cors.py:21` was hardened with a type guard to reject non-list inputs.
 
