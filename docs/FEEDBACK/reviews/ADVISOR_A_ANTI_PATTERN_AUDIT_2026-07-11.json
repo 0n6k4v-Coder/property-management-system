@@ -1,0 +1,280 @@
+{
+  "report_id": "ADVISOR-A-ANTI-PATTERN-AUDIT-2026-07-11",
+  "advisor": "Advisor A (Senior Backend Architect)",
+  "date": "2026-07-11",
+  "scope": "All 10 backend modules (Auth, Property, Tenant, Billing, Contract, Maintenance, Dashboard, Notification, Admin, Health)",
+  "anti_pattern_source": "docs/API_DESIGN_ANTI_PATTERN.md (23 patterns, #1-#23)",
+  "method": "Read-only static audit; every finding grounded in file:line evidence from actual source. NO Docker / live DB verification (per task constraint NOT-VERIFIED). Re-audited against current branch state, NOT the 2026-07-10 parallel-session review, because source has since diverged (see discrepancies).",
+  "standing_rules_compliance": {
+    "read_self_critic": true,
+    "note": "R1 (no 'done' before verify) + R4 (read before edit) observed. This is a read-only advisory report — no file edits performed."
+  },
+
+  "critical_discrepancy_with_2026-07-10-review": {
+    "summary": "The 2026-07-10 parallel-session review (REVIEW-2026-07-10-api-anti-pattern-audit.md) reported 7/8 non-admin modules STILL lacked property-scope auth (#5) and Dashboard had an uncaught-500 bug (#4.5) and Billing had a bad PaymentMethod enum (#7/#12). The CURRENT source on this branch shows all of those have since been REMEDIATED in code. Either the review read a stale branch or a later redesign landed. Advisor A audited the ACTUAL current code, not the old report's claims.",
+    "items": [
+      {"anti_pattern": "#5", "old_review_said": "present in Property/Tenant/Contract/Maintenance/Dashboard/Notification", "current_code": "FIXED in Property/Tenant/Contract/Maintenance/Dashboard/Billing/Auth via require_property_scope() / user_has_property_scope() + resolve-then-check. ONLY Notification remains unfixed."},
+      {"anti_pattern": "#4.5 (Dashboard uncaught 500)", "old_review_said": "GET /dashboard/revenue crashes on bad date (str|None + unguarded date.fromisoformat)", "current_code": "FIXED — dashboard_router.py:75-76 types start_date/end_date as date|None (Pydantic validates, clean 422). No unguarded parse remains."},
+      {"anti_pattern": "#11/#12 (Billing PaymentMethod)", "old_review_said": "RecordPaymentRequest.method accepts 'wallet', rejects 'promptpay'", "current_code": "FIXED — billing/schemas.py:182 uses real PaymentMethod enum; no 'wallet'/'promptpay' mismatch."},
+      {"anti_pattern": "#23 (CORS)", "old_review_said": "double-registered + wildcard+credentials", "current_code": "FIXED in code — main.py registers CORS exactly once via cors.py; security.py no longer registers CORS."},
+      {"anti_pattern": "#17 (logging)", "old_review_said": "LoggingMiddleware never wired", "current_code": "FIXED — main.py:153 calls setup_logging_middleware(app)."},
+      {"anti_pattern": "#6 (rate limit)", "old_review_said": "global only, no headers", "current_code": "PARTIALLY FIXED — dedicated login limiter (rate_limit.py) + real X-RateLimit-* headers; global limiter still 10,000/60s (by design)."}
+    ]
+  },
+
+  "module_findings": {
+    "health": {
+      "endpoints": ["GET /health"],
+      "anti_patterns": [
+        {
+          "id": "#9",
+          "name": "Breaking changes without versioning / hardcoded version",
+          "severity": "Low",
+          "evidence": "backend/app/health.py:34 — version=\"1.0.0\" hardcoded literal; does not read settings.APP_VERSION (config.py:44 APP_VERSION=\"1.0.0\").",
+          "root_cause": "Health version string duplicated instead of sourced from Settings — version drift invisible.",
+          "recommended_fix": "Return settings.APP_VERSION from get_settings() so health reflects the real deployed version.",
+          "effort": "S (5 min)",
+          "status_in_code": "STILL PRESENT"
+        }
+      ]
+    },
+
+    "auth": {
+      "endpoints": ["POST /login", "POST /register", "POST /invite", "POST /refresh", "GET /me"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Weak authz (property scope)", "severity": "High (resolved)", "evidence": "auth_router.py:181 require_property_scope() on POST /invite; deps.py:103-185 enforce.", "root_cause": "Resolved — scope dependency added.", "recommended_fix": "Adopted. Optional: extend to /register if invite-token scoping needed.", "effort": "Done", "status_in_code": "FIXED"},
+        {"id": "#1", "name": "No idempotency", "severity": "High (resolved)", "evidence": "auth_router.py:118,184 Idempotency-Key header on /register + /invite; idempotency.py + migration 019.", "status_in_code": "FIXED"},
+        {"id": "#6", "name": "Rate limiting", "severity": "Medium (resolved)", "evidence": "auth_router.py:86-98 login limiter wired; rate_limit.py emits X-RateLimit-* + Retry-After.", "status_in_code": "FIXED"},
+        {"id": "#7", "name": "Weak input validation", "severity": "Medium (resolved)", "evidence": "auth_router.py:247 RefreshRequest strict schema.", "status_in_code": "FIXED"},
+        {"id": "#11", "name": "Inconsistent API design", "severity": "Low (resolved)", "evidence": "auth_router.py:229 InviteResponse typed; /refresh returns TokenResponse.", "status_in_code": "FIXED"},
+        {"id": "#3", "name": "Ambiguous error handling", "severity": "Medium (resolved)", "evidence": "main.py:169-183 unified {'error':...} validation envelope.", "status_in_code": "FIXED"},
+        {"id": "#17", "name": "No observability", "severity": "Low (resolved)", "evidence": "main.py:153 logging middleware registered; X-Request-ID emitted.", "status_in_code": "FIXED"},
+        {"id": "#23", "name": "CORS", "severity": "Medium (resolved)", "evidence": "main.py:151 single setup_cors_middleware(app, settings).", "status_in_code": "FIXED"},
+        {"id": "#9", "name": "Versioning policy", "severity": "Low", "evidence": "Deliberate platform-wide gap (docs/API.md).", "status_in_code": "DELIBERATE GAP"}
+      ]
+    },
+
+    "property": {
+      "endpoints": ["GET /{property_id}", "GET /", "POST /", "GET /{property_id}/rooms", "PATCH /{property_id}/rooms/{room_id}/status"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Property-scope auth", "severity": "High (resolved)", "evidence": "property_router.py:60,190,233 require_property_scope('property_id'); list filtered by scope property_router.py:102-111.", "status_in_code": "FIXED"},
+        {"id": "#1", "name": "Idempotency on create", "severity": "Medium (resolved)", "evidence": "property_router.py:134 Idempotency-Key on POST /.", "status_in_code": "FIXED"},
+        {"id": "#13", "name": "Unbounded list", "severity": "Medium (resolved)", "evidence": "property_router.py:92-93,193-194 pagination page/limit on list + rooms.", "status_in_code": "FIXED"},
+        {"id": "#3", "name": "uuid.UUID typed params", "severity": "Low (resolved)", "evidence": "property_router.py:59,189,230 typed uuid.UUID -> clean 422.", "status_in_code": "FIXED"},
+        {"id": "#10", "name": "DB model leakage", "severity": "Low (resolved)", "evidence": "created_by dropped from property response (docstring property_router.py:13).", "status_in_code": "FIXED"},
+        {"id": "#11", "name": "Nested/consistent modeling", "severity": "Low (resolved)", "evidence": "PropertyDetailResponse + status sub-resource property_router.py:223-253.", "status_in_code": "FIXED"}
+      ]
+    },
+
+    "tenant": {
+      "endpoints": ["POST /", "GET /search"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Property-scope auth", "severity": "High (resolved)", "evidence": "tenant_router.py:52 require_property_scope() on POST /; tenant_router.py:119 require_property_scope(query_param='property_id') on GET /search.", "status_in_code": "FIXED"},
+        {"id": "#1", "name": "Idempotency", "severity": "Medium (resolved)", "evidence": "tenant_router.py:55 Idempotency-Key on POST /.", "status_in_code": "FIXED"},
+        {"id": "#7", "name": "search_by validation", "severity": "Medium (resolved)", "evidence": "tenant_router.py:122 Literal['name','phone','email'] — invalid value -> clean 422 (OLD bug of silent fallback to name-search is GONE).", "status_in_code": "FIXED"},
+        {"id": "#20", "name": "Cache-Control", "severity": "Low (resolved)", "evidence": "tenant_router.py:144 Cache-Control: private, no-store on /search (PII).", "status_in_code": "FIXED"}
+      ]
+    },
+
+    "billing": {
+      "endpoints": ["POST /meter-readings", "GET /meter-readings/{room_id}/history", "POST /invoices/generate", "GET /invoices", "GET /invoices/{id}", "POST /payments"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Property-scope auth", "severity": "High (resolved)", "evidence": "billing_router.py:116,183,202,277,331,379 — all 6 endpoints scope-checked (body/query or resolve-then-check).", "status_in_code": "FIXED"},
+        {"id": "#4", "name": "Wrong HTTP verb/status", "severity": "Low (resolved)", "evidence": "billing_router.py:358 POST /payments returns 201.", "status_in_code": "FIXED"},
+        {"id": "#3", "name": "Error envelope", "severity": "Medium (resolved)", "evidence": "billing_router.py:325-329 invoice 404 raises APIError(BILL-007) -> unified {'error':...}.", "status_in_code": "FIXED"},
+        {"id": "#13", "name": "Unbounded list", "severity": "Medium (resolved)", "evidence": "billing_router.py:257-258,166 pagination bounded limit le=100.", "status_in_code": "FIXED"},
+        {"id": "#1", "name": "Idempotency", "severity": "Medium (resolved)", "evidence": "billing_router.py:103,205,364 Idempotency-Key on 3 POSTs.", "status_in_code": "FIXED"},
+        {"id": "#11", "name": "PaymentMethod enum", "severity": "Medium (resolved)", "evidence": "billing/schemas.py:182 method: PaymentMethod (real enum).", "status_in_code": "FIXED"},
+        {"id": "#12", "name": "Decimal money", "severity": "Low (resolved)", "evidence": "billing/schemas.py:181 amount: Decimal end-to-end.", "status_in_code": "FIXED"},
+        {"id": "#19", "name": "Timezone handling", "severity": "Low (resolved)", "evidence": "billing/schemas.py:18-29 read_date carries explicit UTC offset.", "status_in_code": "FIXED"},
+        {"id": "#20", "name": "Cache-Control", "severity": "Low (resolved)", "evidence": "billing_router.py:179,272,320 private, no-store on GETs.", "status_in_code": "FIXED"}
+      ]
+    },
+
+    "contract": {
+      "endpoints": ["POST /", "GET /active", "GET /{id}", "PATCH /{id}/terminate", "POST /{id}/extend", "POST /{id}/renew", "GET /leases/{room_id}/history"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Property-scope auth", "severity": "High (resolved)", "evidence": "contract_router.py:65,104,176,222,252,290,349,415 — every endpoint resolve-then-checks property scope; None property_id -> 403.", "status_in_code": "FIXED"},
+        {"id": "#13", "name": "Unbounded list", "severity": "Medium (resolved)", "evidence": "contract_router.py:157-158,399-400 pagination on /active + /leases/{room_id}/history.", "status_in_code": "FIXED"},
+        {"id": "#1", "name": "Idempotency", "severity": "Medium (resolved)", "evidence": "contract_router.py:92,280,339 Idempotency-Key on 3 POSTs.", "status_in_code": "FIXED"},
+        {"id": "#20", "name": "Cache-Control", "severity": "Low (resolved)", "evidence": "contract_router.py:171,218,411 private, no-store.", "status_in_code": "FIXED"}
+      ]
+    },
+
+    "maintenance": {
+      "endpoints": ["POST /", "GET /pending", "GET /{id}", "PATCH /{id}/status", "PATCH /{id}/assign"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Property-scope auth", "severity": "High (resolved)", "evidence": "maintenance_router.py:88,147,192,221,253 — all endpoints scope-checked.", "status_in_code": "FIXED"},
+        {"id": "#1", "name": "Idempotency", "severity": "Medium (resolved)", "evidence": "maintenance_router.py:87 Idempotency-Key on POST /.", "status_in_code": "FIXED"},
+        {"id": "#20", "name": "Cache-Control", "severity": "Low (resolved)", "evidence": "maintenance_router.py:157,188 private, no-store.", "status_in_code": "FIXED"},
+        {"id": "#3", "name": "Error envelope", "severity": "Low (note)", "evidence": "resolves property via _check_scope then raises APIError (unified envelope). No separate validation-error conflict observed in current code.", "status_in_code": "CONSISTENT"}
+      ]
+    },
+
+    "dashboard": {
+      "endpoints": ["GET /summary", "GET /revenue", "GET /occupancy"],
+      "anti_patterns": [
+        {"id": "#5", "name": "Property-scope auth", "severity": "High (resolved)", "evidence": "dashboard_router.py:51,73,103 require_property_scope(query_param='property_id').", "status_in_code": "FIXED"},
+        {"id": "#7", "name": "Date validation", "severity": "Low (resolved)", "evidence": "dashboard_router.py:75-76 start_date/end_date typed date|None (Pydantic 422, no unguarded parse). OLD uncaught-500 bug GONE.", "status_in_code": "FIXED"},
+        {"id": "#13", "name": "Span validation", "severity": "Low (resolved)", "evidence": "docstring dashboard_router.py:7-8 — 24-month span validated in service.", "status_in_code": "FIXED"},
+        {"id": "#20", "name": "Cache-Control", "severity": "Low (resolved)", "evidence": "dashboard_router.py:56,80,108 private, no-store.", "status_in_code": "FIXED"},
+        {"id": "#11", "name": "Typed wrapper", "severity": "Low (resolved)", "evidence": "dashboard_router.py:23-26 OccupancyWrapper typed (not bare dict).", "status_in_code": "FIXED"}
+      ]
+    },
+
+    "notification": {
+      "endpoints": ["POST /test", "GET /history", "PATCH /{id}/resend"],
+      "audit_focus": "MODULE NOT YET REDESIGNED — only module still carrying #5 + several others.",
+      "anti_patterns": [
+        {
+          "id": "#5",
+          "name": "No property-scope authorization (CRITICAL — only remaining instance)",
+          "severity": "High (CRITICAL)",
+          "evidence": "notification_router.py:56-68 GET /history has NO require_property_scope / require_role dependency. notification_service.py:185-191 get_history() checks 'if property_id:' BEFORE 'if user_id:' — so GET /notifications/history?property_id=<victim> returns ANOTHER property's full notification history to ANY authenticated caller. POST /test (notification_router.py:33-48) and PATCH /{id}/resend (notification_router.py:76-87) also only depend on get_current_user — no scope check.",
+          "root_cause": "Notification module was never part of the property-scope remediation that touched Auth/Property/Tenant/Contract/Maintenance/Dashboard/Billing. The dependency require_property_scope() exists and is reusable (deps.py:103) but was never applied here.",
+          "recommended_fix": "Apply require_property_scope(query_param='property_id') to GET /history and POST /test (body-sourced property_id). For PATCH /{id}/resend, resolve the notification's property_id and user_has_property_scope() check (mirror maintenance_router.py:190-192). Add a test asserting a non-scoped caller gets 403 on ?property_id=<other>.",
+          "effort": "M (0.5-1 day: 3 endpoints + service guard + 1 test file)",
+          "status_in_code": "STILL PRESENT — HIGHEST PRIORITY"
+        },
+        {
+          "id": "#3",
+          "name": "Ambiguous error handling (fail-silent envelope)",
+          "severity": "High",
+          "evidence": "notification_router.py:31 docstring 'Fail-Silent — always returns 201'; notification_service.py:79-132 send_test catches all exceptions, sets status=FAILED, never raises. A failed send still returns 201 Created with a 'failed' record.",
+          "root_cause": "Fail-silent design choice (intentional per module doc) but collides with REST semantics — caller cannot distinguish success from failure via status code; they must inspect response body status.",
+          "recommended_fix": "Either (a) keep 201 but document that body.status tells the real outcome (acceptable for fire-and-forget notifications), or (b) return 202 Accepted + async job if send is genuinely async. At minimum, do NOT claim 201 'Created' when the underlying send failed — consider 200 with explicit status, or surface a partial-failure field. Align with the unified {'error':...} envelope if a hard failure should be reported.",
+          "effort": "S-M (decision + doc; code change small)",
+          "status_in_code": "STILL PRESENT (by design, needs decision)"
+        },
+        {
+          "id": "#15",
+          "name": "Blocking on long-running task (sync send in request path)",
+          "severity": "Medium",
+          "evidence": "notification_service.py:106-110 _mock_external_send is awaited inline in the request path (notification_router.py:40). No 202 + background task/polling pattern. Currently a 0.01s mock, but a real provider (email/LINE/SMS) would block the worker.",
+          "root_cause": "Synchronous send; no task queue integration (Celery workers exist in app/workers/ but are unused here).",
+          "recommended_fix": "Offload real send to Celery (app/workers/tasks.py) and return 202 Accepted with a status-poll URL; keep the DB record as the source of truth. Low urgency until a real provider is wired.",
+          "effort": "M (Celery task + 202 envelope)",
+          "status_in_code": "STILL PRESENT (latent until real provider)"
+        },
+        {
+          "id": "#1",
+          "name": "No idempotency on POST /test",
+          "severity": "Low-Medium",
+          "evidence": "notification_router.py:33-48 POST /test accepts no Idempotency-Key (contrast auth_router.py:184, tenant_router.py:55). Re-submitting the same test notification creates duplicate rows.",
+          "root_cause": "Newest module; idempotency convention not applied.",
+          "recommended_fix": "Add optional Idempotency-Key header on POST /test (reuse idempotency.py). Low urgency for a test endpoint.",
+          "effort": "S",
+          "status_in_code": "STILL PRESENT"
+        },
+        {
+          "id": "#9",
+          "name": "No versioning/deprecation for notification routes",
+          "severity": "Low",
+          "evidence": "notification_router.py routed under /api/v1/notifications (consistent with platform), but module added after v1 contract freeze with no documented versioning policy (see #9 platform gap).",
+          "root_cause": "Platform-wide gap.",
+          "recommended_fix": "Document under the platform #9 decision; no code change required now.",
+          "effort": "S (doc)",
+          "status_in_code": "STILL PRESENT (platform gap)"
+        },
+        {
+          "id": "#10",
+          "name": "DB model leakage (minor)",
+          "severity": "Low",
+          "evidence": "notification_router.py:48,86 return NotificationResponse.model_validate(notif) — uses from_attributes, acceptable; no raw ORM fields leaked in practice.",
+          "root_cause": "n/a — clean.",
+          "recommended_fix": "No action.",
+          "effort": "None",
+          "status_in_code": "CLEAN"
+        }
+      ]
+    },
+
+    "admin": {
+      "endpoints": ["GET /audit-logs", "GET /config"],
+      "audit_focus": "Role-gated (owner/superuser). Cleanest module per prior review; re-verified.",
+      "anti_patterns": [
+        {
+          "id": "#5",
+          "name": "Property-scope (not applicable by design)",
+          "severity": "Low (N/A)",
+          "evidence": "admin_router.py:31,58 @require_role('owner'). rbac.py:58 superuser/owner bypass. Admin is intentionally cross-property (audit + config), so property-scope is correctly NOT applied.",
+          "root_cause": "Correct design — admin views are global.",
+          "recommended_fix": "No change. Keep role-gate. Optionally add is_superuser claim verification hardening in rbac.py:53-58.",
+          "effort": "None",
+          "status_in_code": "CLEAN (by design)"
+        },
+        {
+          "id": "#13",
+          "name": "Unbounded list (audit-logs)",
+          "severity": "Low",
+          "evidence": "admin_router.py:37-38 page/limit with le=200 — bounded. /config is single-object. OK.",
+          "root_cause": "Already paginated.",
+          "recommended_fix": "No change.",
+          "effort": "None",
+          "status_in_code": "CLEAN"
+        },
+        {
+          "id": "#18",
+          "name": "Outdated doc / dead schema (UpdateSystemConfigRequest)",
+          "severity": "Low",
+          "evidence": "admin/schemas.py:52 UpdateSystemConfigRequest exists (extra='forbid', value min_length=1) but admin_router.py has NO PUT/PATCH /config — schema is dead code. GET /config (admin_router.py:59) is read-only.",
+          "root_cause": "Schema defined ahead of the write endpoint; write endpoint never implemented.",
+          "recommended_fix": "Either implement PATCH /api/v1/admin/config (with @require_role('owner') + audit log) to use the schema, or remove the dead schema to avoid implying a contract that does not exist (anti-pattern #18: inaccurate documentation/contract).",
+          "effort": "S (implement endpoint) or S (delete schema + note)",
+          "status_in_code": "STILL PRESENT (dead schema)"
+        },
+        {
+          "id": "#9",
+          "name": "Versioning (platform gap)",
+          "severity": "Low",
+          "evidence": "Routed under /api/v1/admin — consistent.",
+          "root_cause": "Platform gap.",
+          "recommended_fix": "No code change.",
+          "effort": "None",
+          "status_in_code": "STILL PRESENT (platform gap)"
+        },
+        {
+          "id": "#6 / #17",
+          "name": "Rate limiting + observability (cross-cutting)",
+          "severity": "Low",
+          "evidence": "Inherits global rate limiter (security.py:44) + logging middleware (main.py:153). /admin/* is not separately limited but is owner-gated, so blast radius is small.",
+          "root_cause": "Cross-cutting, already addressed platform-wide.",
+          "recommended_fix": "No module-specific change.",
+          "effort": "None",
+          "status_in_code": "COVERED BY CROSS-CUTTING"
+        }
+      ]
+    }
+  },
+
+  "cross_cutting_findings": {
+    "#23 CORS": {"status": "FIXED", "evidence": "main.py:150-151 single setup_cors_middleware(app, settings); security.py:109-118 register_security_middleware no longer adds CORSMiddleware."},
+    "#17 Observability": {"status": "FIXED", "evidence": "main.py:153 setup_logging_middleware; logging.py X-Request-ID emitted."},
+    "#6 Rate limiting": {"status": "PARTIALLY FIXED", "evidence": "rate_limit.py dedicated login limiter + real headers; global 10,000/60s remains (security.py:44). No per-endpoint limits beyond auth."},
+    "#3 Error envelope": {"status": "FIXED", "evidence": "main.py:169-183 unified {'error':{code,message,details}} for VAL-001 + APIError."},
+    "#5 Property scope (the historic root defect)": {"status": "FIXED in 9/10 modules; ONLY Notification remains", "evidence": "grep: require_property_scope / user_has_property_scope present in auth, property, tenant, contract, maintenance, dashboard, billing; ABSENT in notification + admin (admin by design)."}
+  },
+
+  "prioritized_remediation_plan": [
+    {"priority": "P0", "module": "Notification", "anti_pattern": "#5", "action": "Add require_property_scope to GET /history, POST /test; resolve-then-check for PATCH /{id}/resend. Blocks cross-property IDOR on notification history.", "effort": "M", "severity": "High"},
+    {"priority": "P1", "module": "Notification", "anti_pattern": "#3/#15", "action": "Decide fail-silent semantics: either keep 201 but document body.status as truth, or move to 202 + Celery async send. Stop returning 201 when send actually failed.", "effort": "S-M", "severity": "High/Medium"},
+    {"priority": "P2", "module": "Admin", "anti_pattern": "#18", "action": "Implement PATCH /admin/config (using UpdateSystemConfigRequest) OR delete the dead schema to avoid a phantom contract.", "effort": "S", "severity": "Low"},
+    {"priority": "P3", "module": "Health", "anti_pattern": "#9", "action": "Source version from settings.APP_VERSION instead of hardcoded literal.", "effort": "S", "severity": "Low"},
+    {"priority": "P4", "module": "Notification", "anti_pattern": "#1", "action": "Add Idempotency-Key to POST /test for consistency with other POST endpoints.", "effort": "S", "severity": "Low-Medium"},
+    {"priority": "P5", "module": "Cross-cutting", "anti_pattern": "#6", "action": "Consider per-endpoint limiters beyond login (e.g. invite/register) using existing rate_limit.py pattern; global limiter acceptable for now.", "effort": "M", "severity": "Low"}
+  ],
+
+  "verification_limitations": {
+    "docker": "FORBIDDEN per task — no live DB / running app verification possible.",
+    "what_was_verified": "Static source read of all 9 module routers, deps.py, middleware/*, config.py, health.py, all relevant schemas; grep for scope/role usage across backend/app.",
+    "what_was_not_verified": "Runtime behaviour (actual 403 on cross-property Notification GET), migration 019 applied state, test pass rates, Celery wiring. Findings are code-evidence-based, not runtime-confirmed."
+  },
+
+  "summary_counts": {
+    "modules_audited": 10,
+    "modules_with_STILL_PRESENT_high_severity_issues": 1,
+    "modules_clean_or_resolved": 9,
+    "critical_remaining": "Notification #5 (cross-property IDOR on /notifications/history)",
+    "discrepancies_vs_2026-07-10_review": 6
+  }
+}
