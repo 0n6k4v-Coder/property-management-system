@@ -1030,7 +1030,508 @@ Body — `SendNotificationRequest`:
 
 ---
 
-## ⚙️ Admin
+## 🔧 Proposed Redesign — Notification Module (Target Design)
+
+> **Status**: NOT YET IMPLEMENTED — This design addresses all critical/high findings from the 2026-07-11 security audit (Advisor A + Advisor B + Orchestrator). The Notification module is the **only remaining module** without property-scope authorization (#5) and carries multiple unfixed anti-patterns (#3, #15, #1, #20, #13).
+
+---
+
+### Fix Map (Anti-pattern → Design Decision)
+
+| # | Anti-pattern | Design Fix |
+|---|---|---|
+| #5 | **No property-scope authorization (CRITICAL IDOR)** on all 3 endpoints | `POST /test`: `require_property_scope()` (body-sourced `property_id`). `GET /history`: `require_property_scope(query_param="property_id")` (required). `PATCH /{id}/resend`: resolve-then-check via notification's `property_id` → `user_has_property_scope()`. |
+| #3 | **Fail-silent returns 201 on send failure** | Change `POST /test` to return **202 Accepted** + `notification_id`. Async processing via Celery (or background task if Celery not ready — document limitation). Response: `{data: {notification_id, status: "queued"}, meta: null}`. |
+| #15 | **Synchronous external I/O in request path** | Offload send to Celery tasks (`send_line_notification_task`, `send_email_notification_task`, `send_in_app_notification_task` — already exist in `app/workers/tasks/notification_tasks.py`). Return 202 immediately. |
+| #1 | **No idempotency on POST /test** | Add optional `Idempotency-Key` header support (reuse `app/shared/idempotency.py`: `check_idempotency`/`store_idempotency`). 24h dedupe window. |
+| #20 | **Missing Cache-Control on PII endpoints** | Add `Cache-Control: private, no-store` to all 3 endpoints (mirror `dashboard_router.py:56,80,108` pattern). |
+| #13 | **Unbounded GET /history (hardcoded limit=50)** | Add `page`/`limit` query params (`limit` bounded `le=100`). Return `NotificationListResponse` with `meta: {page, limit, total, has_next}`. |
+| #5 (resend) | **PATCH /{id}/resend lacks resolve-then-check** | In router: `notification = await repo.get_by_id(notif_id)` → `user_has_property_scope(current_user, db, notification.property_id)` → raise 403 if false → then `service.resend()`. Mirror `maintenance_router.py:190-192`. |
+| NEW | **No async queue integration** | Wire existing Celery tasks (`notification_tasks.py`) for real provider sends. Document that if Celery not running, falls back to background task (limitation). |
+
+---
+
+### Authorization (fixes #5)
+
+#### POST /api/v1/notifications/test
+- **Body** contains `property_id` → use `require_property_scope()` (body-sourced, default form, same as `/auth/invite`, `POST /properties/`, `POST /tenants/`).
+- Dependency: `Depends(require_property_scope())` — reads `property_id` from JSON body.
+
+#### GET /api/v1/notifications/history
+- **Required query param**: `property_id` (no longer optional — required for scope check).
+- Dependency: `Depends(require_property_scope(query_param="property_id"))` — reads `property_id` from query params.
+- Raises `403 AUTH-005` if caller lacks scope for that property (or is not global owner/admin).
+
+#### PATCH /api/v1/notifications/{notif_id}/resend
+- **Resolve-then-check**: Router fetches notification by ID first, extracts `property_id`, calls `user_has_property_scope(current_user, db, property_id)` directly.
+- Pattern: identical to `maintenance_router.py:190-192`, `billing_router.py:376-379`, `contract_router.py` resolve-then-check endpoints.
+- Raises `403 AUTH-005` on scope failure, `404 NOTIF-001` if notification not found.
+
+---
+
+### POST /test Redesign (fixes #3, #15, #1, #20)
+
+#### Request
+```http
+POST /api/v1/notifications/test
+Idempotency-Key: <optional-uuid>        # NEW
+Content-Type: application/json
+
+{
+  "user_id": "uuid",
+  "property_id": "uuid",
+  "channel": "email",                    # email | line | sms
+  "subject": "Test notification",
+  "body": "This is a test message"
+}
+```
+
+#### Response (202 Accepted) — **NOT 201**
+```json
+{
+  "data": {
+    "notification_id": "uuid",
+    "status": "queued"
+  },
+  "meta": null
+}
+```
+
+#### Headers
+```
+Cache-Control: private, no-store
+```
+
+#### Behavior
+1. Validate `Idempotency-Key` if provided (`check_idempotency`).
+2. Create `Notification` record with `status=PENDING`.
+3. Store idempotency key if provided (`store_idempotency`).
+4. **Enqueue to Celery** based on `channel`:
+   - `email` → `send_email_notification_task.delay(...)`
+   - `line` → `send_line_notification_task.delay(...)`
+   - `sms` / `in_app` → `send_in_app_notification_task.delay(...)`
+5. Return **202 Accepted** immediately with `notification_id`.
+6. Celery task updates status to `SENT`/`FAILED` + `sent_at` + `error_message`.
+7. Audit log written by Celery task on completion.
+
+#### Failure Modes
+| Scenario | HTTP Status | Notes |
+|---|---|---|
+| Invalid `Idempotency-Key` (body hash mismatch) | 409 VAL-409 | Per `idempotency.py:75-81` |
+| Duplicate `Idempotency-Key` (same body) | 202 (replayed) | Returns original queued response |
+| Validation error (schema) | 422 VAL-001 | Unified envelope |
+| Missing auth | 401 AUTH-009 | Standard |
+| Missing property scope | 403 AUTH-005 | New — body-sourced check |
+| Celery not running / broker down | 202 (still) | Task enqueued; if broker down, task stays in local queue — **document limitation**. Fallback: `BackgroundTasks` if Celery unavailable (see "Celery Readiness" below). |
+
+#### Celery Readiness (Documented Limitation)
+- **Current state**: `app/workers/tasks/notification_tasks.py` exists with 3 tasks (`send_line_notification_task`, `send_email_notification_task`, `send_in_app_notification_task`) but they are **not wired** to the API.
+- **If Celery is running**: Use `.delay()` to enqueue — full async with retries, retries, audit logging.
+- **If Celery is NOT running** (dev/test): Fall back to `BackgroundTasks` (FastAPI) — fire-and-forget in-process, no retries, no persistence across restarts. Document this clearly in the endpoint docstring and `docs/OPERATIONS.md`.
+- **Do NOT** implement a half-baked custom queue. The Celery infrastructure is already present; the fix is wiring it.
+
+---
+
+### GET /history Redesign (fixes #5, #13, #20)
+
+#### Request
+```http
+GET /api/v1/notifications/history?property_id=<uuid>&page=1&limit=20
+Authorization: Bearer ***
+```
+
+#### Query Parameters
+| Param | Type | Required | Default | Constraints |
+|---|---|---|---|---|
+| `property_id` | UUID | **yes** | — | Required for scope check |
+| `page` | int | no | 1 | ≥1 |
+| `limit` | int | no | 20 | 1-100 (`le=100`) |
+
+#### Response (200)
+```json
+{
+  "data": [
+    {
+      "id": "uuid",
+      "user_id": "uuid",
+      "property_id": "uuid",
+      "channel": "email",
+      "subject": "Test notification",
+      "body": "This is a test message",
+      "status": "sent",
+      "error_message": null,
+      "created_by": "uuid",
+      "created_at": "2026-07-11T10:30:00Z",
+      "sent_at": "2026-07-11T10:30:01Z"
+    }
+  ],
+  "meta": {
+    "page": 1,
+    "limit": 20,
+    "total": 45,
+    "has_next": true
+  }
+}
+```
+
+#### Headers
+```
+Cache-Control: private, no-store
+```
+
+#### Behavior
+1. `require_property_scope(query_param="property_id")` enforces scope **before** handler runs (403 if no scope).
+2. Service `get_history()` accepts `page`, `limit`, calculates `offset = (page-1)*limit`.
+3. Repository `get_by_property()` adds `offset`/`limit` params, returns `(items, total)`.
+4. Router builds `meta` with `has_next = (page * limit) < total`.
+5. Returns `NotificationListResponse(data=..., meta=...)`.
+
+#### Errors
+| Code | HTTP | When |
+|---|---|---|
+| AUTH-009 | 401 | Missing/invalid token |
+| AUTH-005 | 403 | Caller lacks scope for `property_id` |
+| VAL-001 | 422 | Invalid `property_id` format, `page` < 1, `limit` > 100 |
+
+---
+
+### PATCH /{notif_id}/resend Redesign (fixes #5, #1, #20)
+
+#### Request
+```http
+PATCH /api/v1/notifications/550e8400-e29b-41d4-a716-446655440000/resend
+Idempotency-Key: <optional-uuid>        # NEW
+Authorization: Bearer ***
+```
+
+#### Response (200)
+```json
+{
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "user_id": "uuid",
+    "property_id": "uuid",
+    "channel": "email",
+    "subject": "Test notification",
+    "body": "This is a test message",
+    "status": "pending",
+    "error_message": null,
+    "created_by": "uuid",
+    "created_at": "2026-07-11T10:30:00Z",
+    "sent_at": null
+  },
+  "meta": null
+}
+```
+
+#### Headers
+```
+Cache-Control: private, no-store
+```
+
+#### Behavior
+1. `notification = await repo.get_by_id(notif_id)` — if not found → 404 NOTIF-001.
+2. `allowed = await user_has_property_scope(current_user, db, notification.property_id)` — if false → 403 AUTH-005.
+3. Validate `Idempotency-Key` if provided (`check_idempotency`).
+4. Call `service.resend(notif_id, resent_by=user_id)` — sets status=PENDING, clears error, enqueues Celery task (same as POST /test).
+5. Store idempotency key if provided (`store_idempotency`).
+5. Return 200 with updated notification (status=PENDING/queued).
+
+#### Errors
+| Code | HTTP | When |
+|---|---|---|
+| NOTIF-001 | 404 | Notification not found |
+| NOTIF-002 | 400 | Notification already SENT (service raises) |
+| AUTH-009 | 401 | Missing/invalid token |
+| AUTH-005 | 403 | Caller lacks scope for notification's property |
+| VAL-409 | 409 | Idempotency-Key reused with different body |
+
+---
+
+### Schemas Changes
+
+#### New: `NotificationQueuedResponse` (for 202 response)
+```python
+# backend/app/modules/notification/schemas.py
+
+class NotificationQueuedResponse(BaseModel):
+    """Response for 202 Accepted — notification queued for async delivery."""
+    model_config = ConfigDict(extra="forbid")
+
+    notification_id: uuid.UUID
+    status: Literal["queued"] = "queued"
+```
+
+#### Updated: `NotificationListResponse` (add pagination meta)
+```python
+class NotificationListResponse(BaseModel):
+    data: list[NotificationResponse]
+    meta: NotificationMeta | None = None  # Was: dict | None = None
+
+
+class NotificationMeta(BaseModel):
+    """Pagination metadata for notification list responses."""
+    page: int
+    limit: int
+    total: int
+    has_next: bool
+```
+
+#### Updated: `NotificationCreateResponse` → reuse for resend (no change needed, but document)
+- `PATCH /resend` returns `NotificationCreateResponse` (same wrapper as create) with updated notification.
+
+#### Request Schema: `SendNotificationRequest` — add optional `idempotency_key` field?
+- **No** — idempotency key is a **header**, not body field. Keep schema unchanged. Router reads header.
+
+---
+
+### Service Layer Changes
+
+#### `NotificationService.send_test()` — Signature Change
+```python
+async def send_test(
+    self,
+    user_id: uuid.UUID,
+    property_id: uuid.UUID,
+    channel: str,
+    subject: str,
+    body: str,
+    sent_by: uuid.UUID,
+    idempotency_key: str | None = None,  # NEW
+) -> Notification:
+    """
+    Create notification record, enqueue async send, return PENDING notification.
+    Does NOT await external send. Returns immediately with status=PENDING.
+    """
+    # 1. Create notification with status=PENDING
+    # 2. Enqueue Celery task based on channel
+    # 3. Return notification (caller handles 202 response)
+```
+
+#### `NotificationService.resend()` — Add Idempotency Support
+```python
+async def resend(
+    self,
+    notif_id: uuid.UUID,
+    resent_by: uuid.UUID,
+    idempotency_key: str | None = None,  # NEW
+) -> Notification:
+    """
+    Reset status to PENDING, clear error, enqueue async send.
+    Idempotency handled at router layer (check/store).
+    """
+```
+
+#### `NotificationService.get_history()` — Add Pagination
+```python
+async def get_history(
+    self,
+    property_id: uuid.UUID,           # Now REQUIRED (was optional)
+    user_id: uuid.UUID | None = None,  # Optional filter
+    page: int = 1,
+    limit: int = 20,
+) -> tuple[list[Notification], int]:  # Return (items, total)
+    """
+    Returns paginated notifications for a property.
+    Raises if property_id is None (caller must enforce scope first).
+    """
+    offset = (page - 1) * limit
+    # query with offset/limit, return (items, total_count)
+```
+
+---
+
+### Repository Changes
+
+#### `NotificationRepository.get_by_property()` — Add Pagination
+```python
+async def get_by_property(
+    self, 
+    property_id: uuid.UUID, 
+    limit: int = 50, 
+    offset: int = 0
+) -> tuple[list[Notification], int]:
+    """Returns (items, total_count) for pagination."""
+    # COUNT(*) for total
+    # SELECT ... LIMIT limit OFFSET offset
+```
+
+#### `NotificationRepository.get_by_user()` — Add Pagination (for future use)
+```python
+async def get_by_user(
+    self, 
+    user_id: uuid.UUID, 
+    limit: int = 50, 
+    offset: int = 0
+) -> tuple[list[Notification], int]:
+    ...
+```
+
+---
+
+### Celery Task Wiring (app/workers/tasks/notification_tasks.py)
+
+The tasks **already exist** — wire them in `service.send_test()`:
+
+```python
+# In send_test(), after creating notification:
+if channel == NotificationChannel.EMAIL:
+    from app.workers.tasks.notification_tasks import send_email_notification_task
+    send_email_notification_task.delay(
+        notification_id=str(notif.id),
+        user_id=str(sent_by),
+        recipient_email=await self._get_user_email(user_id),  # helper needed
+        subject=subject,
+        body=body,
+    )
+elif channel == NotificationChannel.LINE:
+    from app.workers.tasks.notification_tasks import send_line_notification_task
+    send_line_notification_task.delay(
+        notification_id=str(notif.id),
+        user_id=str(sent_by),
+        recipient_line_id=await self._get_user_line_id(user_id),
+        message=body,
+    )
+else:  # IN_APP or SMS
+    from app.workers.tasks.notification_tasks import send_in_app_notification_task
+    send_in_app_notification_task.delay(
+        notification_id=str(notif.id),
+        user_id=str(sent_by),
+        recipient_user_id=str(user_id),
+        title=subject,
+        body=body,
+    )
+```
+
+**Note**: Helper methods `_get_user_email()`, `_get_user_line_id()` need to be added to service or repository (query users table).
+
+---
+
+### Router Implementation Sketch
+
+```python
+# backend/app/modules/notification/routers/notification_router.py
+
+from fastapi import APIRouter, Depends, Header, Query, Response, status
+from app.shared.deps import require_property_scope, get_current_user, get_db
+from app.shared.idempotency import check_idempotency, store_idempotency
+from app.modules.notification.services.notification_service import NotificationService
+from app.modules.notification.repository import NotificationRepository
+from app.modules.notification.schemas import (
+    SendNotificationRequest,
+    NotificationQueuedResponse,
+    NotificationResponse,
+    NotificationListResponse,
+    NotificationMeta,
+)
+
+router = APIRouter(tags=["notifications"], redirect_slashes=False)
+
+@router.post(
+    "/test",
+    response_model=NotificationQueuedResponse,  # NEW schema
+    status_code=status.HTTP_202_ACCEPTED,       # 202 not 201
+    summary="Send a test notification (async)",
+    description="Creates notification and enqueues for async delivery. Returns 202 with notification_id.",
+)
+async def send_test_notification(
+    response: Response,
+    body: SendNotificationRequest,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    db: Annotated[AsyncSession, Depends(get_db)] = ...,
+    current_user: Annotated[dict, Depends(get_current_user)] = ...,
+    _: Annotated[None, Depends(require_property_scope())] = ...,  # NEW: body-sourced property_id
+) -> dict:
+    # Idempotency check
+    if idempotency_key:
+        cached = await check_idempotency(db, idempotency_key, "POST:/api/v1/notifications/test", body.model_dump())
+        if cached:
+            return cached
+
+    service = NotificationService(db)
+    notif = await service.send_test(
+        user_id=body.user_id,
+        property_id=body.property_id,
+        channel=body.channel,
+        subject=body.subject,
+        body=body.body,
+        sent_by=uuid.UUID(current_user["user_id"]),
+        idempotency_key=idempotency_key,
+    )
+
+    result = {"data": NotificationQueuedResponse(notification_id=notif.id, status="queued"), "meta": None}
+
+    # Store idempotency
+    if idempotency_key:
+        await store_idempotency(db, idempotency_key, "POST:/api/v1/notifications/test", body.model_dump(), result, NotificationRepository)
+
+    response.headers["Cache-Control"] = "private, no-store"  # NEW
+    return result
+
+
+@router.get(
+    "/history",
+    response_model=NotificationListResponse,
+    summary="Get notification history (paginated, scoped)",
+)
+async def get_notification_history(
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[dict, Depends(get_current_user)],
+    property_id: Annotated[uuid.UUID, Query(description="Property ID (required for scope)")],  # NOW REQUIRED
+    page: Annotated[int, Query(ge=1)] = 1,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    _: Annotated[None, Depends(require_property_scope(query_param="property_id"))] = ...,  # NEW
+) -> dict:
+    service = NotificationService(db)
+    items, total = await service.get_history(
+        property_id=property_id,
+        page=page,
+        limit=limit,
+    )
+
+    response.headers["Cache-Control"] = "private, no-store"  # NEW
+    return {
+        "data": [NotificationResponse.model_validate(n) for n in items],
+        "meta": NotificationMeta(page=page, limit=limit, total=total, has_next=(page * limit) < total),
+    }
+
+
+@router.patch(
+    "/{notif_id}/resend",
+    response_model=NotificationCreateResponse,  # Reuse create wrapper
+    summary="Resend a failed/pending notification",
+)
+async def resend_notification(
+    response: Response,
+    notif_id: uuid.UUID,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    db: Annotated[AsyncSession, Depends(get_db)] = ...,
+    current_user: Annotated[dict, Depends(get_current_user)] = ...,
+) -> dict:
+    repo = NotificationRepository(db)
+    notif = await repo.get_by_id(notif_id)
+    if not notif:
+        raise APIError(code="NOTIF-001", message="Notification not found", status_code=404)
+
+    # Resolve-then-check (mirror maintenance_router.py:190-192)
+    if not await user_has_property_scope(current_user, db, notif.property_id):
+        raise APIError(code="AUTH-005", message="Insufficient property scope", status_code=403)
+
+    # Idempotency check
+    if idempotency_key:
+        cached = await check_idempotency(db, idempotency_key, f"PATCH:/api/v1/notifications/{notif_id}/resend", {})
+        if cached:
+            return cached
+
+    service = NotificationService(db)
+    resent = await service.resend(notif_id=notif_id, resent_by=uuid.UUID(current_user["user_id"]), idempotency_key=idempotency_key)
+
+    result = {"data": NotificationResponse.model_validate(resent), "meta": None}
+
+    response.headers["Cache-Control"] = "private, no-store"  # NEW
+    return result
+```
 
 Router: `app/modules/admin/routers/admin_router.py`, mounted at `/api/v1/admin`. Both routes require the `owner` role (`@require_role("owner")`).
 
