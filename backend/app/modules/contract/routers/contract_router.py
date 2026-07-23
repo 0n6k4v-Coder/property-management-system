@@ -90,7 +90,7 @@ async def create_contract(
     current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-    _: Annotated[None, Depends(require_property_scope())] = None,
+    _: Annotated[None, require_property_scope()] = None,
 ) -> ContractCreateResponse:
     """POST /api/v1/contracts/ — SDD §3.3.
 

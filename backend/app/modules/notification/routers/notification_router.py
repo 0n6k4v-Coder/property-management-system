@@ -23,8 +23,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.notification.repository import NotificationRepository
 from app.modules.notification.schemas import (
+    NotificationCreateResponse,
     NotificationListResponse,
     NotificationMeta,
+    NotificationQueuedResponse,
     NotificationResponse,
     SendNotificationRequest,
 )
@@ -44,8 +46,8 @@ router = APIRouter(tags=["notifications"], redirect_slashes=False)
 # Module-level dependencies (fixes B008)
 get_db_dep = Depends(get_db)
 get_current_user_dep = Depends(get_current_user)
-page_qp_dep = Depends(Query(1, ge=1, description="Page number"))
-limit_qp_dep = Depends(Query(20, ge=1, le=100, description="Items per page (1-100)"))
+page_qp_dep = Query(1, ge=1, description="Page number")
+limit_qp_dep = Query(20, ge=1, le=100, description="Items per page (1-100)")
 property_id_qp_dep = Query(..., description="Property ID (required for scope)")
 
 
@@ -79,18 +81,18 @@ async def _check_scope(
 
 @router.post(
     "/test",
-    response_model="NotificationQueuedResponse",
+    response_model=NotificationQueuedResponse,
     status_code=status.HTTP_202_ACCEPTED,
     summary="Send a test notification (async)",
     description="Creates notification and enqueues for async delivery. Returns 202 with notification_id.",
 )
 async def send_test_notification(
     response: Response,
+    current_user: CurrentUser,
     body: SendNotificationRequest,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = get_db_dep,
-    current_user: CurrentUser = get_current_user_dep,
-    _: None = Depends(require_property_scope()),  # body-sourced property_id
+    _: Annotated[None, require_property_scope()] = None,  # body-sourced property_id
 ) -> dict:
     """POST /api/v1/notifications/test.
 
@@ -150,12 +152,12 @@ async def send_test_notification(
 
 @router.get(
     "/history",
-    response_model="NotificationListResponse",
+    response_model=NotificationListResponse,
     summary="Get notification history (paginated, scoped)",
 )
 async def get_notification_history(
     response: Response,
-    _: CurrentUser = Depends(require_property_scope(query_param="property_id")),
+    _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = property_id_qp_dep,
     page: int = page_qp_dep,
     limit: int = limit_qp_dep,
@@ -197,13 +199,13 @@ async def get_notification_history(
 
 @router.get(
     "/{notif_id}",
-    response_model="NotificationCreateResponse",
+    response_model=NotificationCreateResponse,
     summary="Get a single notification by ID",
 )
 async def get_notification(
     response: Response,
     notif_id: uuid.UUID,
-    current_user: CurrentUser = get_current_user_dep,
+    current_user: CurrentUser,
     db: AsyncSession = get_db_dep,
 ) -> dict:
     """GET /api/v1/notifications/{notif_id}.
@@ -233,14 +235,14 @@ async def get_notification(
 
 @router.patch(
     "/{notif_id}/resend",
-    response_model="NotificationCreateResponse",
+    response_model=NotificationCreateResponse,
     summary="Resend a failed/pending notification",
 )
 async def resend_notification(
     response: Response,
+    current_user: CurrentUser,
     notif_id: uuid.UUID,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-    current_user: CurrentUser = get_current_user_dep,
     db: AsyncSession = get_db_dep,
 ) -> dict:
     """PATCH /api/v1/notifications/{notif_id}/resend.

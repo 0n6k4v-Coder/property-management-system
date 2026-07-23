@@ -85,7 +85,7 @@ async def create_maintenance_request(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-    _: Annotated[None, Depends(require_property_scope())] = None,
+    _: Annotated[None, require_property_scope()] = None,
 ) -> MaintenanceCreateResponse:
     """Create a new maintenance request (BR-08).
 
@@ -144,7 +144,7 @@ async def list_pending_requests(
     response: Response = None,
     current_user: CurrentUser = None,
     db: AsyncSession = Depends(get_db),
-    _: Annotated[None, Depends(require_property_scope(query_param="property_id"))] = None,
+    _: Annotated[None, require_property_scope(query_param="property_id")] = None,
 ) -> MaintenanceListResponse:
     """Get pending maintenance requests for a property (fixes #5, #20).
 

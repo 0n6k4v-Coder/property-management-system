@@ -48,7 +48,7 @@ async def get_dashboard_summary(
     response: Response,
     _current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[None, Depends(require_property_scope(query_param="property_id"))],
+    _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = PROPERTY_QUERY,
 ) -> DashboardSummaryWrapper:
     """GET /api/v1/dashboard/summary — fixes #5, #20."""
@@ -70,7 +70,7 @@ async def get_revenue_report(
     response: Response,
     _current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[None, Depends(require_property_scope(query_param="property_id"))],
+    _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = PROPERTY_QUERY,
     start_date: date | None = START_DATE_QUERY,
     end_date: date | None = END_DATE_QUERY,
@@ -100,7 +100,7 @@ async def get_occupancy(
     response: Response,
     _current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
-    _: Annotated[None, Depends(require_property_scope(query_param="property_id"))],
+    _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = PROPERTY_QUERY,
 ) -> OccupancyWrapper:
     """GET /api/v1/dashboard/occupancy — fixes #5, #11, #20."""
