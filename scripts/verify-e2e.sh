@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a Playwright E2E spec (or the full suite) the way SELF_CRITIC.md says to,
 # so nobody has to re-derive R6/R7/R10/R12/R14/R16 by hand every session:
-#   - always -f docker-compose.dev.yml (CLI doesn't inherit Makefile's COMPOSE_FILE)
+#   - uses docker-compose.test.yml (fully isolated test stack, no dev dependency)
 #   - migration check before the first reset of a session (R7)
 #   - reset-e2e-db before every run, not just the first one (R6/R14)
 #   - refuse to run if another session's frontend-test-run-* container is up (R10)
@@ -14,7 +14,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-COMPOSE="docker compose -f docker-compose.dev.yml"
+COMPOSE="docker compose -f docker-compose.test.yml"
 LOG="/tmp/verify-e2e-$$.log"
 
 echo "==> Checking for another session's frontend-test container (R10)"
@@ -24,19 +24,25 @@ if docker ps --format '{{.Names}}' | grep -q 'frontend-test-run-'; then
 	exit 1
 fi
 
+echo "==> Starting test stack (backend + db + redis + minio)"
+$COMPOSE up -d backend
+
 echo "==> Applying migrations (R7 — reset without this silently no-ops on an empty schema)"
 $COMPOSE exec -T backend alembic upgrade head
 
 echo "==> Resetting E2E fixture data (R6/R14 — every run, not just the first)"
-./scripts/reset-e2e-db.sh
+$COMPOSE exec -T backend python -m scripts.seed_e2e --reset
 
 echo "==> Running Playwright (streaming full output to $LOG — R12/R16, no tail truncation)"
 mkdir -p frontend/playwright-report frontend/e2e-results
 set +e
-$COMPOSE --profile test run --rm frontend-test npx playwright test --reporter=line "$@" \
+$COMPOSE run --rm frontend-test npx playwright test --reporter=line "$@" \
 	> >(tee "$LOG") 2>&1
 STATUS=$?
 set -e
+
+echo "==> Cleaning up test stack"
+$COMPOSE down -v
 
 echo "==> Full output saved at $LOG"
 exit $STATUS

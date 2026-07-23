@@ -148,28 +148,28 @@ frontend/
 # 🔹 Start development environment (hot-reload enabled) — ใช้เมื่อจำเป็นเท่านั้น
 make dev
 
-# 🔹 Run unit tests in isolated container
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test
+# 🔹 Run unit tests in isolated test stack
+docker compose -f docker-compose.test.yml run --rm frontend-test
 
 # 🔹 Run specific test file
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test npx vitest run src/features/billing/InvoiceListPage.test.tsx
+docker compose -f docker-compose.test.yml run --rm frontend-test npx vitest run src/features/billing/InvoiceListPage.test.tsx
 
 # 🔹 Run linters/type checkers
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test npm run lint
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test npm run typecheck
+docker compose -f docker-compose.test.yml run --rm frontend-test npm run lint
+docker compose -f docker-compose.test.yml run --rm frontend-test npm run typecheck
 
 # 🔹 Generate coverage report (opens in browser)
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test npm run test:coverage
+docker compose -f docker-compose.test.yml run --rm frontend-test npm run test:coverage
 # แล้วเปิดไฟล์: frontend/coverage/index.html
 
-# 🔹 Run E2E tests (Playwright)
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test npm run test:e2e
+# 🔹 Run E2E tests (Playwright) — self-contained: starts stack, seeds DB, runs tests, tears down
+make test-e2e
 
 # 🔹 Run A11y tests
-docker compose -f docker-compose.dev.yml --profile test run --rm frontend-test npm run test:a11y
+docker compose -f docker-compose.test.yml run --rm frontend-test npm run test:a11y
 
 # 🔹 Clean up test environment
-docker compose -f docker-compose.dev.yml --profile test down -v
+docker compose -f docker-compose.test.yml down -v
 
 # 🔹 Makefile shortcuts (recommended — run from project root)
 make dev              # Start dev environment (only when needed)
