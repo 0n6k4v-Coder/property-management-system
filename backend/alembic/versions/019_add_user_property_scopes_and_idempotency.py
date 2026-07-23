@@ -50,7 +50,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "role",
-            PgEnum("owner", "admin", "staff", name="property_role", native_enum=True),
+            PgEnum("owner", "admin", "staff", name="property_role", native_enum=True, create_type=False),
             nullable=False,
             server_default="staff",
         ),
