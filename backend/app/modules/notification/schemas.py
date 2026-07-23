@@ -46,8 +46,8 @@ class NotificationMeta(BaseModel):
     """Pagination metadata for notification list responses."""
     model_config = ConfigDict(extra="forbid")
 
-    page: int
-    limit: int
+    page: int = Field(ge=1)
+    limit: int = Field(ge=1, le=100)
     total: int
     has_next: bool
 

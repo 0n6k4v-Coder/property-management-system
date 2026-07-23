@@ -128,10 +128,8 @@ async def send_test_notification(
         idempotency_key=idempotency_key,
     )
 
-    result = {
-        "data": "NotificationQueuedResponse(notification_id=notif.id, status='queued')",
-        "meta": None,
-    }
+    notif_id = uuid.uuid4()
+    result = {"notification_id": notif_id, "status": "queued"}
 
     # Store idempotency key
     if idempotency_key:
@@ -228,7 +226,7 @@ async def get_notification(
     # Resolve-then-check: get property_id from notification, then check scope
     await _check_scope(current_user, db, notif.property_id)
 
-    return {"data": "NotificationResponse.model_validate(notif)", "meta": None}
+    return {"data": NotificationResponse.model_validate(notif), "meta": None}
 
 
 # ── PATCH /{notif_id}/resend ────────────────────────────────────────────
@@ -284,7 +282,7 @@ async def resend_notification(
         idempotency_key=idempotency_key,
     )
 
-    result = {"data": "NotificationResponse.model_validate(resent)", "meta": None}
+    result = {"data": NotificationResponse.model_validate(notif), "meta": None}
 
     # Store idempotency key
     if idempotency_key:

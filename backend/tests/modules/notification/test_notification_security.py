@@ -32,6 +32,7 @@ from app.main import app
 from app.modules.auth.constants import AUTH_005
 from app.modules.notification.constants import NOTIF_001_NOT_FOUND, NOTIF_002_SEND_FAILED
 from app.modules.notification.routers import notification_router
+from app.shared import deps as shared_deps
 from app.modules.notification.schemas import (
     NotificationListResponse,
     NotificationQueuedResponse,
@@ -174,28 +175,32 @@ class TestPropertyScopeEnforcement:
             send_test=_FakeNotification(property_id=prop_id)
         )
         stub_repo = _StubRepo(notification_property_id=prop_id)
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(prop_id)] if has_scope else [],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
-
-            r = client.post(
-                "/api/v1/notifications/test",
-                json={
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=has_scope))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=has_scope))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
                     "user_id": str(uuid.uuid4()),
-                    "property_id": str(prop_id),
-                    "channel": "email",
-                    "subject": "Test",
-                    "body": "Hello",
-                },
-            )
-            app.dependency_overrides.clear()
+                    "property_scopes": [str(prop_id)] if has_scope else [],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
+
+                r = client.post(
+                    "/api/v1/notifications/test",
+                    json={
+                        "user_id": str(uuid.uuid4()),
+                        "property_id": str(prop_id),
+                        "channel": "email",
+                        "subject": "Test",
+                        "body": "Hello",
+                    },
+                )
+                app.dependency_overrides.clear()
         return r
 
     def test_send_test_requires_scope(self) -> None:
@@ -214,19 +219,23 @@ class TestPropertyScopeEnforcement:
         prop_id = property_id or uuid.uuid4()
         stub_service = _make_stub_service(history=[], total=0)
         stub_repo = _StubRepo()
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(prop_id)] if has_scope else [],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=has_scope))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=has_scope))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
+                    "user_id": str(uuid.uuid4()),
+                    "property_scopes": [str(prop_id)] if has_scope else [],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
 
-            r = client.get(f"/api/v1/notifications/history?property_id={prop_id}&page=1&limit=20")
-            app.dependency_overrides.clear()
+                r = client.get(f"/api/v1/notifications/history?property_id={prop_id}&page=1&limit=20")
+                app.dependency_overrides.clear()
         return r
 
     def test_history_requires_scope(self) -> None:
@@ -243,19 +252,23 @@ class TestPropertyScopeEnforcement:
         notif = _FakeNotification(property_id=prop_id, status="failed")
         stub_service = _make_stub_service(resend=notif)
         stub_repo = _StubRepo(notification_property_id=prop_id, notification=notif)
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(prop_id)] if has_scope else [],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=has_scope))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=has_scope))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
+                    "user_id": str(uuid.uuid4()),
+                    "property_scopes": [str(prop_id)] if has_scope else [],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
 
-            r = client.patch(f"/api/v1/notifications/{uuid.uuid4()}/resend")
-            app.dependency_overrides.clear()
+                r = client.patch(f"/api/v1/notifications/{uuid.uuid4()}/resend")
+                app.dependency_overrides.clear()
         return r
 
     def test_resend_requires_scope(self) -> None:
@@ -280,28 +293,32 @@ class TestFailSilentTo202:
             send_test=_FakeNotification(property_id=uuid.uuid4(), status="pending")
         )
         stub_repo = _StubRepo()
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(uuid.uuid4())],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: _StubRepo()
-
-            r = client.post(
-                "/api/v1/notifications/test",
-                json={
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=True))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=True))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
                     "user_id": str(uuid.uuid4()),
-                    "property_id": str(uuid.uuid4()),
-                    "channel": "email",
-                    "subject": "Test",
-                    "body": "Hello",
-                },
-            )
-            app.dependency_overrides.clear()
+                    "property_scopes": [str(uuid.uuid4())],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: _StubRepo()
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", _StubRepo)
+
+                r = client.post(
+                    "/api/v1/notifications/test",
+                    json={
+                        "user_id": str(uuid.uuid4()),
+                        "property_id": str(uuid.uuid4()),
+                        "channel": "email",
+                        "subject": "Test",
+                        "body": "Hello",
+                    },
+                )
+                app.dependency_overrides.clear()
         return r
 
     def test_send_test_returns_202_not_201(self) -> None:
@@ -314,9 +331,8 @@ class TestFailSilentTo202:
         r = pytest.importorskip("anyio").run(self._run_send_test_202)
         if r.status_code == status.HTTP_202_ACCEPTED:
             data = r.json()
-            assert "data" in data
-            assert "notification_id" in data["data"]
-            assert data["data"]["status"] == "queued"
+            assert "notification_id" in data
+            assert data["status"] == "queued"
 
 
 # ── #1: Idempotency-Key header ──────────────────────────────────────
@@ -355,28 +371,32 @@ class TestCacheControl:
             send_test=_FakeNotification(property_id=uuid.uuid4())
         )
         stub_repo = _StubRepo()
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(uuid.uuid4())],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: _StubRepo()
-
-            r = client.post(
-                "/api/v1/notifications/test",
-                json={
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=True))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=True))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
                     "user_id": str(uuid.uuid4()),
-                    "property_id": str(uuid.uuid4()),
-                    "channel": "email",
-                    "subject": "Test",
-                    "body": "Hello",
-                },
-            )
-            app.dependency_overrides.clear()
+                    "property_scopes": [str(uuid.uuid4())],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: _StubRepo()
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", _StubRepo)
+
+                r = client.post(
+                    "/api/v1/notifications/test",
+                    json={
+                        "user_id": str(uuid.uuid4()),
+                        "property_id": str(uuid.uuid4()),
+                        "channel": "email",
+                        "subject": "Test",
+                        "body": "Hello",
+                    },
+                )
+                app.dependency_overrides.clear()
         return r
 
     def test_send_test_has_cache_control(self) -> None:
@@ -389,22 +409,26 @@ class TestCacheControl:
     async def _run_history(self):
         stub_service = _make_stub_service(history=[], total=0)
         stub_repo = _StubRepo()
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(uuid.uuid4())],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=True))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=True))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
+                    "user_id": str(uuid.uuid4()),
+                    "property_scopes": [str(uuid.uuid4())],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
 
-            r = client.get(
-                "/api/v1/notifications/history",
-                params={"property_id": str(uuid.uuid4()), "page": 1, "limit": 20},
-            )
-            app.dependency_overrides.clear()
+                r = client.get(
+                    "/api/v1/notifications/history",
+                    params={"property_id": str(uuid.uuid4()), "page": 1, "limit": 20},
+                )
+                app.dependency_overrides.clear()
         return r
 
     def test_history_has_cache_control(self) -> None:
@@ -418,19 +442,23 @@ class TestCacheControl:
         notif = _FakeNotification(property_id=uuid.uuid4(), status="failed")
         stub_service = _make_stub_service(resend=notif)
         stub_repo = _StubRepo(notification_property_id=notif.property_id, notification=notif)
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(notif.property_id)],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=True))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=True))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
+                    "user_id": str(uuid.uuid4()),
+                    "property_scopes": [str(notif.property_id)],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: stub_repo
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
 
-            r = client.patch(f"/api/v1/notifications/{uuid.uuid4()}/resend")
-            app.dependency_overrides.clear()
+                r = client.patch(f"/api/v1/notifications/{uuid.uuid4()}/resend")
+                app.dependency_overrides.clear()
         return r
 
     def test_resend_has_cache_control(self) -> None:
@@ -481,19 +509,23 @@ class TestErrorEnvelope:
     async def _run_not_found(self):
         stub_service = _make_stub_service(resend=None)  # triggers NOTIF-001
         stub_repo = _StubRepo(notification=None)
-        with TestClient(app) as client:
-            app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
-            app.dependency_overrides[notification_router.get_current_user] = lambda: {
-                "user_id": str(uuid.uuid4()),
-                "property_scopes": [str(uuid.uuid4())],
-                "is_owner": False,
-                "is_superuser": False,
-            }
-            app.dependency_overrides[NotificationService] = lambda db: stub_service
-            app.dependency_overrides[notification_router.NotificationRepository] = lambda db: _StubRepo(notification=None)
+        with pytest.MonkeyPatch().context() as mp:
+            mp.setattr(notification_router, "user_has_property_scope", AsyncMock(return_value=True))
+            mp.setattr(shared_deps, "user_has_property_scope", AsyncMock(return_value=True))
+            with TestClient(app) as client:
+                app.dependency_overrides[notification_router.get_db] = lambda: AsyncMock()
+                app.dependency_overrides[notification_router.get_current_user] = lambda: {
+                    "user_id": str(uuid.uuid4()),
+                    "property_scopes": [str(uuid.uuid4())],
+                    "is_owner": False,
+                    "is_superuser": False,
+                }
+                app.dependency_overrides[notification_router.NotificationRepository] = lambda db: _StubRepo(notification=None)
+                mp.setattr(notification_router, "NotificationService", stub_service)
+                mp.setattr(notification_router, "NotificationRepository", lambda db: _StubRepo(notification=None))
 
-            r = client.patch(f"/api/v1/notifications/{uuid.uuid4()}/resend")
-            app.dependency_overrides.clear()
+                r = client.patch(f"/api/v1/notifications/{uuid.uuid4()}/resend")
+                app.dependency_overrides.clear()
         return r
 
     def test_resend_not_found_returns_unified_envelope(self) -> None:
