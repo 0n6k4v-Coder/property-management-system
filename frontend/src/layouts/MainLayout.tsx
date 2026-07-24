@@ -11,12 +11,12 @@ export function MainLayout() {
   const sidebar = useSidebar();
 
   return (
-    <div className="flex min-h-screen bg-surface-50">
+    <div className="flex h-screen overflow-hidden bg-surface-50-light [color-scheme:light]">
       {/* Sidebar (desktop fixed / tablet collapsed / mobile hidden) */}
       <Sidebar sidebarState={sidebar} />
 
       {/* Main column: header + content */}
-      <div className="flex min-h-screen flex-1 flex-col md:pl-0">
+      <div className="flex h-full flex-1 flex-col overflow-hidden">
         {/* Top Header Bar */}
         <TopHeader onToggleSidebar={sidebar.toggleMobile} />
 

@@ -184,7 +184,7 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
     .toUpperCase();
 
   return (
-    <header className="sticky top-0 z-30 border-b border-surface-200 bg-white">
+    <header className="shrink-0 z-30 border-b border-surface-200 bg-white">
       {/* ── Desktop / Tablet Header ── */}
       <div className="hidden h-20 items-center justify-between px-4 sm:flex sm:px-6 lg:px-8">
         {/* Left: Greeting + Breadcrumb */}

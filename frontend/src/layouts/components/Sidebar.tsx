@@ -493,7 +493,7 @@ export function Sidebar({ className = '', sidebarState }: SidebarProps) {
       {/* Desktop / Tablet collapsed sidebar */}
       {!isTabletOverlay && (
         <aside
-          className={`hidden md:flex md:flex-col md:shrink-0 transition-[width] duration-200 ease-out border-r border-surface-200 ${widthClass} ${className}`}
+          className={`hidden md:flex md:flex-col md:shrink-0 h-screen transition-[width] duration-200 ease-out border-r border-surface-200 ${widthClass} ${className}`}
           aria-label="Sidebar navigation"
         >
           <SidebarContent expanded={expanded} onToggle={toggle} />
