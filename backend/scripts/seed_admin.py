@@ -5,7 +5,17 @@ import sys
 
 from sqlalchemy import text
 
-from app.modules.auth.models import User
+# Import all model modules so SQLAlchemy can resolve cross-module relationship
+# strings (e.g. UserPropertyScope references "Property" from property/models.py).
+# Without this, configure_mappers() fails when run outside the FastAPI app
+# context (which imports all routers → all models at startup).
+from app.modules.auth.models import User  # noqa: F401  (side-effect import)
+from app.modules.billing.models import Invoice, MeterReading, UtilityRate  # noqa: F401
+from app.modules.contract.models import Contract  # noqa: F401
+from app.modules.maintenance.models import MaintenanceRequest  # noqa: F401
+from app.modules.notification.models import Notification  # noqa: F401
+from app.modules.property.models import Building, Property, Room  # noqa: F401
+from app.modules.tenant.models import Tenant  # noqa: F401
 from app.shared.database import async_session_maker
 from app.shared.security import hash_password
 
