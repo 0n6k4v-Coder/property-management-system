@@ -208,8 +208,9 @@ function NavItem({
       title={item.label}
       onClick={onNavigate}
       className={({ isActive }: { isActive: boolean }) => {
-        const base =
-          'group flex items-center gap-3 rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
+        const base = expanded
+          ? 'group flex items-center justify-start rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
+          : 'group flex items-center justify-center rounded-xl px-0 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
         const activeCls =
           'bg-primary-50 text-primary-700';
         const inactiveCls =
@@ -219,13 +220,11 @@ function NavItem({
     >
       {({ isActive }: { isActive: boolean }) => (
         <>
-          <span className={isActive ? 'text-primary-600' : 'text-surface-500 group-hover:text-surface-700'}>
+          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isActive ? 'text-primary-600' : 'text-surface-500 group-hover:text-surface-700'}`}>
             {item.icon}
-          </span>
+          </div>
           <span
-            className={`truncate transition-opacity duration-150 ${
-              expanded ? 'opacity-100' : 'opacity-0 pointer-events-none'
-            }`}
+            className={`ml-3 truncate transition-opacity duration-150 ${expanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
           >
             {item.label}
           </span>
