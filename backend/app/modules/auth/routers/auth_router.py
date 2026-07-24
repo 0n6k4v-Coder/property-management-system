@@ -11,18 +11,19 @@ References:
     - CODE_STYLE.md §4.1: Router structure patterns
 """
 
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings as _get_settings
 from app.modules.auth.schemas import (
     AuthRequest,
     InviteRequest,
     InviteResponse,
     RefreshRequest,
     RegisterRequest,
-    TokenResponse,
     UserResponse,
 )
 from app.modules.auth.services.auth_service import AuthService
@@ -219,7 +220,7 @@ async def invite(
 
     inviter_id_str = current_user.get("user_id")
     invite_service = InviteService(db)
-    result = await invite_service.create_invite(
+    invite_link = await invite_service.create_invite(
         email=payload.email,
         property_id=payload.property_id,
         inviter_id=_uuid.UUID(inviter_id_str) if inviter_id_str else _uuid.uuid4(),
@@ -227,9 +228,9 @@ async def invite(
 
     body = {
         "data": InviteResponse(
-            invite_link=result["invite_link"],
+            invite_link=invite_link,
             property_id=payload.property_id,
-            expires_at=result["expires_at"],
+            expires_at=datetime.now(UTC) + timedelta(days=_get_settings().INVITE_TOKEN_EXPIRE_DAYS),
         ).model_dump(mode="json")
     }
 
@@ -270,17 +271,11 @@ async def refresh(
     service = AuthService(db)
     result = await service.refresh_access_token(payload.refresh_token)
     return {
-        "data": TokenResponse(
-            access_token=result["access"],
-            refresh_token=result["refresh"],
-            user=_user_response_from_scopes(
-                id=result["user"]["id"],
-                email=result["user"]["email"],
-                full_name=result["user"]["full_name"],
-                property_scopes=result["user"]["property_scopes"],
-                is_active=result["user"]["is_active"],
-            ),
-        ).model_dump(mode="json"),
+        "data": {
+            "access_token": result["access"],
+            "refresh_token": result["refresh"],
+            "user": result["user"],
+        },
     }
 
 

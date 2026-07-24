@@ -11,11 +11,12 @@ References:
 """
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.models import User
+from app.modules.auth.models import IdempotencyKey, User, UserPropertyScope
 
 
 class UserRepository:
@@ -89,7 +90,7 @@ class UserRepository:
 
     async def get_property_scopes(
         self, user_id: uuid.UUID
-    ) -> list["UserPropertyScope"]:
+    ) -> list[UserPropertyScope]:
         """Return the user's property scopes (``user_property_scopes`` rows).
 
         Parameters
@@ -102,8 +103,6 @@ class UserRepository:
         list[UserPropertyScope]
             All scope rows for the user (empty list if none).
         """
-        from app.modules.auth.models import UserPropertyScope
-
         stmt = select(UserPropertyScope).where(UserPropertyScope.user_id == user_id)
         result = await self._db.execute(stmt)
         return list(result.scalars().all())
@@ -123,13 +122,10 @@ class UserRepository:
         jti
             The JWT ID (``jti`` claim) of the issued refresh token.
         """
-        stmt = (
-            User.__table__.update()
-            .where(User.id == user_id)
-            .values(current_refresh_jti=jti)
-        )
-        await self._db.execute(stmt)
-        await self._db.flush()
+        user = await self.get_by_id(user_id)
+        if user:
+            user.current_refresh_jti = jti
+            await self._db.flush()
 
     async def update_last_login(self, user_id: uuid.UUID) -> None:
         """Update the ``updated_at`` timestamp to signal a recent login.
@@ -151,7 +147,7 @@ class UserRepository:
             user.updated_at = None  # Forces SQLAlchemy to re-apply onupdate
             await self._db.flush()
 
-    async def get_idempotency(self, key: str) -> "IdempotencyKey | None":
+    async def get_idempotency(self, key: str) -> IdempotencyKey | None:
         """Return a non-expired idempotency record for ``key``, if any.
 
         Parameters
@@ -165,20 +161,17 @@ class UserRepository:
             The stored record if it exists and ``expires_at`` is in the
             future, else ``None``.
         """
-        from app.modules.auth.models import IdempotencyKey
-        from datetime import datetime, timezone
-
         stmt = select(IdempotencyKey).where(IdempotencyKey.key == key)
         result = await self._db.execute(stmt)
         record = result.scalars().first()
         if record is None:
             return None
-        if record.expires_at < datetime.now(timezone.utc):
+        if record.expires_at < datetime.now(UTC):
             return None
         return record
 
     async def save_idempotency(
-        self, key: str, request_hash: str, response_body: str, expires_at: "datetime"
+        self, key: str, request_hash: str, response_body: str, expires_at: datetime
     ) -> None:
         """Persist an idempotency result (anti-pattern #1 fix).
 
@@ -194,8 +187,6 @@ class UserRepository:
         expires_at
             When this cached result should be discarded (24h window).
         """
-        from app.modules.auth.models import IdempotencyKey
-
         record = IdempotencyKey(
             key=key,
             request_hash=request_hash,
