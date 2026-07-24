@@ -168,7 +168,8 @@ property-management-system/
 
 ### Essential Commands
 ```bash
-make dev           # เริ่มสภาพแวดล้อมพัฒนา
+make dev           # เริ่มสภาพแวดล้อมพัฒนา (self-contained: migrate + seed admin)
+make dev-restart   # รีสตาร์ทสภาพแวดล้อม (dev-down + dev)
 make test-unit     # รัน unit tests
 make test-coverage # รายงานความครอบคลุม
 make lint          # ตรวจสอบคุณภาพโค้ด

@@ -77,7 +77,8 @@ property-management-system/
 
 ### Development
 ```bash
-make dev              # Start dev environment (hot-reload)
+make dev              # Start dev environment (self-contained: migrate + seed admin, hot-reload)
+make dev-restart      # Restart dev environment (dev-down + dev)
 make dev-down         # 🔴 STOP dev environment (MANDATORY when done)
 ```
 

@@ -126,8 +126,11 @@ backend/
 
 ### Essential Docker Commands
 ```bash
-# 🔹 Start development environment (hot-reload enabled) — ใช้เมื่อจำเป็นเท่านั้น
+# 🔹 Start development environment (self-contained: migrate + seed admin, hot-reload enabled) — ใช้เมื่อจำเป็นเท่านั้น
 make dev
+
+# 🔹 Restart dev environment (dev-down + dev)
+make dev-restart
 
 # 🔹 Run tests in isolated container
 docker compose -f docker-compose.dev.yml --profile test run --rm backend-test
@@ -150,7 +153,8 @@ docker compose -f docker-compose.dev.yml --profile test run --rm backend-test sc
 docker compose -f docker-compose.dev.yml --profile test down -v
 
 # 🔹 Makefile shortcuts (recommended)
-make dev          # Start dev environment (only when needed)
+make dev          # Start dev environment (self-contained: migrate + seed)
+make dev-restart  # Restart dev environment (dev-down + dev)
 make test         # Run all tests
 make test-unit    # Run unit tests only
 make lint         # Run linters
