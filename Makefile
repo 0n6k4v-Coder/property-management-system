@@ -89,8 +89,9 @@ help: ## Display this help message with available targets
 	@echo "$(COLOR_BLUE)Property Management System — Backend Makefile$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_GREEN)Development$(COLOR_RESET)"
-	@echo "  make dev              Start development environment (hot-reload)"
-	@echo "  make dev-frontend      Start frontend development server only"
+	@echo "  make dev              Start dev environment (self-contained: migrate + seed + logs)"
+	@echo "  make dev-restart      Restart dev environment (dev-down then dev)"
+	@echo "  make dev-frontend     Start frontend development server only"
 	@echo "  make dev-down         Stop development environment"
 	@echo "  make dev-logs         View backend logs in real-time"
 	@echo "  make dev-shell        Open shell in backend container"
@@ -151,11 +152,45 @@ help: ## Display this help message with available targets
 # =============================================================================
 # Development Targets
 # =============================================================================
-.PHONY: dev dev-down dev-logs dev-shell
+.PHONY: dev dev-down dev-logs dev-shell dev-restart
 
-dev: check-docker check-compose check-env ## Start development environment with hot-reload
-	@echo "$(COLOR_GREEN)→ Starting development environment...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev up --build
+dev: check-docker check-compose check-env ## Start development environment with hot-reload (self-contained: migrate + seed)
+	@echo "$(COLOR_GREEN)→ Starting development environment (self-contained)...$(COLOR_RESET)"
+	@# 1. Start stack (backend + db + redis + minio) in detached mode with rebuild
+	@echo "$(COLOR_BLUE)  [1/5] Starting dev stack (build + detached)...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev up -d --build
+	@# 2. Wait for backend healthy (poll /health endpoint, max ~90s)
+	@echo "$(COLOR_BLUE)  [2/5] Waiting for backend to become healthy...$(COLOR_RESET)"
+	@for i in $$(seq 1 30); do \
+		if $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec -T backend curl -sf http://localhost:8000/health >/dev/null 2>&1; then \
+			echo "$(COLOR_GREEN)  ✓ Backend healthy (attempt $$i/30)$(COLOR_RESET)"; \
+			break; \
+		fi; \
+		if [[ $$i -eq 30 ]]; then \
+			echo "$(COLOR_RED)  ✗ Backend failed to become healthy after 90s$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)  Check logs: make dev-logs$(COLOR_RESET)"; \
+			exit 1; \
+		fi; \
+		printf "  ... waiting (attempt %s/30)\n" "$$i"; \
+		sleep 3; \
+	done
+	@# 3. Apply Alembic migrations
+	@echo "$(COLOR_BLUE)  [3/5] Applying database migrations...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec -T backend alembic upgrade head
+	@# 4. Seed admin user (idempotent — skips if already exists)
+	@echo "$(COLOR_BLUE)  [4/5] Seeding admin user...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec -T backend python -m scripts.seed_admin || \
+		echo "$(COLOR_YELLOW)  ⚠  Seed admin skipped (already exists or non-fatal)$(COLOR_RESET)"
+	@# 5. Attach to backend logs (hot-reload output) — Ctrl+C to stop, containers keep running
+	@echo "$(COLOR_BLUE)  [5/5] Attaching to backend logs (Ctrl+C to detach, stack keeps running)...$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)✓ Dev environment ready — admin@example.com / Admin123!$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)  Backend: http://localhost:8000  |  Docs: http://localhost:8000/docs$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev logs -f backend
+
+dev-restart: check-docker check-compose ## Restart dev environment (dev-down then dev)
+	@echo "$(COLOR_YELLOW)→ Restarting development environment...$(COLOR_RESET)"
+	@$(MAKE) dev-down
+	@$(MAKE) dev
 
 dev-frontend: check-docker check-compose ## Start frontend development server only
 	@echo "$(COLOR_GREEN)→ Starting frontend development server...$(COLOR_RESET)"
