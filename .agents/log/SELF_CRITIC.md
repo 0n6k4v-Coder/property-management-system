@@ -144,6 +144,15 @@ R17. Master Pre-Flight ก่อนรัน E2E/verify ใดๆ (รวบ R6/
     - ห้ามข้ามขั้นตอนใดๆ แม้รันซ้ำติดกัน (ละเมิด = เสียรอบฟรีซ้ำรอยเดิม)
     - Source: Meta-analysis 2026-07-10 (พบ compliance gap — มี rule แล้วแต่ไม่เช็คก่อนลงมือ)
 
+R18. Sub-Agent file permission check — Files created by delegate_task sub-agents via write_file get permission 600 (-rw-------) instead of 644 (-rw-r--r--)
+    - This breaks Docker container access when container runs as different user (e.g. Vite dev server runs as node user) — TSC + ESLint pass on host but fail in container
+    - Prevention: After Executor completes, Orchestrator must run ls -la on all new files + docker exec cat <file> to verify container readability
+    ```
+    ls -la <files> | grep -E 'rw-------'     # catches permission 600
+    docker exec <container> cat <file>       # verifies container can read
+    ```
+    - Source: Session 2026-07-24
+
 ═════════════════════════════════════════════════
 # 📑 SESSION INDEX — เลือกอ่าน ARCHIVE ตามประเภทงาน
 ══════════════════════════════════════════════════
