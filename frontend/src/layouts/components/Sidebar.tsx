@@ -209,8 +209,8 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }: { isActive: boolean }) => {
         const base = expanded
-          ? 'group flex items-center justify-start rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
-          : 'group flex items-center justify-center rounded-xl px-0 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
+          ? 'group flex items-center justify-start flex-1 w-full block rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
+          : 'group flex items-center justify-center flex-1 w-full block rounded-xl px-0 py-3.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
         const activeCls =
           'bg-primary-50 text-primary-700';
         const inactiveCls =
@@ -224,7 +224,9 @@ function NavItem({
             {item.icon}
           </div>
           <span
-            className={`ml-3 truncate transition-opacity duration-150 ${expanded ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            className={`truncate transition-all duration-150 ${
+              expanded ? 'ml-3 opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden pointer-events-none'
+            }`}
           >
             {item.label}
           </span>
@@ -293,7 +295,7 @@ function SidebarContent({ expanded, onToggle, onNavigate }: SidebarContentProps)
       </div>
 
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto p-2" aria-label="Main navigation">
+      <nav className="flex-1 overflow-y-auto" aria-label="Main navigation">
         {NAV_SECTIONS.map((section) => (
           <div key={section.heading}>
             <SectionLabel label={section.heading} expanded={expanded} />
