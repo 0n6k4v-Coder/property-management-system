@@ -17,7 +17,7 @@ import uuid
 
 from celery import shared_task
 from sqlalchemy import and_, or_, select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
@@ -29,6 +29,7 @@ from app.modules.maintenance.repository import MaintenanceRepository
 from app.modules.maintenance.models import MaintenanceRequest, MaintenanceStatus
 from app.modules.notification.repository import NotificationRepository
 from app.modules.notification.models import Notification, NotificationChannel, NotificationStatus
+from app.modules.property.models import Property
 from app.shared.audit import log_audit
 
 logger = structlog.get_logger()
@@ -88,7 +89,9 @@ async def check_sla_breaches_task(self, property_id: str | None = None):
             raise self.retry(exc=exc, countdown=300 * (2**self.request.retries)) from exc
 
 
-async def _handle_sla_breach(db: AsyncSession, request: MaintenanceRequest, notification_repo: NotificationRepository):
+async def _handle_sla_breach(
+    db: AsyncSession, request: MaintenanceRequest, notification_repo: NotificationRepository
+):
     """Handle a single SLA breach - create notifications, escalate if needed."""
     # Determine breach type
     now = datetime.utcnow()
@@ -101,10 +104,7 @@ async def _handle_sla_breach(db: AsyncSession, request: MaintenanceRequest, noti
         resolution_breach = True
 
     # Create notification for property manager
-    from app.modules.property.models import Property
-    from sqlalchemy import select as sa_select
-
-    prop_result = await db.execute(sa_select(Property).where(Property.id == request.property_id))
+    prop_result = await db.execute(select(Property).where(Property.id == request.property_id))
     property_obj = prop_result.scalars().first()
 
     if property_obj and property_obj.manager_id:
@@ -200,7 +200,7 @@ async def _send_overdue_alert(
     notification_repo: NotificationRepository,
 ):
     """Send overdue alert for a single invoice."""
-    # Get tenant info (simplified - would use actual tenant lookup)
+    # Get tenant info
     from app.modules.tenant.repository import TenantRepository
     from app.modules.tenant.models import Tenant
 
@@ -316,10 +316,7 @@ async def _send_contract_expiry_notification(
 ):
     """Send contract expiry notification."""
     # Get property manager
-    from app.modules.property.models import Property
-    from sqlalchemy import select as sa_select
-
-    prop_result = await db.execute(sa_select(Property).where(Property.id == contract.property_id))
+    prop_result = await db.execute(select(Property).where(Property.id == contract.property_id))
     property_obj = prop_result.scalars().first()
 
     if not property_obj or not property_obj.manager_id:
