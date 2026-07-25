@@ -209,8 +209,8 @@ function NavItem({
       onClick={onNavigate}
       className={({ isActive }: { isActive: boolean }) => {
         const base = expanded
-          ? 'group flex items-center justify-start flex-1 w-full block rounded-xl px-2.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
-          : 'group flex items-center justify-center flex-1 w-full block rounded-xl px-0 py-3.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
+          ? 'group flex items-center flex-1 w-full block rounded-xl py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500'
+          : 'group flex items-center justify-center flex-1 w-full block rounded-xl px-2 py-1.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500';
         const activeCls =
           'bg-primary-50 text-primary-700';
         const inactiveCls =
@@ -220,13 +220,14 @@ function NavItem({
     >
       {({ isActive }: { isActive: boolean }) => (
         <>
-          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${isActive ? 'text-primary-600' : 'text-surface-500 group-hover:text-surface-700'}`}>
-            {item.icon}
+          {/* Icon stays centered in a fixed 48px slot — same position in both states */}
+          <div className={`flex w-12 shrink-0 items-center justify-center ${isActive ? 'text-primary-600' : 'text-surface-500 group-hover:text-surface-700'}`}>
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg">
+              {item.icon}
+            </div>
           </div>
           <span
-            className={`truncate transition-all duration-150 ${
-              expanded ? 'ml-3 opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden pointer-events-none'
-            }`}
+            className={`truncate transition-all duration-150 ${expanded ? 'ml-3 opacity-100 w-auto' : 'opacity-0 w-0 overflow-hidden pointer-events-none'}`}
           >
             {item.label}
           </span>
@@ -236,12 +237,12 @@ function NavItem({
   );
 }
 
-/** Section heading label — hidden when collapsed to preserve icon-only density. */
+/** Section heading label — centered when collapsed, left-aligned when expanded. */
 function SectionLabel({ label, expanded }: { label: string; expanded: boolean }) {
   return (
     <p
-      className={`px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-surface-400 transition-opacity duration-150 ${
-        expanded ? 'opacity-100' : 'opacity-0'
+      className={`px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-surface-400 transition-all duration-150 ${
+        expanded ? 'text-left w-auto' : 'text-center w-full'
       }`}
     >
       {label}
@@ -295,7 +296,7 @@ function SidebarContent({ expanded, onToggle, onNavigate }: SidebarContentProps)
       </div>
 
       {/* Nav sections */}
-      <nav className="flex-1 overflow-y-auto" aria-label="Main navigation">
+      <nav className="flex-1 overflow-y-auto px-2" aria-label="Main navigation">
         {NAV_SECTIONS.map((section) => (
           <div key={section.heading}>
             <SectionLabel label={section.heading} expanded={expanded} />
