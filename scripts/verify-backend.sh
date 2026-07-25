@@ -17,16 +17,14 @@ NC='\033[0m'
 
 pass() { echo -e "${GREEN}PASS${NC} $1"; }
 fail() { echo -e "${RED}FAIL${NC} $1"; }
-warn() { echo -e "${YELLOW}WARN${NC} $1"; }
-
-echo "==> Verifying backend in container: $CONTAINER"
-echo ""
-
 # Check container is running
-if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER}$"; then
-    fail "Container $CONTAINER is not running. Start it with: docker compose -f docker-compose.dev.yml up -d backend"
+CONTAINER_ID=$(docker ps --format '{{.Names}}' | grep "pms-dev-backend-1" | head -1)
+if [[ -z "${CONTAINER_ID}" ]]; then
+    fail "Container pms-dev-backend-1 is not running. Start it with: docker compose -f docker-compose.dev.yml up -d backend"
     exit 1
 fi
+
+CONTAINER="${CONTAINER_ID}"
 
 OVERALL_STATUS=0
 

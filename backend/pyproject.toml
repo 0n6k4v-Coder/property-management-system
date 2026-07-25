@@ -51,3 +51,4 @@ strict = true
 warn_unused_configs = true
 ignore_missing_imports = true
 no_implicit_optional = true
+cache_dir = "/tmp/mypy_cache"

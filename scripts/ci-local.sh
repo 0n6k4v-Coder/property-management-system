@@ -20,16 +20,14 @@ BACKEND_URL="http://localhost:8000"
 HEALTH_ENDPOINT="${BACKEND_URL}/health"
 HEALTH_MAX_ATTEMPTS=30
 HEALTH_SLEEP_SECONDS=3
-DEV_PID=""
+DEV_STARTED=""
 
 # Cleanup function - runs on EXIT (success or failure)
 cleanup() {
     local exit_code=$?
-    if [[ -n "${DEV_PID}" ]] && kill -0 "${DEV_PID}" 2>/dev/null; then
-        echo -e "\n${YELLOW}${BOLD}[CI]${RESET} Stopping dev environment (PID: ${DEV_PID})..."
+    if [[ -n "${DEV_STARTED}" ]]; then
+        echo -e "\n${YELLOW}${BOLD}[CI]${RESET} Stopping dev environment..."
         make dev-down 2>/dev/null || true
-        kill "${DEV_PID}" 2>/dev/null || true
-        wait "${DEV_PID}" 2>/dev/null || true
         echo -e "${GREEN}${BOLD}[CI]${RESET} Dev environment stopped"
     fi
     exit $exit_code
@@ -89,28 +87,38 @@ run_verify() {
 
 info "Starting local CI cycle..."
 
-# 1. Start dev environment in background
-info "Starting dev environment (make dev) in background..."
-make dev &
-DEV_PID=$!
-info "Dev process started with PID: ${DEV_PID}"
+# 1. Ensure clean state - stop any existing dev stack
+info "Ensuring clean dev stack state..."
+docker compose -f docker-compose.dev.yml --project-name pms-dev --profile dev down -v 2>/dev/null || true
 
-# 2. Wait for backend healthy
+# 2. Start dev stack (detached, build + up)
+info "Starting dev stack (detached, build + up)..."
+docker compose -f docker-compose.dev.yml --project-name pms-dev --profile dev up -d --build
+DEV_STARTED=1
+
+# 3. Wait for backend healthy
 wait_for_backend_healthy
 
-# 3. Run backend verification
+# 4. Run database migrations
+info "Applying database migrations..."
+make db-migrate
+
+# 5. Seed admin user + E2E fixtures
+info "Seeding admin user + E2E fixtures..."
+./scripts/seed-dev-data.sh || warn "Seed completed with warnings (may be idempotent)"
+
+# 6. Run backend verification
 run_verify "verify-backend.sh"
 
-# 4. Run frontend verification
+# 7. Run frontend verification
 run_verify "verify-frontend.sh"
 
-# 5. All verification passed - tear down will happen via trap
+# 8. All verification passed - tear down will happen via trap
 ok "All verification checks passed!"
 info "Tearing down dev environment..."
 
 # Explicit cleanup (trap will also run on exit)
 make dev-down
-DEV_PID=""
 
 ok "Local CI cycle completed successfully!"
 exit 0

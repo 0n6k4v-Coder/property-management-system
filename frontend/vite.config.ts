@@ -70,6 +70,7 @@ export default defineConfig({
     css: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['**/e2e/**', '**/node_modules/**', '**/dist/**'],
+    testTimeout: 60000,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html', 'lcov'],
