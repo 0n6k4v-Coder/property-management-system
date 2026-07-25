@@ -13,12 +13,12 @@ import structlog
 import uuid
 
 from celery import shared_task
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+from app.modules.notification.models import NotificationChannel, NotificationStatus
 from app.modules.notification.repository import NotificationRepository
-from app.modules.notification.models import Notification, NotificationChannel, NotificationStatus
 from app.shared.audit import log_audit
 
 logger = structlog.get_logger()
@@ -223,8 +223,8 @@ async def send_email_notification_task(
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=10, queue="notifications")
 async def send_in_app_notification_task(
-    self, notification_id: str, user_id: str, recipient_user_id: str, title: str, body: str
-):
+    self, notification_id: str, user_id: str, recipient_user_id: str, title: str, _body: str
+) -> None:
     """Create in-app notification (stored in database, delivered via WebSocket/polling).
 
     Parameters
@@ -233,7 +233,7 @@ async def send_in_app_notification_task(
     user_id: UUID string of the user sending the notification
     recipient_user_id: UUID string of the recipient user
     title: Notification title
-    body: Notification body
+    _body: Notification body (unused in stub)
 
     Returns
     -------
@@ -241,7 +241,7 @@ async def send_in_app_notification_task(
     """
     notification_uuid = uuid.UUID(notification_id)
     user_uuid = uuid.UUID(user_id)
-    recipient_uuid = uuid.UUID(recipient_user_id)
+    _ = uuid.UUID(recipient_user_id)  # validated but not used in this stub
 
     logger.info(
         "notification.in_app_create_start",
@@ -317,16 +317,9 @@ async def _send_line_message(recipient_line_id: str, message: str) -> None:
 async def _send_email(
     recipient_email: str, subject: str, body: str, html_body: str | None = None
 ) -> None:
-    """Send email via configured provider (SendGrid, SES, SMTP).
-
-    In production, use appropriate SDK:
-    # SendGrid example:
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail
-    sg = SendGridAPIClient(SENDGRID_API_KEY)
-    message = Mail(from_email, to_emails, subject, html_content)
-    sg.send(message)
-    """
+    """Send email via configured provider (SendGrid, SES, SMTP)."""
+    _ = body  # validated but not used in stub
+    _ = html_body  # validated but not used in stub
     # Simulate API call
     logger.debug(
         "Email API call simulated", recipient=recipient_email, subject=subject

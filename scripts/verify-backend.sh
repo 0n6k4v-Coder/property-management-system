@@ -52,7 +52,7 @@ echo ""
 
 # 3. Run ruff lint
 echo "==> Running ruff check app/ ..."
-if docker exec "$CONTAINER" ruff check app/; then
+if docker exec -e RUFF_CACHE_DIR=/tmp/ruff_cache "$CONTAINER" ruff check app/; then
     pass "ruff check app/"
 else
     fail "ruff check app/ failed"
