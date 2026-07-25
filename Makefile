@@ -208,6 +208,26 @@ dev-shell: check-docker check-compose ## Open interactive shell in backend conta
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec backend bash
 
 # =============================================================================
+# Verification Targets (local CI cycle)
+# =============================================================================
+.PHONY: check-stack verify-backend verify-frontend ci-local seed-dev
+
+check-stack: check-docker check-compose ## Check all dev containers status
+	@./scripts/check-dev-stack.sh
+
+verify-backend: check-docker check-compose ## Run backend verification (test + typecheck + lint)
+	@./scripts/verify-backend.sh
+
+verify-frontend: check-docker check-compose ## Run frontend verification (test + typecheck + lint)
+	@./scripts/verify-frontend.sh
+
+ci-local: check-docker check-compose ## Full local CI cycle: dev up -> verify -> dev down
+	@./scripts/ci-local.sh
+
+seed-dev: check-docker check-compose ## Seed dev data (admin + E2E fixtures)
+	@./scripts/seed-dev-data.sh
+
+# =============================================================================
 # Testing Targets (2026: Isolated test stack via docker-compose.test.yml)
 # =============================================================================
 .PHONY: test test-unit test-frontend test-e2e test-integration test-coverage test-contract test-clean test-up test-down

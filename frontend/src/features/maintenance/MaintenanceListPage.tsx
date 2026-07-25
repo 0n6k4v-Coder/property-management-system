@@ -21,13 +21,7 @@ import { Card } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
 import { TableSkeleton } from '@/shared/ui/TableSkeleton';
 import { Button } from '@/shared/ui/Button';
-
-const statusStyles: Record<string, string> = {
-  pending: 'bg-amber-100 text-amber-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  resolved: 'bg-green-100 text-green-700',
-  cancelled: 'bg-surface-100 text-surface-500',
-};
+import { statusToVariant } from '@/shared/utils/status';
 
 const priorityStyles: Record<string, string> = {
   low: 'bg-surface-100 text-surface-700',
@@ -112,12 +106,12 @@ export default function MaintenanceListPage() {
                     </td>
                     <td className="px-4 py-3 text-surface-600">Room {req.room_id.slice(0, 8)}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={priorityStyles[req.priority]?.replace('bg-', '').replace('text-', '') as any}>
+                      <Badge variant={priorityStyles[req.priority]?.replace('bg-', '').replace('text-', '') as 'low' | 'medium' | 'high' | 'urgent'}>
                         {req.priority}
                       </Badge>
                     </td>
                     <td className="px-4 py-3">
-                      <Badge variant={statusStyles[req.status]?.replace('bg-', '').replace('text-', '') as any}>
+                      <Badge variant={statusToVariant(req.status)}>
                         {req.status.replace('_', ' ')}
                       </Badge>
                     </td>
