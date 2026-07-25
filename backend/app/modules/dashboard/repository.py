@@ -163,7 +163,7 @@ class DashboardRepository:
             .order_by("period")
         )
         result = await self.db.execute(stmt)
-        rows = result.all()
+        rows = await result.all()
         return [
             {
                 "period": row.period,

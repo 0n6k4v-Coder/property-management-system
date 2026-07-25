@@ -40,7 +40,7 @@ async def _setup_property_with_room(
     db_session: AsyncSession,
     user_id: uuid.UUID,
 ) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
-    """Helper: create user + property + building + room, return IDs."""
+    """Helper: create user + property + building + room + tenant + contract, return IDs."""
     from app.modules.auth.models import User
     user = User(id=user_id, email=f"billing_{uuid.uuid4().hex[:8]}@test.com",
                 password_hash=hash_password("Test123"), full_name="Billing Tester", is_active=True)
@@ -48,6 +48,10 @@ async def _setup_property_with_room(
     await db_session.flush()
 
     from app.modules.property.models import Property, Building, Room
+    from app.modules.tenant.models import Tenant
+    from app.modules.contract.models import Contract, ContractStatus
+    from app.shared.security import encrypt_sensitive
+    
     prop = Property(name="Billing Test", address="1 Billing St", billing_due_day=5,
                     min_deposit_months=2, created_by=user_id)
     db_session.add(prop)
@@ -61,6 +65,35 @@ async def _setup_property_with_room(
                 base_rent=Decimal("5000"), status="occupied")
     db_session.add(room)
     await db_session.flush()
+
+    # Create a tenant
+    tenant = Tenant(
+        id=uuid.uuid4(),
+        property_id=prop.id,
+        full_name="Test Tenant",
+        id_card_number_encrypted=encrypt_sensitive("1234567890123"),
+        phone="0899999999",
+        email="tenant@example.com",
+    )
+    db_session.add(tenant)
+    await db_session.flush()
+
+    # Create a contract
+    contract = Contract(
+        room_id=room.id,
+        tenant_id=tenant.id,
+        property_id=prop.id,
+        start_date=date(2026, 1, 1),
+        end_date=date(2027, 1, 1),
+        monthly_rent=Decimal("5000"),
+        deposit_amount=Decimal("10000"),
+        status=ContractStatus.ACTIVE,
+        is_renewal=False,
+        created_by=user_id,
+    )
+    db_session.add(contract)
+    await db_session.flush()
+
     await db_session.refresh(room)
     await db_session.refresh(bld)
     await db_session.refresh(prop)

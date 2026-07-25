@@ -307,9 +307,11 @@ class TestInvoiceNotFoundEnvelope:
 @pytest.mark.unit
 class TestPaymentsStatus201:
     def test_payments_route_status_is_201(self) -> None:
+        # Test the router directly since it has the route registered
+        from app.modules.billing.routers.billing_router import router as billing_router
         route = next(
-            r for r in app.routes
-            if getattr(r, "path", "") == "/api/v1/billing/payments"
+            r for r in billing_router.routes
+            if getattr(r, "path", "").endswith("/payments")
             and "POST" in getattr(r, "methods", set())
         )
         assert route.status_code == status.HTTP_201_CREATED

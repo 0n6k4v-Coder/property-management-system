@@ -9,9 +9,9 @@ References:
 - SDD §10.3: Workers
 - backend/docs/OPERATIONS.md: Task monitoring
 """
-import structlog
 import uuid
 
+import structlog
 from celery import shared_task
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker

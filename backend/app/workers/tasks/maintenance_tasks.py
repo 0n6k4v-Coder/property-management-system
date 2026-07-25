@@ -11,24 +11,24 @@ References:
 - SDD §10.3: Workers
 - backend/docs/OPERATIONS.md: Task monitoring
 """
-import structlog
-from datetime import date, datetime, timedelta
 import uuid
+from datetime import date, datetime, timedelta
 
+import structlog
 from celery import shared_task
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.config import settings
+from app.modules.billing.models import Invoice
 from app.modules.billing.repository import BillingRepository
-from app.modules.billing.models import Invoice, InvoiceStatus
+from app.modules.contract.models import Contract
 from app.modules.contract.repository import ContractRepository
-from app.modules.contract.models import Contract, ContractStatus
+from app.modules.maintenance.models import MaintenanceRequest
 from app.modules.maintenance.repository import MaintenanceRepository
-from app.modules.maintenance.models import MaintenanceRequest, MaintenanceStatus
-from app.modules.notification.repository import NotificationRepository
 from app.modules.notification.models import Notification, NotificationChannel, NotificationStatus
+from app.modules.notification.repository import NotificationRepository
 from app.modules.property.models import Property
 from app.shared.audit import log_audit
 
@@ -202,7 +202,6 @@ async def _send_overdue_alert(
     """Send overdue alert for a single invoice."""
     # Get tenant info
     from app.modules.tenant.repository import TenantRepository
-    from app.modules.tenant.models import Tenant
 
     tenant_repo = TenantRepository(db)
     tenant = await tenant_repo.get_tenant_by_id(invoice.tenant_id)
@@ -366,7 +365,7 @@ async def cleanup_expired_sessions_task(self):
     """
     logger.info("maintenance.session_cleanup_start")
 
-    async with async_session() as db:
+    async with async_session() as _db:
         try:
             # TODO: Implement actual session cleanup
             # This would delete expired:

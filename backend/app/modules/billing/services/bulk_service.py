@@ -11,15 +11,12 @@ References:
 - BR-12: Invoice calculation breakdown
 """
 
-from datetime import date
-
-from decimal import Decimal, ROUND_HALF_UP
-
 import uuid
-
+from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
 from http import HTTPStatus
 
-from sqlalchemy import and_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.billing.constants import (
@@ -34,8 +31,6 @@ from app.modules.billing.events import publish_billing_event
 from app.modules.billing.models import (
     Invoice,
     InvoiceLineItem,
-    MeterReading,
-    UtilityRate,
 )
 from app.modules.billing.repository import BillingRepository
 from app.modules.billing.services.rate_service import RateService
@@ -186,6 +181,18 @@ class BulkInvoiceService:
                 raise ValueError(f"No utility rate for room {room.room_number}")
             raise
 
+        # Get contract for this room
+        from app.modules.contract.models import Contract, ContractStatus
+        contract_result = await self.db.execute(
+            select(Contract).where(
+                Contract.room_id == room.id,
+                Contract.status == ContractStatus.ACTIVE
+            )
+        )
+        contract = contract_result.scalars().first()
+        if not contract:
+            raise ValueError(f"No active contract for room {room.room_number}")
+
         # BR-12: Calculate invoice amounts
         electric_cost = (latest_reading.electric_used * rate.electric_rate_per_unit).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP,
@@ -203,13 +210,13 @@ class BulkInvoiceService:
             Decimal("0.01"), rounding=ROUND_HALF_UP,
         )
 
-        # Create invoice - use room.property_id instead of undefined property_id
+        # Create invoice - use actual contract and tenant
         invoice_number = f"INV-{billing_year}{billing_month:02d}-{uuid.uuid4().hex[:8].upper()}"
         invoice = Invoice(
             invoice_number=invoice_number,
-            contract_id=uuid.uuid4(),  # placeholder
+            contract_id=contract.id,
             room_id=room.id,
-            tenant_id=uuid.uuid4(),    # placeholder
+            tenant_id=contract.tenant_id,
             property_id=room.property_id,
             billing_month=billing_month,
             billing_year=billing_year,
