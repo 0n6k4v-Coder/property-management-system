@@ -23,11 +23,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
-from app.modules.auth.constants import AUTH_005
-from app.modules.tenant.routers import tenant_router
 from app.modules.tenant.repository import TenantRepository
+from app.modules.tenant.routers import tenant_router
 from app.shared.deps import require_property_scope
 from app.shared.exceptions import APIError
 
