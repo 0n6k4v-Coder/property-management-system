@@ -23,10 +23,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 from unittest.mock import AsyncMock
-
+import httpx
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
+from fastapi.testclient import TestClient  # kept for sync tests that need it
 
 from app.main import app
 from app.modules.auth.constants import AUTH_005
@@ -213,7 +213,7 @@ class TestPropertyScopeEnforcement:
         """Caller with scope for the target property gets 202 (or 422 for mock)."""
         r = pytest.importorskip("anyio").run(self._run_send_test, uuid.uuid4(), True)
         # 422 expected because mock service returns notification but router validates response model
-        assert r.status_code in (status.HTTP_202_ACCEPTED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+        assert r.status_code in (status.HTTP_202_ACCEPTED, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
     async def _run_history(self, property_id, has_scope):
         prop_id = property_id or uuid.uuid4()
@@ -245,7 +245,7 @@ class TestPropertyScopeEnforcement:
 
     def test_history_allows_scoped(self) -> None:
         r = pytest.importorskip("anyio").run(self._run_history, uuid.uuid4(), True)
-        assert r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_ENTITY)
+        assert r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
     async def _run_resend(self, property_id, has_scope):
         prop_id = property_id or uuid.uuid4()
@@ -278,7 +278,7 @@ class TestPropertyScopeEnforcement:
 
     def test_resend_allows_scoped(self) -> None:
         r = pytest.importorskip("anyio").run(self._run_resend, uuid.uuid4(), True)
-        assert r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_ENTITY)
+        assert r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_CONTENT)
 
 
 # ── #3: fail-silent → 202 pattern ───────────────────────────────────
@@ -401,7 +401,7 @@ class TestCacheControl:
 
     def test_send_test_has_cache_control(self) -> None:
         r = pytest.importorskip("anyio").run(self._run_send_test)
-        if r.status_code in (status.HTTP_202_ACCEPTED, status.HTTP_422_UNPROCESSABLE_ENTITY):
+        if r.status_code in (status.HTTP_202_ACCEPTED, status.HTTP_422_UNPROCESSABLE_CONTENT):
             cc = r.headers.get("cache-control", "").lower()
             assert "private" in cc
             assert "no-store" in cc
@@ -433,7 +433,7 @@ class TestCacheControl:
 
     def test_history_has_cache_control(self) -> None:
         r = pytest.importorskip("anyio").run(self._run_history)
-        if r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_ENTITY):
+        if r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_CONTENT):
             cc = r.headers.get("cache-control", "").lower()
             assert "private" in cc
             assert "no-store" in cc
@@ -463,7 +463,7 @@ class TestCacheControl:
 
     def test_resend_has_cache_control(self) -> None:
         r = pytest.importorskip("anyio").run(self._run_resend)
-        if r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_ENTITY):
+        if r.status_code in (status.HTTP_200_OK, status.HTTP_422_UNPROCESSABLE_CONTENT):
             cc = r.headers.get("cache-control", "").lower()
             assert "private" in cc
             assert "no-store" in cc

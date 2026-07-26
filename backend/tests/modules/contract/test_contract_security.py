@@ -28,7 +28,6 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
-
 from app.main import app
 from app.modules.auth.constants import AUTH_005
 from app.modules.contract.constants import (

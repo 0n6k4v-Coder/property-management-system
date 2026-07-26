@@ -240,13 +240,13 @@ class TestRefreshFullTokenSet:
 class TestValidationErrorEnvelope:
     """Unified ``{"error": {...}}`` envelope for 422 (anti-pattern #3)."""
 
-    def test_invalid_login_body_returns_val_001_envelope(self, client) -> None:
+    async def test_invalid_login_body_returns_val_001_envelope(self, async_client) -> None:
         """A 422 returns ``{"error": {"code": "VAL-001"}}`` not ``{"detail"}``."""
-        response = client.post(
+        response = await async_client.post(
             "/api/v1/auth/login",
             json={"email": "not-an-email", "password": "weak"},
         )
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
         body = response.json()
         assert "error" in body
         assert body["error"]["code"] == "VAL-001"
