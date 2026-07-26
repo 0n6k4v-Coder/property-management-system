@@ -12,7 +12,7 @@ References:
 - backend/docs/OPERATIONS.md: Task monitoring
 """
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import structlog
 from celery import shared_task
@@ -94,7 +94,7 @@ async def _handle_sla_breach(
 ):
     """Handle a single SLA breach - create notifications, escalate if needed."""
     # Determine breach type
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     response_breach = False
     resolution_breach = False
 

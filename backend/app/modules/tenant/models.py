@@ -14,6 +14,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.modules.billing.models import Invoice
 from app.shared.database import Base
 
 

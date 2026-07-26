@@ -172,7 +172,7 @@ def create_app() -> FastAPI:
         # endpoint returns the same ``{"error": {...}}`` shape as every
         # domain error instead of FastAPI's default ``{"detail": [...]}``.
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={
                 "error": {
                     "code": "VAL-001",
