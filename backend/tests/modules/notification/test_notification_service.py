@@ -45,7 +45,7 @@ class TestSendNotification:
         """Send test → notification created with status=PENDING (Celery enqueued)."""
         prop_id = await _seed_user_and_property(db_session, any_user_id)
         service = NotificationService(db_session)
-        
+
         # Mock the Celery task enqueue to avoid needing a worker
         with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
             notif = await service.send_test(
@@ -66,7 +66,7 @@ class TestSendNotification:
         # Mock _enqueue_notification_task to raise an exception
         with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
             mock_enqueue.side_effect = RuntimeError("Provider unavailable")
-            
+
             notif = await service.send_test(
                 user_id=any_user_id, property_id=prop_id,
                 channel="line", subject="Alert", body="Test message",
@@ -83,7 +83,7 @@ class TestSendNotification:
         # First send fails (enqueue fails)
         with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
             mock_enqueue.side_effect = RuntimeError("Fail first")
-            
+
             notif = await service.send_test(
                 user_id=any_user_id, property_id=prop_id,
                 channel="email", subject="Retry", body="Will retry",
