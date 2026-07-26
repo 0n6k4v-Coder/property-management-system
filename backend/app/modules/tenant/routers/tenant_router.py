@@ -125,7 +125,6 @@ async def search_tenants(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Search for tenants by name, phone, or email within a property.
 

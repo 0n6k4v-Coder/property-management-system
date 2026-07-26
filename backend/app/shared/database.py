@@ -1,7 +1,7 @@
 """Database connection and session management (SDD.md §3.1, §4.3.2)."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -46,7 +46,7 @@ class Base(DeclarativeBase):
     pass
 
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db() -> AsyncGenerator[AsyncSession]:
     """FastAPI dependency that provides a database session.
 
     Yields
@@ -72,7 +72,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 @asynccontextmanager
-async def get_db_context() -> AsyncGenerator[AsyncSession, None]:
+async def get_db_context() -> AsyncGenerator[AsyncSession]:
     """Context manager for database sessions outside FastAPI requests.
 
     Useful for background tasks, scripts, and tests.

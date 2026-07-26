@@ -13,8 +13,6 @@ References:
     - AGENTS.md §Tech Stack: minio 7.2+
 """
 
-import uuid
-from datetime import timedelta
 from io import BytesIO
 from typing import Any
 

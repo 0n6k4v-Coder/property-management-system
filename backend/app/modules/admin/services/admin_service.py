@@ -10,14 +10,8 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.modules.admin.constants import (
-    ADMIN_001_NOT_FOUND, ADMIN_002_FORBIDDEN, ADMIN_005_CONFIG_READ_ONLY,
-    ERROR_MESSAGES,
-)
 from app.modules.admin.repository import AuditLogRepository
 from app.modules.admin.schemas import AuditLogResponse, SystemConfigResponse
-from app.shared.audit import log_audit
-from app.shared.exceptions import APIError
 
 # Config keys that should be masked in responses
 _SENSITIVE_CONFIG_KEYS = {"SECRET_KEY", "ID_CARD_ENCRYPTION_KEY", "DATABASE_URL", "REDIS_URL"}

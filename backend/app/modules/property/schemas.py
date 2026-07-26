@@ -11,8 +11,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.modules.property.constants import RoomStatus, RoomType
-
+from app.modules.property.constants import RoomStatus
 
 # ── Request Schemas ────────────────────────────────────────────────────
 

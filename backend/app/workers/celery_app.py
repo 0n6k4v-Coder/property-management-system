@@ -11,7 +11,6 @@ References:
 import os
 
 from celery import Celery
-from celery.schedules import crontab
 
 from app.workers.schedulers import get_celery_beat_schedule
 

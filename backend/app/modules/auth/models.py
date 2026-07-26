@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, Boolean, DateTime, Enum, ForeignKey, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -53,8 +53,8 @@ class UserPropertyScope(Base):
         default=PropertyRole.staff,
     )
 
-    user: Mapped["User"] = relationship("User", back_populates="property_scopes")
-    property: Mapped["Property"] = relationship("Property", back_populates="users")
+    user: Mapped[User] = relationship("User", back_populates="property_scopes")
+    property: Mapped[Property] = relationship("Property", back_populates="users")
 
     def __repr__(self) -> str:
         return f"<UserPropertyScope(user_id={self.user_id}, property_id={self.property_id}, role={self.role.value})>"
@@ -154,7 +154,7 @@ class User(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    property_scopes: Mapped[list["UserPropertyScope"]] = relationship(
+    property_scopes: Mapped[list[UserPropertyScope]] = relationship(
         "UserPropertyScope",
         back_populates="user",
         lazy="selectin",

@@ -6,17 +6,15 @@ Protected by ``@require_role("owner")`` decorator (RBAC).
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.middleware.rbac import require_role
 from app.modules.admin.schemas import (
     AuditLogListResponse,
     SystemConfigListResponse,
-    SystemConfigResponse,
-    UpdateSystemConfigRequest,
 )
 from app.modules.admin.services.admin_service import AdminService
-from app.middleware.rbac import require_role
 from app.shared.deps import get_current_user, get_db
 
 router = APIRouter(tags=["admin"], redirect_slashes=False)

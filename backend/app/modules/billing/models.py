@@ -8,20 +8,20 @@ References:
 
 import enum
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
     Column,
-    DateTime,
     Date,
+    DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
-    Index,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship

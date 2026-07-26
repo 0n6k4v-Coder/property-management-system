@@ -10,8 +10,6 @@ import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.workers.tasks.notification_tasks import send_in_app_notification_task
-
 logger = structlog.get_logger()
 
 # Scheduler instance

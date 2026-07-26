@@ -17,7 +17,6 @@ from app.modules.tenant.constants import (
     EVENT_TENANT_CREATED,
     TENANT_001_DUPLICATE_PHONE,
     TENANT_004_TENANT_NOT_FOUND,
-    TENANT_007_PROPERTY_NOT_FOUND,
     TENANT_008_QUERY_TOO_SHORT,
 )
 from app.modules.tenant.events import publish_tenant_event

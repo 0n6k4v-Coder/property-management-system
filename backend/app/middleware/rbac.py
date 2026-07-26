@@ -5,12 +5,10 @@ References:
     - CODE_STYLE.md §6: Security Guidelines
 """
 
-import uuid
 from functools import wraps
 
-from fastapi import Depends, status
+from fastapi import status
 
-from app.shared.deps import get_current_user
 from app.shared.exceptions import APIError
 
 

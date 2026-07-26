@@ -13,7 +13,7 @@ References:
       save_idempotency
 """
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from hashlib import sha256
 from typing import Any
 
@@ -114,7 +114,7 @@ async def store_idempotency(
     import json
 
     request_hash = _hash_request(path, body)
-    expires_at = datetime.now(timezone.utc) + IDEMPOTENCY_TTL
+    expires_at = datetime.now(UTC) + IDEMPOTENCY_TTL
     await repo_class(db).save_idempotency(
         key=key,
         request_hash=request_hash,

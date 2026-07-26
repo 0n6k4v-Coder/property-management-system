@@ -11,8 +11,7 @@ References:
 - backend/docs/OPERATIONS.md: Monitoring setup
 """
 import structlog
-from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry, generate_latest
-from prometheus_client.core import REGISTRY
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest
 
 logger = structlog.get_logger()
 
@@ -102,7 +101,7 @@ def get_worker_metrics() -> bytes:
     return generate_latest(worker_registry)
 
 
-def record_task_start(task_name: str, queue: str) -> float:
+def record_task_start(_task_name: str, _queue: str) -> float:
     """Record task start time for duration tracking.
 
     Returns

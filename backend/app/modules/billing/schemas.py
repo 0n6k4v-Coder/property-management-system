@@ -72,7 +72,7 @@ class MeterReadingResponse(BaseModel):
     read_date: str
 
     @classmethod
-    def from_model(cls, reading) -> "MeterReadingResponse":
+    def from_model(cls, reading) -> MeterReadingResponse:
         return cls(
             id=reading.id,
             room_id=reading.room_id,
@@ -114,7 +114,7 @@ class InvoiceResponse(BaseModel):
     created_at: str | None = None
 
     @classmethod
-    def from_model(cls, invoice) -> "InvoiceResponse":
+    def from_model(cls, invoice) -> InvoiceResponse:
         return cls(
             id=invoice.id,
             invoice_number=invoice.invoice_number,
@@ -149,7 +149,7 @@ class InvoiceLineItemResponse(BaseModel):
     amount: Decimal
 
     @classmethod
-    def from_model(cls, item) -> "InvoiceLineItemResponse":
+    def from_model(cls, item) -> InvoiceLineItemResponse:
         return cls(
             id=item.id,
             invoice_id=item.invoice_id,
@@ -166,7 +166,7 @@ class InvoiceDetailResponse(BaseModel):
     line_items: list[InvoiceLineItemResponse]
 
     @classmethod
-    def from_model(cls, invoice) -> "InvoiceDetailResponse":
+    def from_model(cls, invoice) -> InvoiceDetailResponse:
         return cls(
             invoice=InvoiceResponse.from_model(invoice),
             line_items=[InvoiceLineItemResponse.from_model(li) for li in invoice.line_items],
@@ -196,7 +196,7 @@ class PaymentResponse(BaseModel):
     notes: str | None = None
 
     @classmethod
-    def from_model(cls, payment) -> "PaymentResponse":
+    def from_model(cls, payment) -> PaymentResponse:
         return cls(
             id=payment.id,
             invoice_id=payment.invoice_id,

@@ -11,15 +11,15 @@ from app.workers.tasks.invoice_tasks import (
     generate_invoice_pdf_task,
     send_invoice_email_task,
 )
-from app.workers.tasks.notification_tasks import (
-    send_line_notification_task,
-    send_email_notification_task,
-    send_in_app_notification_task,
-)
 from app.workers.tasks.maintenance_tasks import (
+    check_contract_expiry_task,
     check_sla_breaches_task,
     send_overdue_alerts_task,
-    check_contract_expiry_task,
+)
+from app.workers.tasks.notification_tasks import (
+    send_email_notification_task,
+    send_in_app_notification_task,
+    send_line_notification_task,
 )
 
 __all__ = [

@@ -9,9 +9,9 @@ References:
 """
 
 from app.modules.auth.repository import UserRepository
+from app.modules.auth.routers.auth_router import router
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.invite_service import InviteService
-from app.modules.auth.routers.auth_router import router
 
 __all__ = [
     "UserRepository",

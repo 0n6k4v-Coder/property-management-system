@@ -14,9 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.property.constants import (
     EVENT_PROPERTY_CREATED,
-    EVENT_ROOM_CREATED,
     EVENT_ROOM_STATUS_CHANGED,
-    PROP_001_ROOM_NUMBER_EXISTS,
     PROP_004_PROPERTY_NOT_FOUND,
     PROP_007_ROOM_NOT_FOUND,
     PROP_008_INVALID_STATUS_TRANSITION,
