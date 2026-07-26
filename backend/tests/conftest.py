@@ -25,7 +25,6 @@ import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from fastapi.testclient import TestClient  # back-compat for unconverted tests
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -144,10 +143,23 @@ def app() -> FastAPI:
     return application
 
 
+# Removed TestClient fixture - use async_client fixture instead which uses httpx.AsyncClient with ASGITransport
+# This avoids the deprecation warning about httpx with starlette.testclient
+
+# Add synchronous client fixture for tests that need it
+# Uses httpx.Client with ASGITransport to avoid deprecation warnings
+import httpx
+
 @pytest.fixture
-def client(app: FastAPI) -> Generator[TestClient]:
-    """Yield a TestClient bound to the test application."""
-    with TestClient(app) as c:
+def client(app: FastAPI) -> Generator[httpx.Client]:
+    """Yield a synchronous httpx.Client bound to the test application.
+    
+    Uses ASGITransport so the entire request life-cycle runs in the
+    same process — no more "attached to a different loop" errors
+    and no deprecation warnings about starlette.testclient.
+    """
+    transport = httpx.ASGITransport(app=app)
+    with httpx.Client(transport=transport, base_url="http://test") as c:
         yield c
 
 
