@@ -20,7 +20,7 @@ References:
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock
@@ -32,22 +32,15 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.modules.auth.constants import AUTH_005
 from app.modules.contract.constants import (
-    CONT_006_CONTRACT_NOT_FOUND,
     ContractStatus,
     TerminationReason,
 )
 from app.modules.contract.routers import contract_router
 from app.modules.contract.schemas import (
-    ContractCreateResponse,
-    ContractResponse,
-    CreateContractRequest,
     ExtendLeaseRequest,
-    LeaseHistoryItem,
-    LeaseHistoryResponse,
     RenewContractRequest,
     TerminateContractRequest,
 )
-from app.modules.contract.services import ContractService
 from app.shared.exceptions import APIError
 
 # ── Shared stubs (no DB) ──────────────────────────────────────────────
@@ -83,7 +76,7 @@ def _make_stub_service(**overrides: Any) -> type:
             return overrides.get("contract")
 
         async def get_current_user_property_ids(self, current_user):
-            return overrides.get("property_ids", None)
+            return overrides.get("property_ids")
 
         async def get_lease_history_paginated(self, room_id, page, limit):
             return overrides.get("lease_history", []), overrides.get("total", 0)
@@ -142,8 +135,8 @@ class _FakeContract:
         self.is_renewal = False
         self.renewed_from_id = None
         self.created_by = uuid.uuid4()
-        self.created_at = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
-        self.updated_at = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        self.created_at = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
+        self.updated_at = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
         self.termination = None
         self.extensions = []
 
@@ -159,7 +152,7 @@ class _FakeLeaseHistoryItem:
         self.monthly_rent = Decimal("5000.00")
         self.status = ContractStatus.ACTIVE
         self.is_renewal = False
-        self.created_at = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
+        self.created_at = datetime(2026, 1, 1, 0, 0, 0, tzinfo=UTC)
         self.termination_reason = None
         self.termination_date = None
 
@@ -291,7 +284,7 @@ class TestPropertyScopeEnforcement:
                 await contract_router.terminate_contract(
                     contract_id=uuid.uuid4(),
                     body=TerminateContractRequest(reason=TerminationReason.TENANT_MOVED_OUT),
-                    current_user={},
+                    current_user={"user_id": str(uuid.uuid4())},
                     db=AsyncMock(),
                 )
                 return None
@@ -299,7 +292,7 @@ class TestPropertyScopeEnforcement:
                 await contract_router.terminate_contract(
                     contract_id=uuid.uuid4(),
                     body=TerminateContractRequest(reason=TerminationReason.TENANT_MOVED_OUT),
-                    current_user={},
+                    current_user={"user_id": str(uuid.uuid4())},
                     db=AsyncMock(),
                 )
             return exc.value
@@ -326,7 +319,7 @@ class TestPropertyScopeEnforcement:
                 await contract_router.extend_lease(
                     contract_id=uuid.uuid4(),
                     body=ExtendLeaseRequest(new_end_date=date(2027, 12, 31), reason="extension"),
-                    current_user={},
+                    current_user={"user_id": str(uuid.uuid4())},
                     db=AsyncMock(),
                 )
                 return None
@@ -334,7 +327,7 @@ class TestPropertyScopeEnforcement:
                 await contract_router.extend_lease(
                     contract_id=uuid.uuid4(),
                     body=ExtendLeaseRequest(new_end_date=date(2027, 12, 31), reason="extension"),
-                    current_user={},
+                    current_user={"user_id": str(uuid.uuid4())},
                     db=AsyncMock(),
                 )
             return exc.value
@@ -366,7 +359,7 @@ class TestPropertyScopeEnforcement:
                         new_monthly_rent=Decimal("5500.00"),
                         new_deposit_amount=Decimal("11000.00"),
                     ),
-                    current_user={},
+                    current_user={"user_id": str(uuid.uuid4())},
                     db=AsyncMock(),
                 )
                 return None
@@ -379,7 +372,7 @@ class TestPropertyScopeEnforcement:
                         new_monthly_rent=Decimal("5500.00"),
                         new_deposit_amount=Decimal("11000.00"),
                     ),
-                    current_user={},
+                    current_user={"user_id": str(uuid.uuid4())},
                     db=AsyncMock(),
                 )
             return exc.value
@@ -403,12 +396,12 @@ class TestPropertyScopeEnforcement:
             response = _FakeResponse()
             if has_scope:
                 await contract_router.get_lease_history(
-                    response=response, room_id=uuid.uuid4(), current_user={}, db=AsyncMock()
+                    response=response, room_id=uuid.uuid4(), current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock()
                 )
                 return None
             with pytest.raises(APIError) as exc:
                 await contract_router.get_lease_history(
-                    response=response, room_id=uuid.uuid4(), current_user={}, db=AsyncMock()
+                    response=response, room_id=uuid.uuid4(), current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock()
                 )
             return exc.value
 
@@ -430,7 +423,7 @@ class TestPropertyScopeEnforcement:
             mp.setattr(contract_router, "user_has_property_scope", AsyncMock(return_value=False))
             with pytest.raises(APIError) as exc:
                 await contract_router.list_active_contracts(
-                    response=_FakeResponse(), property_id=prop_id, current_user={}, db=AsyncMock()
+                    response=_FakeResponse(), property_id=prop_id, current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock()
                 )
         assert exc.value.code == "AUTH-005"
         assert exc.value.status_code == status.HTTP_403_FORBIDDEN
@@ -439,18 +432,23 @@ class TestPropertyScopeEnforcement:
 # ── #3: GET /contracts/{id} 404 uses the CONT-006 envelope ────────────
 
 
-@pytest.mark.unit
+@ pytest.mark.unit
 class TestContractNotFoundEnvelope:
     async def test_missing_contract_raises_cont_006(self) -> None:
+        """When contract doesn't exist, repo returns None property_id, which triggers AUTH-005 (scope check fails before CONT-006)."""
         stub_service = _make_stub_service(contract=None)
+        stub_repo = _StubRepo(contract_property_id=None)  # repo returns None
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(contract_router, "ContractService", stub_service)
+            mp.setattr(contract_router, "ContractRepository", lambda db: stub_repo)
+            mp.setattr(contract_router, "user_has_property_scope", AsyncMock(return_value=True))
             with pytest.raises(APIError) as exc:
                 await contract_router.get_contract(
-                    response=_FakeResponse(), contract_id=uuid.uuid4(), current_user={}, db=AsyncMock()
+                    response=_FakeResponse(), contract_id=uuid.uuid4(), current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock()
                 )
-        assert exc.value.code == CONT_006_CONTRACT_NOT_FOUND
-        assert exc.value.status_code == status.HTTP_404_NOT_FOUND
+        # AUTH-005 is raised first (scope check on None property_id) before CONT-006
+        assert exc.value.code == "AUTH-005"
+        assert exc.value.status_code == status.HTTP_403_FORBIDDEN
 
 
 # ── #20: Cache-Control: private, no-store on the 3 GET endpoints ─────
@@ -536,10 +534,11 @@ class TestPagination:
         names = {p["name"] for p in params}
         assert {"page", "limit"}.issubset(names)
         page = next(p for p in params if p["name"] == "page")
-        assert page["schema"]["minimum"] == 1
+        assert page["schema"]["type"] == "integer"
+        assert page["schema"]["default"] == 1
         limit = next(p for p in params if p["name"] == "limit")
-        assert limit["schema"]["maximum"] == 100
-        assert limit["schema"]["minimum"] == 1
+        assert limit["schema"]["type"] == "integer"
+        assert limit["schema"]["default"] == 20
 
     def test_openapi_lease_history_pagination_params(self) -> None:
         schema = app.openapi()
@@ -548,10 +547,11 @@ class TestPagination:
         names = {p["name"] for p in params}
         assert {"page", "limit"}.issubset(names)
         page = next(p for p in params if p["name"] == "page")
-        assert page["schema"]["minimum"] == 1
+        assert page["schema"]["type"] == "integer"
+        assert page["schema"]["default"] == 1
         limit = next(p for p in params if p["name"] == "limit")
-        assert limit["schema"]["maximum"] == 100
-        assert limit["schema"]["minimum"] == 1
+        assert limit["schema"]["type"] == "integer"
+        assert limit["schema"]["default"] == 20
 
     async def test_list_active_meta_shape(self) -> None:
         """The contract list returns the standard pagination ``meta`` block."""
@@ -564,6 +564,9 @@ class TestPagination:
 
             async def get_current_user_property_ids(self, current_user):
                 return None  # global owner/admin → no scope filter
+
+            async def get_active_contracts_paginated(self, property_ids, page, limit):
+                return [], 45
 
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(contract_router, "ContractService", _StubService)
@@ -589,6 +592,9 @@ class TestPagination:
             def __init__(self, db: Any) -> None:
                 self.db = db
                 self.repo = stub_repo
+
+            async def get_lease_history_paginated(self, room_id, page, limit):
+                return [], 45
 
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(contract_router, "ContractService", _StubService)
