@@ -233,51 +233,57 @@ class TestSearchByLiteralRejectsInvalid:
 @pytest.mark.unit
 class TestSearchCacheControl:
     """The search endpoint must set a no-store cache policy on PII (#20)."""
+    class TestSearchCacheControl:
+        """GET /search must set ``Cache-Control: private, no-store`` (tenant PII)."""
 
-    async def test_search_sets_no_store_cache_control(self) -> None:
-        """``search_tenants`` stamps ``Cache-Control: private, no-store``.
+        async def test_search_sets_no_store_cache_control(self) -> None:
+            """Runs the handler directly with a stubbed service (no live DB) to
+            prove the header wiring without a database connection.
+            """
+            captured: dict[str, Any] = {}
 
-        Runs the handler directly with a stubbed service (no live DB) to
-        prove the header wiring without a database connection.
-        """
-        captured: dict[str, Any] = {}
+            class _FakeResponse:
+                def __init__(self) -> None:
+                    self.headers: dict[str, str] = {}
 
-        class _FakeResponse:
-            def __init__(self) -> None:
-                self.headers: dict[str, str] = {}
+            class _StubTenantService:
+                def __init__(self, db: Any) -> None:
+                    pass
 
-        class _StubTenantService:
-            def __init__(self, db: Any) -> None:
-                pass
+                async def search_tenants(self, **kwargs: Any) -> dict[str, Any]:
+                    captured.update(kwargs)
+                    return {
+                        "data": [],
+                        "meta": {
+                            "page": kwargs["page"],
+                            "limit": kwargs["limit"],
+                            "total": 0,
+                            "has_next": False,
+                        },
+                    }
 
-            async def search_tenants(self, **kwargs: Any) -> dict[str, Any]:
-                captured.update(kwargs)
-                return {
-                    "data": [],
-                    "meta": {
-                        "page": kwargs["page"],
-                        "limit": kwargs["limit"],
-                        "total": 0,
-                        "has_next": False,
-                    },
-                }
+            # Override the require_property_scope dependency to skip auth
+            from app.modules.tenant.routers import tenant_router as tenant_router_module
+            from app.shared.deps import require_property_scope
+        
+            with pytest.MonkeyPatch().context() as mp:
+                mp.setattr(tenant_router_module, "TenantService", _StubTenantService)
+                # Override the scope check to allow the request through
+                mp.setattr(tenant_router_module, "require_property_scope", lambda *a, **k: lambda: None)
+            
+                response = _FakeResponse()
+                result = await tenant_router.search_tenants(
+                    response=response,
+                    _=None,
+                    property_id=str(uuid.uuid4()),
+                    query="som",
+                    search_by="email",
+                    page=1,
+                    limit=20,
+                    db=AsyncMock(),
+                )
 
-        with pytest.MonkeyPatch().context() as mp:
-            mp.setattr(tenant_router, "TenantService", _StubTenantService)
-            response = _FakeResponse()
-            result = await tenant_router.search_tenants(
-                response=response,
-                _=None,
-                property_id=str(uuid.uuid4()),
-                query="som",
-                search_by="email",
-                page=1,
-                limit=20,
-                db=AsyncMock(),
-                current_user={"user_id": str(uuid.uuid4())},
-            )
-
-        assert response.headers.get("Cache-Control") == "private, no-store"
-        # Business value forwarded unchanged to the service.
-        assert captured["search_by"] == "email"
-        assert "data" in result and "meta" in result
+            assert response.headers.get("Cache-Control") == "private, no-store"
+            # Business value forwarded unchanged to the service.
+            assert captured["search_by"] == "email"
+            assert "data" in result and "meta" in result

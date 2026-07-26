@@ -6,6 +6,7 @@ References:
 """
 
 import uuid
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,57 +42,60 @@ async def _seed_user_and_property(db_session: AsyncSession, uid: uuid.UUID) -> u
 @pytest.mark.unit
 class TestSendNotification:
     async def test_send_test_success(self, db_session: AsyncSession, any_user_id: uuid.UUID) -> None:
-        """Send test → notification created with status=sent."""
+        """Send test → notification created with status=PENDING (Celery enqueued)."""
         prop_id = await _seed_user_and_property(db_session, any_user_id)
         service = NotificationService(db_session)
-        notif = await service.send_test(
-            user_id=any_user_id, property_id=prop_id,
-            channel="email", subject="Test", body="Hello from PMS",
-            sent_by=any_user_id,
-        )
-        assert notif.id is not None
-        assert notif.status == NotificationStatus.SENT
-        assert notif.channel == "email"
+        
+        # Mock the Celery task enqueue to avoid needing a worker
+        with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
+            notif = await service.send_test(
+                user_id=any_user_id, property_id=prop_id,
+                channel="email", subject="Test", body="Hello from PMS",
+                sent_by=any_user_id,
+            )
+            assert notif.id is not None
+            assert notif.status == NotificationStatus.PENDING  # Returns PENDING, Celery updates to SENT
+            assert notif.channel == "email"
+            mock_enqueue.assert_called_once()
 
     async def test_send_fail_silent(self, db_session: AsyncSession, any_user_id: uuid.UUID) -> None:
-        """Fail-silent: even on failure, returns a Notification with failed status."""
+        """Fail-silent: enqueue failure returns notification with FAILED status."""
         prop_id = await _seed_user_and_property(db_session, any_user_id)
         service = NotificationService(db_session)
 
-        original_send = service._mock_external_send
-        async def _broken_send(*args, **kwargs):
-            raise RuntimeError("Provider unavailable")
-        service._mock_external_send = _broken_send
-
-        notif = await service.send_test(
-            user_id=any_user_id, property_id=prop_id,
-            channel="line", subject="Alert", body="Test message",
-            sent_by=any_user_id,
-        )
-        assert notif.status == NotificationStatus.FAILED
-        assert "Provider unavailable" in (notif.error_message or "")
-        service._mock_external_send = original_send
+        # Mock _enqueue_notification_task to raise an exception
+        with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
+            mock_enqueue.side_effect = RuntimeError("Provider unavailable")
+            
+            notif = await service.send_test(
+                user_id=any_user_id, property_id=prop_id,
+                channel="line", subject="Alert", body="Test message",
+                sent_by=any_user_id,
+            )
+            assert notif.status == NotificationStatus.FAILED
+            assert "Failed to enqueue notification task" in (notif.error_message or "")
 
     async def test_resend_failed(self, db_session: AsyncSession, any_user_id: uuid.UUID) -> None:
-        """Resend failed notification → status becomes sent."""
+        """Resend failed notification → status becomes PENDING (Celery will update to SENT)."""
         prop_id = await _seed_user_and_property(db_session, any_user_id)
         service = NotificationService(db_session)
 
-        original_send = service._mock_external_send
-        async def _broken_send(*args, **kwargs):
-            raise RuntimeError("Fail first")
-        service._mock_external_send = _broken_send
+        # First send fails (enqueue fails)
+        with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
+            mock_enqueue.side_effect = RuntimeError("Fail first")
+            
+            notif = await service.send_test(
+                user_id=any_user_id, property_id=prop_id,
+                channel="email", subject="Retry", body="Will retry",
+                sent_by=any_user_id,
+            )
+            assert notif.status == NotificationStatus.FAILED
 
-        notif = await service.send_test(
-            user_id=any_user_id, property_id=prop_id,
-            channel="email", subject="Retry", body="Will retry",
-            sent_by=any_user_id,
-        )
-        assert notif.status == NotificationStatus.FAILED
-
-        service._mock_external_send = original_send
-        resent = await service.resend(notif_id=notif.id, resent_by=any_user_id)
-        assert resent.status == NotificationStatus.SENT
+        # Resend succeeds (enqueue succeeds)
+        with patch.object(service, '_enqueue_notification_task', new_callable=AsyncMock) as mock_enqueue:
+            resent = await service.resend(notif_id=notif.id, resent_by=any_user_id)
+            assert resent.status == NotificationStatus.PENDING
+            mock_enqueue.assert_called_once()
 
     async def test_resend_not_found(self, db_session: AsyncSession) -> None:
         """Non-existent notification → 404."""
