@@ -350,7 +350,7 @@ lint-fix: check-docker check-compose ## Run linters with auto-fix where possible
 typecheck: check-docker check-compose ## Run mypy type checking
 	@echo "$(COLOR_GREEN)→ Running type checking...$(COLOR_RESET)"
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
-		backend-test mypy backend/app --pretty --show-error-codes
+		backend-test mypy app --pretty --show-error-codes
 
 security: check-docker check-compose ## Run security scans (bandit, safety)
 	@echo "$(COLOR_GREEN)→ Running security scans...$(COLOR_RESET)"
