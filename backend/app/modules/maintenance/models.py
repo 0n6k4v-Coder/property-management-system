@@ -1,14 +1,8 @@
-"""Maintenance module ORM models: MaintenanceRequest (SDD §4.1.1, §4.2).
-
-References:
-    - SDD.md §4.1.1: Entity Relationship Diagram
-    - SDD.md §4.2: Physical Schema (SQLAlchemy 2.0 syntax)
-    - BR-08: Request tied to room + user (audit)
-    - BR-09: Status workflow (pending → in_progress → resolved/cancelled)
-"""
+from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     DateTime,
@@ -20,10 +14,13 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modules.maintenance.constants import MaintenanceStatus, Priority
 from app.shared.database import Base
+
+if TYPE_CHECKING:
+    from app.modules.property.models import Room
 
 
 class MaintenanceRequest(Base):
@@ -70,7 +67,20 @@ class MaintenanceRequest(Base):
         nullable=True,
     )
 
-    # ── Audit timestamps ─────────────────────────────────────────────────
+    # SLA fields
+    sla_response_due: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    sla_resolution_due: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    # Request number for display
+    request_number: Mapped[str] = mapped_column(
+        String(50), unique=True, nullable=False, default=lambda: f"REQ-{uuid.uuid4().hex[:8].upper()}"
+    )
+
+    # Audit timestamps
     created_by: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("users.id", ondelete="SET NULL"),
@@ -86,7 +96,10 @@ class MaintenanceRequest(Base):
         nullable=False,
     )
 
-    # ── Indexes ───────────────────────────────────────────────────────────
+    # Relationships
+    room: Mapped[Room] = relationship("Room", back_populates="maintenance_requests")
+
+    # Indexes
     __table_args__ = (
         Index(
             "ix_maintenance_requests_property_status",
@@ -100,7 +113,4 @@ class MaintenanceRequest(Base):
     )
 
     def __repr__(self) -> str:
-        return (
-            f"<MaintenanceRequest(id={self.id}, title={self.title}, "
-            f"status={self.status})>"
-        )
+        return f"<MaintenanceRequest(id={self.id}, request_number={self.request_number}, status={self.status})>"

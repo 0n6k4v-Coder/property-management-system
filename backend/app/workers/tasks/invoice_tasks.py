@@ -1,41 +1,35 @@
-"""Invoice-related Celery tasks.
-
-Implements:
-- Bulk invoice generation for properties (FR-METER-07)
-- PDF generation for invoices
-- Email delivery of invoices
-
-References:
-- SDD §2.3: Billing Module Specification
-- SDD §10.3: Workers
-- backend/docs/OPERATIONS.md: Task monitoring
-"""
 import uuid
 from datetime import date
+from io import BytesIO
+from typing import TYPE_CHECKING, Any
 
 import structlog
-from celery import shared_task
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import settings
+from app.config import get_settings
 from app.modules.billing.models import Invoice
 from app.modules.billing.repository import BillingRepository
 from app.modules.billing.services.bulk_service import BulkInvoiceService
 from app.shared.audit import log_audit
-from app.shared.storage import storage_client
+from app.shared.storage import get_storage_client
+from app.workers.typing import CeleryTask, shared_task
+
+if TYPE_CHECKING:
+    pass
 
 logger = structlog.get_logger()
 
+settings = get_settings()
+
 # Create async engine for Celery tasks (separate from FastAPI request lifecycle)
 engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="billing")
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="billing")  # type: ignore[untyped-decorator]
 async def generate_bulk_invoices_task(
-    self, property_id: str, billing_month: int, billing_year: int, user_id: str
-):
+    self: CeleryTask, property_id: str, billing_month: int, billing_year: int, user_id: str
+) -> dict[str, Any]:
     """Generate invoices for all occupied rooms in a property.
 
     Called by scheduler on the 1st of each month, or manually via API.
@@ -91,8 +85,8 @@ async def generate_bulk_invoices_task(
             raise self.retry(exc=exc, countdown=120 * (2**self.request.retries)) from exc
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=120, queue="billing")
-async def generate_invoice_pdf_task(self, invoice_id: str, user_id: str):
+@shared_task(bind=True, max_retries=3, default_retry_delay=120, queue="billing")  # type: ignore[untyped-decorator]
+async def generate_invoice_pdf_task(self: CeleryTask, invoice_id: str, user_id: str) -> dict[str, Any]:  # noqa: ARG001
     """Generate PDF for a specific invoice.
 
     Parameters
@@ -104,6 +98,11 @@ async def generate_invoice_pdf_task(self, invoice_id: str, user_id: str):
     -------
     dict: Result with pdf_url and metadata
     """
+    return await _generate_invoice_pdf(invoice_id=invoice_id, user_id=user_id)
+
+
+async def _generate_invoice_pdf(invoice_id: str, user_id: str) -> dict[str, Any]:
+    """Internal function to generate PDF without Celery binding."""
     invoice_uuid = uuid.UUID(invoice_id)
     user_uuid = uuid.UUID(user_id)
 
@@ -126,10 +125,11 @@ async def generate_invoice_pdf_task(self, invoice_id: str, user_id: str):
 
             # Upload to MinIO
             object_name = f"invoices/{invoice_id}/{invoice.invoice_number}.pdf"
-            url = await storage_client.upload_bytes(
-                bucket="documents",
+            client = get_storage_client()
+            url = await client.upload_file(
+                file_data=BytesIO(pdf_content),
+                bucket_name="documents",
                 object_name=object_name,
-                data=pdf_content,
                 content_type="application/pdf",
             )
 
@@ -156,13 +156,12 @@ async def generate_invoice_pdf_task(self, invoice_id: str, user_id: str):
                 "invoice.pdf_generate_failed",
                 invoice_id=invoice_id,
                 error=str(exc),
-                retries=self.request.retries,
             )
-            raise self.retry(exc=exc, countdown=120 * (2**self.request.retries)) from exc
+            raise exc
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")
-async def send_invoice_email_task(self, invoice_id: str, recipient_email: str, user_id: str):
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")  # type: ignore[untyped-decorator]
+async def send_invoice_email_task(self: CeleryTask, invoice_id: str, recipient_email: str, user_id: str) -> dict[str, Any]:
     """Send invoice via email to tenant.
 
     Parameters
@@ -192,9 +191,7 @@ async def send_invoice_email_task(self, invoice_id: str, recipient_email: str, u
                 raise ValueError(f"Invoice {invoice_id} not found")
 
             # Generate PDF first
-            pdf_result = await generate_invoice_pdf_task(
-                invoice_id=invoice_id, user_id=user_id
-            )
+            pdf_result = await _generate_invoice_pdf(invoice_id=invoice_id, user_id=user_id)
             pdf_url = pdf_result.get("pdf_url")
 
             # TODO: Implement actual email sending with SendGrid, SES, or SMTP

@@ -7,6 +7,7 @@ References:
 """
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,3 +77,36 @@ class MaintenanceRepository:
         )
         result = await self.db.execute(stmt)
         return result.scalar_one_or_none()
+
+    async def get_sla_breaches(self, property_id: uuid.UUID | None = None) -> list[MaintenanceRequest]:
+        """Return maintenance requests that have breached their SLA response or resolution times.
+
+        Args:
+            property_id: Optional filter by property. If None, checks all properties.
+
+        Returns:
+            List of MaintenanceRequest objects with breached SLA.
+        """
+        now = datetime.now(UTC)
+        stmt = select(MaintenanceRequest).where(
+            MaintenanceRequest.status.in_(["pending", "in_progress"]),
+        )
+        if property_id:
+            stmt = stmt.where(MaintenanceRequest.property_id == property_id)
+
+        # Check for response breach
+        response_breach = (
+            MaintenanceRequest.sla_response_due.is_not(None) &
+            (MaintenanceRequest.sla_response_due < now)
+        )
+        # Check for resolution breach
+        resolution_breach = (
+            MaintenanceRequest.sla_resolution_due.is_not(None) &
+            (MaintenanceRequest.sla_resolution_due < now)
+        )
+
+        stmt = stmt.where(response_breach | resolution_breach)
+        stmt = stmt.order_by(MaintenanceRequest.created_at.asc())
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

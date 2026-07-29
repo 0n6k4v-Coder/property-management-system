@@ -25,6 +25,7 @@ ERROR_MESSAGES: dict[str, str] = {
 class NotificationStatus(StrEnum):
     PENDING = "pending"
     QUEUED = "queued"
+    SENDING = "sending"
     SENT = "sent"
     FAILED = "failed"
 
@@ -33,6 +34,7 @@ class NotificationChannel(StrEnum):
     EMAIL = "email"
     LINE = "line"
     SMS = "sms"
+    IN_APP = "in_app"
 
 
 # Events

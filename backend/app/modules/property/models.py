@@ -11,7 +11,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     DateTime,
@@ -33,6 +33,7 @@ from app.shared.database import Base
 
 if TYPE_CHECKING:
     from app.modules.billing.models import Invoice, MeterReading
+    from app.modules.maintenance.models import MaintenanceRequest
 
 
 class Property(Base):
@@ -202,7 +203,7 @@ class Room(Base):
     status: Mapped[str] = mapped_column(
         String(20), default=RoomStatus.AVAILABLE, nullable=False,
     )
-    images: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    images: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # ── Relationships ──────────────────────────────────────────────────
     property: Mapped[Property] = relationship("Property", back_populates="rooms")
@@ -212,6 +213,9 @@ class Room(Base):
     )
     invoices: Mapped[list[Invoice]] = relationship(
         "Invoice", back_populates="room", lazy="selectin", cascade="all, delete-orphan"
+    )
+    maintenance_requests: Mapped[list[MaintenanceRequest]] = relationship(
+        "MaintenanceRequest", back_populates="room", lazy="selectin", cascade="all, delete-orphan"
     )
 
     __table_args__ = (

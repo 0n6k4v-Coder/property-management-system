@@ -37,6 +37,23 @@ class NotificationRepository:
         result = await self._db.execute(stmt)
         return result.scalars().first()
 
+    async def get_notification_property_id(self, notif_id: uuid.UUID) -> uuid.UUID | None:
+        """Get the property_id of a notification (for resolve-then-check)."""
+        stmt = select(Notification.property_id).where(Notification.id == notif_id)
+        result = await self._db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def update_status(self, notif_id: uuid.UUID, status: str) -> Notification | None:
+        """Update notification status."""
+        stmt = select(Notification).where(Notification.id == notif_id)
+        result = await self._db.execute(stmt)
+        notification = result.scalars().first()
+        if notification:
+            notification.status = status
+            await self._db.flush()
+            await self._db.refresh(notification)
+        return notification
+
     async def update(self, notif: Notification) -> Notification:
         """Persist changes to an existing notification."""
         await self._db.flush()
@@ -96,8 +113,3 @@ class NotificationRepository:
 
         return items, total
 
-    async def get_notification_property_id(self, notif_id: uuid.UUID) -> uuid.UUID | None:
-        """Get the property_id of a notification (for resolve-then-check)."""
-        stmt = select(Notification.property_id).where(Notification.id == notif_id)
-        result = await self._db.execute(stmt)
-        return result.scalar_one_or_none()
