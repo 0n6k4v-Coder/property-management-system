@@ -12,11 +12,9 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.tenant.constants import TENANT_001_DUPLICATE_PHONE, TENANT_008_QUERY_TOO_SHORT
-from app.modules.tenant.models import Tenant
 from app.modules.tenant.services.tenant_service import TenantService
 from app.shared.exceptions import APIError
 from app.shared.security import decrypt_sensitive, encrypt_sensitive
-
 
 # ── Encryption tests ───────────────────────────────────────────────────
 

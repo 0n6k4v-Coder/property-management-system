@@ -2,6 +2,7 @@
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -16,7 +17,7 @@ from app.config import get_settings
 settings = get_settings()
 
 # Create async engine - conditionally use NullPool for testing
-pool_args = {}
+pool_args: dict[str, Any] = {}
 if settings.DEBUG:
     pool_args["poolclass"] = NullPool
 else:

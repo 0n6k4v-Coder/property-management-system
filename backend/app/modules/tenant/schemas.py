@@ -9,6 +9,7 @@ References:
 import re
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -93,3 +94,10 @@ class TenantCreateResponse(BaseModel):
 
     data: TenantResponse
     meta: None = None
+
+
+class TenantListResponse(BaseModel):
+    """List wrapper for tenants (SDD §3.1)."""
+
+    data: list[TenantResponse]
+    meta: dict[str, Any] | None = None

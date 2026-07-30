@@ -28,7 +28,7 @@ References:
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,9 +63,16 @@ from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["billing"], redirect_slashes=False)
 
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+GET_DB = Depends(get_db)
+QUERY_LIMIT_12 = Query(12, ge=1, le=100, description="Max readings to return (1-100)")
+QUERY_PROPERTY_ID = Query(None, description="Filter by property")
+QUERY_PAGE = Query(1, ge=1, description="Page number")
+QUERY_LIMIT_20 = Query(20, ge=1, le=100, description="Items per page (1-100)")
+
 
 async def _check_scope(
-    current_user: dict, db: AsyncSession, property_id: uuid.UUID | None
+    current_user: dict[str, Any], db: AsyncSession, property_id: uuid.UUID | None
 ) -> None:
     """Resolve-then-check authorization helper.
 
@@ -98,8 +105,8 @@ async def _check_scope(
 )
 async def create_meter_reading(
     request: MeterReadingRequest,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    current_user: dict[str, Any],
+    db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> MeterReadingCreateResponse:
     """Create a new meter reading (BR-07).
@@ -161,10 +168,10 @@ async def create_meter_reading(
 )
 async def get_meter_reading_history(
     response: Response,
-    current_user: CurrentUser,
+    current_user: dict[str, Any],
     room_id: uuid.UUID,
-    limit: int = Query(12, ge=1, le=100, description="Max readings to return (1-100)"),
-    db: AsyncSession = Depends(get_db),
+    limit: int = QUERY_LIMIT_12,
+    db: AsyncSession = GET_DB,
 ) -> MeterReadingHistoryWrapperResponse:
     """Get meter reading history for a room (fixes #5, #13, #19, #20).
 
@@ -201,7 +208,7 @@ async def generate_invoice(
     request: GenerateInvoiceRequest,
     _: Annotated[None, require_property_scope()],
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> InvoiceCreateResponse:
     """Generate monthly invoices for all occupied rooms in a property (BR-12).
@@ -253,10 +260,10 @@ async def generate_invoice(
 async def list_invoices(
     response: Response,
     current_user: CurrentUser,
-    property_id: uuid.UUID | None = Query(None, description="Filter by property"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page (1-100)"),
-    db: AsyncSession = Depends(get_db),
+    property_id: uuid.UUID | None = QUERY_PROPERTY_ID,
+    page: int = QUERY_PAGE,
+    limit: int = QUERY_LIMIT_20,
+    db: AsyncSession = GET_DB,
 ) -> InvoiceListWrapperResponse:
     """List invoices, scope-filtered and paginated (fixes #5, #13, #20).
 
@@ -306,7 +313,7 @@ async def get_invoice_detail(
     response: Response,
     current_user: CurrentUser,
     invoice_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
 ) -> InvoiceDetailWrapperResponse:
     """Get a single invoice with its line items (fixes #5, #3, #20).
 
@@ -360,7 +367,7 @@ async def get_invoice_detail(
 async def record_payment(
     request: RecordPaymentRequest,
     current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> PaymentCreateResponse:
     """Record payment for an invoice (fixes #5, #4, #1, #11, #12).

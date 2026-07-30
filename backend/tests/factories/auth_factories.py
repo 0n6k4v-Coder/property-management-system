@@ -13,7 +13,6 @@ References:
 import uuid
 
 import factory
-from factory.fuzzy import FuzzyText
 
 from app.modules.auth.models import User
 from app.shared.security import hash_password

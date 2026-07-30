@@ -48,6 +48,70 @@ class TenantRepository:
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
+    async def get_paginated(
+        self,
+        offset: int,
+        limit: int,
+    ) -> list[Tenant]:
+        """Get all tenants with pagination (global scope)."""
+        stmt = select(Tenant).offset(offset).limit(limit)
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_all(self) -> int:
+        """Count all tenants (global scope)."""
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(Tenant)
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
+    async def get_paginated_for_property(
+        self,
+        property_id: uuid.UUID,
+        offset: int,
+        limit: int,
+    ) -> list[Tenant]:
+        """Get tenants for a specific property with pagination."""
+        stmt = (
+            select(Tenant)
+            .where(Tenant.property_id == property_id)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_for_property(self, property_id: uuid.UUID) -> int:
+        """Count tenants for a specific property."""
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(Tenant).where(Tenant.property_id == property_id)
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
+    async def get_paginated_for_properties(
+        self,
+        property_ids: list[uuid.UUID],
+        offset: int,
+        limit: int,
+    ) -> list[Tenant]:
+        """Get tenants for multiple properties with pagination."""
+        stmt = (
+            select(Tenant)
+            .where(Tenant.property_id.in_(property_ids))
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_for_properties(self, property_ids: list[uuid.UUID]) -> int:
+        """Count tenants for multiple properties."""
+        from sqlalchemy import func
+        stmt = select(func.count()).select_from(Tenant).where(Tenant.property_id.in_(property_ids))
+        result = await self.db.execute(stmt)
+        return result.scalar() or 0
+
+    # Legacy search methods for backward compatibility with tests
     async def search(
         self,
         property_id: uuid.UUID,
@@ -56,26 +120,7 @@ class TenantRepository:
         limit: int = 20,
         offset: int = 0,
     ) -> list[Tenant]:
-        """Search tenants by name, phone, or email within a property.
-
-        Parameters
-        ----------
-        property_id
-            Scoping property UUID.
-        query
-            Search string (min 3 characters, enforced in service layer).
-        search_by
-            Field to search: ``"name"``, ``"phone"``, or ``"email"``.
-        limit
-            Max results per page.
-        offset
-            Pagination offset.
-
-        Returns
-        -------
-        list[Tenant]
-            Matching tenant records.
-        """
+        """Search tenants by name, phone, or email within a property (legacy)."""
         pattern = f"%{query}%"
         if search_by == "phone":
             stmt = (
@@ -108,9 +153,6 @@ class TenantRepository:
                 .limit(limit)
             )
         else:
-            # Invalid value — should be unreachable now that the router
-            # constrains ``search_by`` to a Literal, but fail loudly rather
-            # than silently falling back to a name search (anti-pattern #7).
             raise ValueError(f"Unsupported search_by value: {search_by!r}")
 
         result = await self.db.execute(stmt)
@@ -122,7 +164,7 @@ class TenantRepository:
         query: str,
         search_by: str = "name",
     ) -> int:
-        """Count matching tenants for pagination metadata."""
+        """Count matching tenants for pagination metadata (legacy)."""
         pattern = f"%{query}%"
         if search_by == "phone":
             stmt = (
@@ -149,8 +191,6 @@ class TenantRepository:
                 )
             )
         else:
-            # Invalid value — unreachable via the router's Literal constraint;
-            # fail loudly rather than silently falling back to a name count (#7).
             raise ValueError(f"Unsupported search_by value: {search_by!r}")
 
         result = await self.db.execute(stmt)

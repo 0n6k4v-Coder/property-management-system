@@ -10,10 +10,9 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from app.modules.auth.models import User, UserPropertyScope
 from app.modules.property.models import Property
 from app.shared.deps import get_current_user
-from app.modules.auth.models import UserPropertyScope
-from app.modules.auth.models import User
 from app.shared.security import hash_password
 
 
@@ -118,7 +117,7 @@ async def test_get_property_invalid_uuid(
     db_session,
     app,
 ) -> None:
-    """GET /api/v1/properties/{id} returns 403 for malformed UUID (AUTH-005 from scope check)."""
+    """GET /api/v1/properties/{id} returns 422 for malformed UUID (FastAPI path validation)."""
     user_id = uuid.uuid4()
     _setup_auth_override(app, user_id, is_owner=True)
 
@@ -126,7 +125,7 @@ async def test_get_property_invalid_uuid(
 
     _cleanup_auth_override(app)
 
-    assert response.status_code == 403
+    assert response.status_code == 422
 
 
 @pytest.mark.integration

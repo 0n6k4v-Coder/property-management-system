@@ -13,9 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.property.constants import RoomStatus
 from app.modules.property.models import Building, Property, Room
 from app.modules.property.repository import (
-    BuildingRepository,
     PropertyRepository,
-    RoomRepository,
 )
 from app.modules.property.services.property_service import PropertyService
 from app.shared.exceptions import APIError

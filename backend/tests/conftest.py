@@ -148,7 +148,6 @@ def app() -> FastAPI:
 
 # Add synchronous client fixture for tests that need it
 # Uses httpx.Client with ASGITransport to avoid deprecation warnings
-import httpx
 
 @pytest.fixture
 def client(app: FastAPI) -> Generator[httpx.Client]:

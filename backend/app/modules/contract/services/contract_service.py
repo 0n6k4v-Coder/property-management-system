@@ -13,6 +13,8 @@ References:
 
 import uuid
 from datetime import date
+from decimal import Decimal
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,8 +68,8 @@ class ContractService:
         property_id: uuid.UUID,
         start_date: date,
         end_date: date,
-        monthly_rent: float,
-        deposit_amount: float,
+        monthly_rent: Decimal,
+        deposit_amount: Decimal,
         created_by: uuid.UUID,
         special_conditions: str | None = None,
     ) -> Contract:
@@ -96,9 +98,9 @@ class ContractService:
         end_date
             Lease end date (must be after start_date).
         monthly_rent
-            Monthly rent amount as a float.
+            Monthly rent amount as a Decimal.
         deposit_amount
-            Security deposit amount as a float.
+            Security deposit amount as a Decimal.
         created_by
             UUID of the user creating the contract.
         special_conditions
@@ -155,9 +157,9 @@ class ContractService:
 
         # -- BR-02: Deposit >= monthly_rent * min_deposit_months --
         from app.modules.property.models import Property
-        stmt = select(Property).where(Property.id == property_id)
-        result = await self.db.execute(stmt)
-        prop = result.scalars().first()
+        prop_stmt = select(Property).where(Property.id == property_id)
+        prop_result = await self.db.execute(prop_stmt)
+        prop = prop_result.scalars().first()
         if prop is not None:
             min_deposit = monthly_rent * prop.min_deposit_months
             if deposit_amount < min_deposit:
@@ -439,8 +441,8 @@ class ContractService:
         original_contract_id: uuid.UUID,
         new_start_date: date,
         new_end_date: date,
-        new_monthly_rent: float,
-        new_deposit_amount: float,
+        new_monthly_rent: Decimal,
+        new_deposit_amount: Decimal,
         renewed_by: uuid.UUID,
     ) -> Contract:
         """Renew a terminated/expired contract by creating a new one.
@@ -583,7 +585,7 @@ class ContractService:
         """
         return await self.repo.get_active_contracts_paginated(property_ids, page, limit)
 
-    async def get_current_user_property_ids(self, current_user: dict) -> list[uuid.UUID] | None:
+    async def get_current_user_property_ids(self, current_user: dict[str, Any]) -> list[uuid.UUID] | None:
         """Return property IDs the caller may access, or None for global owner/admin.
 
         Used by list endpoints when property_id is omitted to filter results
@@ -636,3 +638,4 @@ class ContractService:
         Returns (contracts, total_count).
         """
         return await self.repo.get_lease_history_paginated(room_id, page, limit)
+

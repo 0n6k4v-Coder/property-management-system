@@ -28,17 +28,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.modules.tenant.schemas import (
     CreateTenantRequest,
     TenantCreateResponse,
+    TenantListResponse,
     TenantResponse,
 )
 from app.modules.tenant.services.tenant_service import TenantService
+from app.shared.database import get_db
 from app.shared.deps import (
     get_current_user,
-    get_db,
     require_property_scope,
 )
 from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["tenant"], redirect_slashes=False)
+
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+GET_DB = Depends(get_db)
+GET_CURRENT_USER = Depends(get_current_user)
+
+QUERY_PROPERTY_ID = Query(..., description="Scoping property UUID")
+QUERY_MIN_3 = Query(..., min_length=3, description="Search query (min 3 chars)")
+QUERY_SEARCH_BY = Query("name", description="Field to search: name, phone, or email")
+QUERY_PAGE = Query(1, ge=1, description="Page number")
+QUERY_LIMIT_20 = Query(20, ge=1, le=100, description="Items per page")
+QUERY_PROPERTY_ID_OPTIONAL = Query(None, description="Filter by property")
 
 
 @router.post(
@@ -50,8 +62,8 @@ router = APIRouter(tags=["tenant"], redirect_slashes=False)
 async def create_tenant(
     payload: CreateTenantRequest,
     _: Annotated[None, require_property_scope()],
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> TenantCreateResponse:
     """Register a new tenant with encrypted ID card.
@@ -110,6 +122,58 @@ async def create_tenant(
 
 
 @router.get(
+    "/",
+    response_model=TenantListResponse,
+    status_code=HTTPStatus.OK,
+    summary="List tenants (paginated, scoped)",
+)
+@router.get(
+    "",
+    response_model=TenantListResponse,
+    status_code=HTTPStatus.OK,
+    include_in_schema=False,
+)
+async def list_tenants(
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,
+    page: int = QUERY_PAGE,
+    limit: int = QUERY_LIMIT_20,
+    property_id: _uuid_module.UUID | None = QUERY_PROPERTY_ID_OPTIONAL,
+) -> TenantListResponse:
+    """List tenants with pagination and optional property filter.
+
+    Only returns tenants the caller has access to via property scopes
+    (or global owner/admin). Results are paginated.
+    """
+    from app.modules.auth.repository import UserRepository
+
+    service = TenantService(db)
+    user_id = _uuid_module.UUID(current_user["user_id"])
+    user = await UserRepository(db).get_by_id(user_id)
+    is_global = user is not None and user.email in (
+        e.strip().lower() for e in __import__("app.config").config.get_settings().ADMIN_EMAILS.split(",") if e.strip()
+    )
+
+    tenants, total = await service.list_tenants_paginated(
+        page=page,
+        limit=limit,
+        property_id=property_id,
+        user_id=user_id,
+        is_global=is_global,
+    )
+
+    return TenantListResponse(
+        data=[TenantResponse.model_validate(t) for t in tenants],
+        meta={
+            "page": page,
+            "limit": limit,
+            "total": total,
+            "has_next": page * limit < total,
+        },
+    )
+
+
+@router.get(
     "/search",
     status_code=HTTPStatus.OK,
     summary="Search tenants (FR-TENANT-04)",
@@ -117,14 +181,13 @@ async def create_tenant(
 async def search_tenants(
     response: Response,
     _: Annotated[None, require_property_scope(query_param="property_id")],
-    property_id: str = Query(..., description="Scoping property UUID"),
-    query: str = Query(..., min_length=3, description="Search query (min 3 chars)"),
-    search_by: Literal["name", "phone", "email"] = Query(
-        "name", description="Field to search: name, phone, or email"
-    ),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
-    db: AsyncSession = Depends(get_db),
+    property_id: str = QUERY_PROPERTY_ID,
+    query: str = QUERY_MIN_3,
+    search_by: Literal["name", "phone", "email"] = QUERY_SEARCH_BY,
+    page: int = QUERY_PAGE,
+    limit: int = QUERY_LIMIT_20,
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
 ) -> dict[str, Any]:
     """Search for tenants by name, phone, or email within a property.
 
@@ -153,4 +216,5 @@ async def search_tenants(
 
     # Decorate data with TenantResponse serialization
     result["data"] = [TenantResponse.model_validate(t) for t in result["data"]]
+
     return result

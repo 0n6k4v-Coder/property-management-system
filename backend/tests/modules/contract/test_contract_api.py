@@ -151,7 +151,7 @@ class TestCreateContractEndpoint:
             "user_id": str(uuid.uuid4()), "email": "admin@test.com",
             "property_scopes": [str(prop_id)], "token_type": "access",
         }
-    
+
         response = await async_client.post(
             "/api/v1/contracts",
             json={
@@ -179,7 +179,7 @@ class TestTerminateContractEndpoint:
         app = async_client._transport.app
         app.dependency_overrides[get_current_user] = lambda: {
             "user_id": str(data["user_id"]), "email": "admin@test.com",
-            "property_scopes": [], "token_type": "access",
+            "property_scopes": [str(data["property"].id)], "token_type": "access",
         }
 
         # Create contract via service
@@ -234,7 +234,7 @@ class TestExtendLeaseEndpoint:
         app = async_client._transport.app
         app.dependency_overrides[get_current_user] = lambda: {
             "user_id": str(data["user_id"]), "email": "admin@test.com",
-            "property_scopes": [], "token_type": "access",
+            "property_scopes": [str(data["property"].id)], "token_type": "access",
         }
 
         from app.modules.contract.services.contract_service import ContractService

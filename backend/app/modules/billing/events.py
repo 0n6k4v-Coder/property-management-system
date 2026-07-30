@@ -4,12 +4,14 @@ References:
 - SDD.md §2.3: Billing module domain events
 """
 
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger()
 
 
-async def publish_billing_event(event_name: str, resource_id: str, metadata: dict | None = None) -> None:
+async def publish_billing_event(event_name: str, resource_id: str, metadata: dict[str, Any] | None = None) -> None:
     """Publish a billing-related domain event.
 
     Current implementation logs to structlog.  Replaced with Redis

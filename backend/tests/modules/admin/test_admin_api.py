@@ -88,7 +88,7 @@ class TestGetSystemConfigEndpoint:
             "user_id": str(data["user_id"]), "email": "owner@test.com",
             "property_scopes": [], "token_type": "access", "is_owner": True,
         }
-        response = await async_client.get("/api/v1/admin/config")
+        response = await async_client.get("/api/v1/admin/system-config")
         assert response.status_code == 200
         body = response.json()
         assert "data" in body

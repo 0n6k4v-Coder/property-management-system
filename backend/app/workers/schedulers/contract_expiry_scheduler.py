@@ -47,21 +47,21 @@ def register_contract_expiry_jobs(scheduler: AsyncIOScheduler | None = None) -> 
     return scheduler
 
 
-async def _run_contract_expiry_check():
+async def _run_contract_expiry_check() -> None:
     """Wrapper to run the Celery task from APScheduler."""
     logger.info("contract_expiry_scheduler_triggered")
     # Trigger the Celery task
     check_contract_expiry_task.delay()
 
 
-def start_contract_expiry_scheduler():
+def start_contract_expiry_scheduler() -> None:
     """Start the contract expiry scheduler."""
     register_contract_expiry_jobs()
     contract_expiry_scheduler.start()
     logger.info("contract_expiry_scheduler_started")
 
 
-def stop_contract_expiry_scheduler():
+def stop_contract_expiry_scheduler() -> None:
     """Stop the contract expiry scheduler."""
     contract_expiry_scheduler.shutdown(wait=True)
     logger.info("contract_expiry_scheduler_stopped")

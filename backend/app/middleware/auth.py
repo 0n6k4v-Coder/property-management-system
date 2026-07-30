@@ -8,8 +8,8 @@ This middleware only rejects clearly malformed headers early, reducing
 noise in the business-logic layers. It should be registered AFTER CORS
 and BEFORE rate-limiting so bad auth headers are caught quickly.
 """
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 # Public endpoints that do NOT require any auth header
 PUBLIC_PATHS = frozenset({
@@ -29,7 +29,9 @@ class AuthHeaderMiddleware(BaseHTTPMiddleware):
     headers that are structurally invalid (e.g. missing "Bearer" prefix).
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         # Skip auth check for public endpoints
         if request.url.path in PUBLIC_PATHS:
             return await call_next(request)
@@ -47,6 +49,6 @@ class AuthHeaderMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-def setup_auth_middleware(app):
+def setup_auth_middleware(app: FastAPI) -> None:
     """Register auth middleware on FastAPI app."""
     app.add_middleware(AuthHeaderMiddleware)

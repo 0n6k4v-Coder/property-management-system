@@ -10,7 +10,7 @@ References:
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -77,8 +77,8 @@ class Contract(Base):
         nullable=False,
         index=True,
     )
-    start_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
     monthly_rent: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False,
     )
@@ -181,8 +181,8 @@ class LeaseExtension(Base):
         nullable=False,
         index=True,
     )
-    previous_end_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
-    extended_to: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    previous_end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    extended_to: Mapped[date] = mapped_column(Date, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Audit ────────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ class ContractTermination(Base):
         index=True,
     )
     reason: Mapped[str] = mapped_column(String(100), nullable=False)
-    termination_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    termination_date: Mapped[date] = mapped_column(Date, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Audit ────────────────────────────────────────────────────────────

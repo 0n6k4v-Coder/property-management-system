@@ -144,7 +144,7 @@ class UserRepository:
         user = result.scalars().first()
         if user:
             # Touch the row — onupdate will set updated_at on flush/commit
-            user.updated_at = None  # Forces SQLAlchemy to re-apply onupdate
+            user.updated_at = datetime.now(UTC)
             await self._db.flush()
 
     async def get_idempotency(self, key: str) -> IdempotencyKey | None:

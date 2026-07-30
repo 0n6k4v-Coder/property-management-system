@@ -202,7 +202,7 @@ class TestListPendingEndpoint:
         from app.shared.deps import get_current_user
         async_client._transport.app.dependency_overrides[get_current_user] = lambda: {
             "user_id": str(data["user_id"]), "email": "admin@test.com",
-            "property_scopes": [], "token_type": "access",
+            "property_scopes": [str(data["property"].id)], "token_type": "access",
         }
         from app.modules.maintenance.services.maintenance_service import MaintenanceService
         svc = MaintenanceService(db_session)

@@ -31,7 +31,7 @@ pwd_context = CryptContext(
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against an Argon2id hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bool(pwd_context.verify(plain_password, hashed_password))
 
 
 def hash_password(plain_password: str) -> str:
@@ -50,7 +50,7 @@ def hash_password(plain_password: str) -> str:
     str
         Argon2id hash string.
     """
-    return pwd_context.hash(plain_password)
+    return str(pwd_context.hash(plain_password))
 
 
 # JWT utilities

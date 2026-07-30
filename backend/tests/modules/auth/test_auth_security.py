@@ -188,7 +188,7 @@ class TestIdempotency:
         # timezone-aware datetime, and response_body is JSON-encoded.
         _, kwargs = fake_repo.save_idempotency.call_args
         assert kwargs["key"] == "key-2"
-        assert kwargs["expires_at"] > _dt.datetime.now(_dt.timezone.utc)
+        assert kwargs["expires_at"] > _dt.datetime.now(_dt.UTC)
         assert kwargs["response_body"] == '{"data": {"ok": true}}'
 
 

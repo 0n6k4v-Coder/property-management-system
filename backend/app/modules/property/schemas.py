@@ -8,6 +8,7 @@ References:
 import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -86,7 +87,7 @@ class RoomResponse(BaseModel):
     room_type: str
     base_rent: Decimal
     status: str
-    images: dict | None = None
+    images: dict[str, Any] | None = None
 
 
 class PropertyWithRoomsData(BaseModel):
@@ -108,7 +109,7 @@ class PropertyWithRoomsResponse(BaseModel):
     """
 
     data: PropertyWithRoomsData
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 # ── Paginated list wrapper ─────────────────────────────────────────────
@@ -118,7 +119,7 @@ class RoomListResponse(BaseModel):
     """Paginated list response for rooms (SDD §3.1 pagination format)."""
 
     data: list[RoomResponse]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 class PropertyCreateResponse(BaseModel):
@@ -143,4 +144,4 @@ class PropertyListResponse(BaseModel):
     ``meta`` carries ``{"page", "limit", "total", "has_next"}``.
     """
     data: list[PropertyResponse]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None

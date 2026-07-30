@@ -10,7 +10,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.admin.services.admin_service import AdminService
-from app.shared.audit import AuditLog
 from app.modules.property.models import Property
 
 
@@ -31,20 +30,18 @@ class TestGetAuditLogs:
                 service = AdminService(db_session)
                 from app.modules.admin.repository import AuditLogRepository
                 repo = AuditLogRepository(db_session)
-                import uuid
-                from app.modules.property.models import Property
                 from app.modules.auth.models import User
-        
+
                 # Create a user first (FK requirement for Property.created_by)
                 user = User(id=uuid.uuid4(), email=f"{uuid.uuid4().hex[:8]}@test.com", password_hash="hashed", full_name="Test", is_active=True)
                 db_session.add(user)
                 await db_session.flush()
-        
+
                 # Create a property first (FK requirement)
                 prop = Property(name="Test Property", address="123 Test St", billing_due_day=5, min_deposit_months=2, created_by=user.id)
                 db_session.add(prop)
                 await db_session.flush()
-        
+
                 for i in range(3):
                     await repo.create_audit_log(
                         user_id=user.id,
@@ -63,22 +60,20 @@ class TestGetAuditLogs:
                 service = AdminService(db_session)
                 from app.modules.admin.repository import AuditLogRepository
                 repo = AuditLogRepository(db_session)
-                import uuid
-                from app.modules.property.models import Property
                 from app.modules.auth.models import User
-        
+
                 # Create a user first (FK requirement for Property.created_by)
                 user = User(id=uuid.uuid4(), email=f"{uuid.uuid4().hex[:8]}@test.com", password_hash="hashed", full_name="Test", is_active=True)
                 db_session.add(user)
                 await db_session.flush()
-        
+
                 # Create properties first (FK requirement)
                 prop_a = Property(name="Property A", address="123 A St", billing_due_day=5, min_deposit_months=2, created_by=user.id)
                 prop_b = Property(name="Property B", address="123 B St", billing_due_day=5, min_deposit_months=2, created_by=user.id)
                 db_session.add(prop_a)
                 db_session.add(prop_b)
                 await db_session.flush()
-        
+
                 await repo.create_audit_log(user_id=user.id, action="action.a", resource_type="test", property_id=prop_a.id)
                 await repo.create_audit_log(user_id=user.id, action="action.b", resource_type="test", property_id=prop_b.id)
                 result = await service.get_audit_logs(property_id=prop_a.id, page=1, limit=50)

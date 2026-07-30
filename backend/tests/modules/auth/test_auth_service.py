@@ -11,12 +11,12 @@ References:
 """
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import status
 
-from app.modules.auth.constants import AUTH_001, AUTH_002, AUTH_009
+from app.modules.auth.constants import AUTH_001, AUTH_002
 from app.modules.auth.models import User
 from app.modules.auth.services.auth_service import AuthService
 from app.shared.exceptions import APIError

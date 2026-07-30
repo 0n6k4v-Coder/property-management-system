@@ -1,7 +1,7 @@
 """Dependency injection helpers (SDD.md §9.1, §3.3)."""
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -16,11 +16,10 @@ security = HTTPBearer(auto_error=False)
 
 async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(security)],
-    db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+) -> dict[str, Any]:
     """Extract and verify the current user from the JWT bearer token.
 
-    Validates the ``Authorization: Bearer <token>`` header, decodes the
+    Validates the ``Authorization: Bearer *** header, decodes the
     JWT payload, and returns the token claims as a dictionary.
 
     Returns
@@ -43,7 +42,7 @@ async def get_current_user(
             details={"www_authenticate": "Bearer"},
         )
 
-    payload = await verify_token(credentials.credentials, db)
+    payload = await verify_token(credentials.credentials)
     if not payload:
         raise APIError(
             code="AUTH-009",
@@ -56,10 +55,13 @@ async def get_current_user(
 
 
 # Type-annotated dependency for FastAPI routes
-CurrentUser = Annotated[dict, Depends(get_current_user)]
+CurrentUser = dict[str, Any]
 
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+GET_DB = Depends(get_db)
+GET_CURRENT_USER = Depends(get_current_user)
 
-def is_global_scope(current_user: dict) -> bool:
+def is_global_scope(current_user: CurrentUser) -> bool:
     """Return ``True`` if the caller bypasses per-property scope checks.
 
     A global ``owner``/``admin`` (surfaced as the ``is_owner`` /
@@ -72,7 +74,7 @@ def is_global_scope(current_user: dict) -> bool:
 
 
 async def user_has_property_scope(
-    current_user: dict,
+    current_user: CurrentUser,
     db: AsyncSession,
     property_id: uuid.UUID,
 ) -> bool:
@@ -103,7 +105,7 @@ async def user_has_property_scope(
 def require_property_scope(
     path_param: str | None = None,
     query_param: str | None = None,
-):
+) -> Any:
     """Build a FastAPI dependency enforcing property scope.
 
     The ``property_id`` to check is sourced in one of three ways (mutually
@@ -148,9 +150,9 @@ def require_property_scope(
     """
 
     async def _enforce(
-        current_user: Annotated[dict, Depends(get_current_user)],
+        current_user: CurrentUser,
         request: Request,
-        db: Annotated[AsyncSession, Depends(get_db)],
+        db: AsyncSession = GET_DB,
     ) -> None:
         import uuid as _uuid
 

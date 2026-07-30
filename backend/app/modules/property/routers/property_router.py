@@ -21,9 +21,9 @@ References:
 
 import uuid
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.property.schemas import (
@@ -39,14 +39,18 @@ from app.modules.property.schemas import (
 )
 from app.modules.property.services.property_service import PropertyService
 from app.shared.deps import (
-    get_current_user,
-    get_db,
+    GET_CURRENT_USER,
+    GET_DB,
     is_global_scope,
     require_property_scope,
 )
 from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["property"], redirect_slashes=False)
+
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+QUERY_PAGE = Query(1, ge=1, description="Page number")
+QUERY_LIMIT_20 = Query(20, ge=1, le=100, description="Items per page")
 
 
 @router.get(
@@ -57,9 +61,8 @@ router = APIRouter(tags=["property"], redirect_slashes=False)
 )
 async def get_property(
     property_id: uuid.UUID,
-    _: Annotated[None, require_property_scope("property_id")],
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
 ) -> PropertyDetailResponse:
     """Retrieve a single property by its UUID.
 
@@ -87,10 +90,10 @@ async def get_property(
     include_in_schema=False,
 )
 async def list_properties(
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,
+    page: int = QUERY_PAGE,
+    limit: int = QUERY_LIMIT_20,
 ) -> PropertyListResponse:
     """GET /api/v1/properties/ — paginated list scoped to the caller.
 
@@ -129,8 +132,8 @@ async def list_properties(
 )
 async def create_property(
     payload: CreatePropertyRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> PropertyCreateResponse:
     """Create a new property.
@@ -188,10 +191,10 @@ async def create_property(
 async def get_property_rooms(
     property_id: uuid.UUID,
     _: Annotated[None, require_property_scope("property_id")],
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(20, ge=1, le=100, description="Items per page"),
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
+    page: int = QUERY_PAGE,
+    limit: int = QUERY_LIMIT_20,
 ) -> PropertyWithRoomsResponse:
     """Retrieve a property with a paginated slice of its room list.
 
@@ -231,9 +234,9 @@ async def update_room_status(
     room_id: uuid.UUID,
     payload: UpdateRoomStatusRequest,
     _: Annotated[None, require_property_scope("property_id")],
-    db: AsyncSession = Depends(get_db),
-    current_user: dict = Depends(get_current_user),
-) -> dict:
+    db: AsyncSession = GET_DB,
+    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
+) -> dict[str, Any]:
     """Update a room's current status (available/occupied/maintenance).
 
     Requires a property-scope row for ``property_id`` (403 AUTH-005 otherwise).
@@ -251,3 +254,4 @@ async def update_room_status(
     )
 
     return {"data": RoomResponse.model_validate(room).model_dump(mode="json"), "meta": None}
+

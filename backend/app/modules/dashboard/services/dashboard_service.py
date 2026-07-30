@@ -9,6 +9,7 @@ References:
 
 import uuid
 from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -70,7 +71,7 @@ class DashboardService:
 
     async def get_revenue_report(
         self, property_id: uuid.UUID, start_date: date | None, end_date: date | None,
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Revenue report for a date range (defaults to current year).
 
         Cross-field validation (fixes #13):

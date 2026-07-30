@@ -7,6 +7,7 @@ References:
 
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict
 
@@ -40,7 +41,7 @@ class RevenueReportResponse(BaseModel):
     """Response for GET /api/v1/dashboard/revenue."""
 
     data: list[RevenueMetric]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 class OccupancyResponse(BaseModel):

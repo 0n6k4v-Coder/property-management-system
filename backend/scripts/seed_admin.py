@@ -44,6 +44,25 @@ async def seed_admin() -> None:
             is_active=True,
         )
         session.add(user)
+        await session.flush()
+
+        # Add property scope for admin user (owner role for Sunset Tower)
+        from app.modules.auth.models import UserPropertyScope, PropertyRole
+        from app.modules.property.models import Property
+        
+        sunset = await session.execute(
+            text("SELECT id FROM properties WHERE name = 'Sunset Tower'")
+        )
+        sunset_row = sunset.fetchone()
+        if sunset_row:
+            scope = UserPropertyScope(
+                user_id=user.id,
+                property_id=sunset_row[0],
+                role=PropertyRole.owner,
+            )
+            session.add(scope)
+            print(f"✅ Created property scope for admin user: Sunset Tower (owner)")
+
         await session.commit()
 
         # Verify

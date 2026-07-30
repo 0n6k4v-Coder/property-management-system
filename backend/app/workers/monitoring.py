@@ -98,7 +98,8 @@ def get_worker_metrics() -> bytes:
     -------
     bytes: Prometheus exposition format metrics
     """
-    return generate_latest(worker_registry)
+    from typing import cast
+    return cast(bytes, generate_latest(worker_registry))
 
 
 def record_task_start(_task_name: str, _queue: str) -> float:
@@ -118,7 +119,7 @@ def record_task_end(
     start_time: float,
     success: bool,
     error_type: str | None = None,
-):
+) -> None:
     """Record task completion metrics.
 
     Parameters
@@ -142,12 +143,12 @@ def record_task_end(
         ).inc()
 
 
-def record_task_retry(task_name: str, queue: str):
+def record_task_retry(task_name: str, queue: str) -> None:
     """Record a task retry."""
     TASK_RETRY.labels(task_name=task_name, queue=queue).inc()
 
 
-def record_scheduler_job(job_name: str, duration: float, success: bool, error_type: str | None = None):
+def record_scheduler_job(job_name: str, duration: float, success: bool, error_type: str | None = None) -> None:
     """Record scheduler job execution metrics."""
     SCHEDULER_JOB_DURATION.labels(job_name=job_name).observe(duration)
 
@@ -159,12 +160,12 @@ def record_scheduler_job(job_name: str, duration: float, success: bool, error_ty
         ).inc()
 
 
-def update_queue_depth(queue: str, depth: int):
+def update_queue_depth(queue: str, depth: int) -> None:
     """Update queue depth gauge."""
     QUEUE_DEPTH.labels(queue=queue).set(depth)
 
 
-def update_worker_counts(active: int, idle: int):
+def update_worker_counts(active: int, idle: int) -> None:
     """Update worker count gauges."""
     WORKER_ACTIVE.set(active)
     WORKER_IDLE.set(idle)

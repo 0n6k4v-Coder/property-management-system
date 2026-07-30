@@ -16,7 +16,7 @@ References:
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +52,7 @@ property_id_qp_dep = Query(..., description="Property ID (required for scope)")
 
 
 async def _check_scope(
-    current_user: dict,
+    current_user: dict[str, Any],
     db: AsyncSession,
     property_id: uuid.UUID | None,
 ) -> None:
@@ -93,7 +93,7 @@ async def send_test_notification(
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = get_db_dep,
     _: Annotated[None, require_property_scope()] = None,  # body-sourced property_id
-) -> dict:
+) -> dict[str, Any]:
     """POST /api/v1/notifications/test.
 
     Authorization (#5): body-sourced ``property_id`` checked via
@@ -125,7 +125,7 @@ async def send_test_notification(
         subject=body.subject,
         body=body.body,
         sent_by=uuid.UUID(current_user["user_id"]),
-        idempotency_key=idempotency_key,
+        _idempotency_key=idempotency_key,
     )
 
     notif_id = uuid.uuid4()
@@ -205,7 +205,7 @@ async def get_notification(
     notif_id: uuid.UUID,
     current_user: CurrentUser,
     db: AsyncSession = get_db_dep,
-) -> dict:
+) -> dict[str, Any]:
     """GET /api/v1/notifications/{notif_id}.
 
     Authorization (#5): resolve-then-check via notification's ``property_id``.
@@ -242,7 +242,7 @@ async def resend_notification(
     notif_id: uuid.UUID,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = get_db_dep,
-) -> dict:
+) -> dict[str, Any]:
     """PATCH /api/v1/notifications/{notif_id}/resend.
 
     Authorization (#5): resolve-then-check via notification's ``property_id``.
@@ -279,7 +279,7 @@ async def resend_notification(
     await service.resend(
         notif_id=notif_id,
         resent_by=uuid.UUID(current_user["user_id"]),
-        idempotency_key=idempotency_key,
+        _idempotency_key=idempotency_key,
     )
 
     result = {"data": NotificationResponse.model_validate(notif), "meta": None}

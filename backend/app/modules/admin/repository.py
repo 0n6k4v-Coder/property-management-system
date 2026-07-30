@@ -4,6 +4,7 @@ Data Scoping: Every audit log query filters by property_id.
 """
 
 import uuid
+from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +59,7 @@ class AuditLogRepository:
         resource_type: str,
         property_id: uuid.UUID | None = None,
         resource_id: uuid.UUID | None = None,
-        metadata: dict | None = None,
+        metadata: dict[str, Any] | None = None,
         ip_address: str | None = None,
         user_agent: str | None = None,
     ) -> AuditLog:

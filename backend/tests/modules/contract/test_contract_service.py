@@ -18,7 +18,6 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User
-from app.modules.contract.models import Contract
 from app.modules.contract.services.contract_service import ContractService
 from app.modules.property.constants import RoomStatus, RoomType
 from app.modules.property.models import Building, Property, Room

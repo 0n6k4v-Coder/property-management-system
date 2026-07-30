@@ -6,10 +6,9 @@ References:
 - SDD.md §6: Business Rules (BR-07, BR-10, BR-12)
 """
 
+import uuid
 from datetime import date
 from decimal import Decimal
-
-import uuid
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,12 +18,10 @@ from app.modules.billing.constants import (
     BILL_002_DUPLICATE_READING,
     BILL_003_RATE_NOT_FOUND,
     BILL_004_INVOICE_ALREADY_GENERATED,
-    BILL_005_INVOICE_ALREADY_PAID,
     BILL_006_PAYMENT_EXCEEDS_BALANCE,
     BILL_007_INVOICE_NOT_FOUND,
-    BILL_009_CONTRACT_NOT_FOUND,
 )
-from app.modules.billing.models import Invoice, InvoiceLineItem, MeterReading, Payment, UtilityRate
+from app.modules.billing.models import UtilityRate
 from app.modules.billing.repository import BillingRepository
 from app.modules.billing.services.billing_service import BillingService
 from app.shared.exceptions import APIError
@@ -47,11 +44,11 @@ async def _setup_property_with_room(
     db_session.add(user)
     await db_session.flush()
 
-    from app.modules.property.models import Property, Building, Room
-    from app.modules.tenant.models import Tenant
     from app.modules.contract.models import Contract, ContractStatus
+    from app.modules.property.models import Building, Property, Room
+    from app.modules.tenant.models import Tenant
     from app.shared.security import encrypt_sensitive
-    
+
     prop = Property(name="Billing Test", address="1 Billing St", billing_due_day=5,
                     min_deposit_months=2, created_by=user_id)
     db_session.add(prop)

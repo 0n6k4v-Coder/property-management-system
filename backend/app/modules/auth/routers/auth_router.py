@@ -3,7 +3,7 @@
 This module registers the ``/api/v1/auth/*`` router on the FastAPI
 application.  Each endpoint delegates to the appropriate service layer
 and returns responses in the standard ``{"data": {...}}`` or
-``{"error": {...}}`` envelope.
+{"error": {...}}`` envelope.
 
 References:
     - SDD.md §3.3: Complete API contract for auth endpoints
@@ -11,8 +11,9 @@ References:
     - CODE_STYLE.md §4.1: Router structure patterns
 """
 
+import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Header, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,8 +29,8 @@ from app.modules.auth.schemas import (
 )
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.invite_service import InviteService
-from app.shared.deps import CurrentUser as CurrentUserDep
-from app.shared.deps import get_db, require_property_scope
+from app.shared import get_db
+from app.shared.deps import CurrentUser, GET_CURRENT_USER, get_current_user, require_property_scope
 from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["auth"])
@@ -37,12 +38,12 @@ router = APIRouter(tags=["auth"])
 
 def _user_response_from_scopes(
     *,
-    id,
-    email,
-    full_name,
-    property_scopes: list[str],
+    id: uuid.UUID,
+    email: str,
+    full_name: str,
+    property_scopes: list[uuid.UUID],
     is_active: bool,
-) -> dict:
+) -> dict[str, Any]:
     """Build the ``user`` sub-document with REAL ``property_scopes``.
 
     ``property_scopes`` comes from the token claim (populated from
@@ -53,7 +54,7 @@ def _user_response_from_scopes(
         id=id,
         email=email,
         full_name=full_name,
-        property_scopes=[str(s) for s in property_scopes],
+        property_scopes=property_scopes,
         is_active=is_active,
     ).model_dump(mode="json")
 
@@ -64,7 +65,7 @@ async def login(
     request: Request,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+) -> dict[str, Any]:
     """Authenticate user and return JWT tokens (FR-USER-01).
 
     Request body
@@ -117,7 +118,7 @@ async def register(
     payload: RegisterRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Accept an invitation and create a new user account (FR-USER-02).
 
     Supports optional ``Idempotency-Key`` header: a repeated request with
@@ -179,11 +180,10 @@ async def register(
 @router.post("/invite", status_code=status.HTTP_201_CREATED)
 async def invite(
     payload: InviteRequest,
-    _: Annotated[None, require_property_scope()],
-    current_user: CurrentUserDep,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-) -> dict:
+) -> dict[str, Any]:
     """Send an invitation link to a new user (FR-USER-02).
 
     Requires the current user to have sufficient property scope for
@@ -247,7 +247,7 @@ async def invite(
 async def refresh(
     payload: RefreshRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+) -> dict[str, Any]:
     """Issue a new token set from a valid refresh token (FR-USER-03).
 
     Body is the strict ``RefreshRequest`` schema (anti-pattern #7 fix).
@@ -281,9 +281,9 @@ async def refresh(
 
 @router.get("/me", status_code=status.HTTP_200_OK)
 async def get_me(
-    current_user: CurrentUserDep,
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> dict:
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> dict[str, Any]:
     """Return the authenticated user's profile (FR-USER-01).
 
     Requires a valid Bearer token in the ``Authorization`` header.
@@ -298,12 +298,15 @@ async def get_me(
     """
     service = AuthService(db)
     user = await service.get_current_user_info(current_user)
+    # JWT token carries property_scopes as strings; convert to UUID for UserResponse schema
+    raw_scopes = current_user.get("property_scopes", [])
+    property_scopes = [uuid.UUID(s) for s in raw_scopes] if raw_scopes else []
     return {
         "data": _user_response_from_scopes(
             id=user.id,
             email=user.email,
             full_name=user.full_name,
-            property_scopes=current_user.get("property_scopes", []),
+            property_scopes=property_scopes,
             is_active=user.is_active,
         )
     }

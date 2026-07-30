@@ -9,6 +9,7 @@ References:
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -61,7 +62,7 @@ class AssignMaintenanceRequest(BaseModel):
 # ── Response Schemas ───────────────────────────────────────────────────
 
 
-class MaintenanceResponse(BaseModel):
+class MaintenanceRequestResponse(BaseModel):
     """Response body for a single MaintenanceRequest resource (SDD §3.1)."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -71,23 +72,28 @@ class MaintenanceResponse(BaseModel):
     room_id: uuid.UUID
     title: str
     description: str
-    priority: Priority
-    status: MaintenanceStatus
+    priority: str
+    status: str
+    created_by: uuid.UUID
     assigned_to: uuid.UUID | None = None
-    created_by: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
+    meta: dict[str, Any] | None = None
 
+
+class MaintenanceResponse(MaintenanceRequestResponse):
+    """Alias for backward compatibility."""
+    pass
 
 class MaintenanceCreateResponse(BaseModel):
     """Wrapper for 201 CREATED response (SDD §3.1)."""
 
-    data: MaintenanceResponse
+    data: MaintenanceRequestResponse
     meta: None = None
 
 
 class MaintenanceListResponse(BaseModel):
     """List wrapper for maintenance requests (SDD §3.1)."""
 
-    data: list[MaintenanceResponse]
-    meta: dict | None = None
+    data: list[MaintenanceRequestResponse]
+    meta: dict[str, Any] | None = None

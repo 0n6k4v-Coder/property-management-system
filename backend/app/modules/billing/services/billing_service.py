@@ -7,9 +7,12 @@ References:
 - CODE_STYLE.md §3.2: Service layer patterns
 """
 
+import contextlib
 import uuid
 from decimal import Decimal
+from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.billing.constants import (
@@ -109,14 +112,14 @@ class BillingService:
             water_current=water_current,
         )
 
-        # Audit log - wrap in try/except to prevent transaction issues
-        try:
+        # Audit log - wrap in suppress to prevent transaction issues
+        with contextlib.suppress(Exception):
             await log_audit(
                 db=self.db,
                 user_id=recorded_by,
                 action="meter_reading.created",
                 resource_type="meter_reading",
-                resource_id=reading.id,
+                resource_id=uuid.UUID(str(reading.id)) if reading.id is not None else None,
                 metadata={
                     "room_id": str(room_id),
                     "billing_month": billing_month,
@@ -125,19 +128,16 @@ class BillingService:
                     "water_used": reading.water_used,
                 },
             )
-        except Exception:
-            # Fail-silent: audit must never break the primary operation
-            pass
 
         return reading
 
     async def get_meter_reading_history(
-        self, room_id: uuid.UUID, limit: int = 12
+        self, room_id: uuid.UUID, limit: int = 20
     ) -> list[MeterReading]:
         """Get meter reading history for a room."""
         return await self.repo.get_meter_reading_history(room_id, limit)
 
-    # ── Utility Rate Resolution (BR-10) ──────────────────────────────────
+    # ── Utility Rate Resolution (BR-10) ────────────────────────────────────
 
     async def resolve_utility_rate(
         self, room_id: uuid.UUID, billing_month: int, billing_year: int
@@ -185,7 +185,14 @@ class BillingService:
         # Return the first generated invoice (for backward compatibility)
         if result["generated_count"] > 0:
             first_invoice = result["invoices"][0]
-            return await self.repo.get_invoice_by_id(uuid.UUID(first_invoice["invoice_id"]))
+            invoice = await self.repo.get_invoice_by_id(uuid.UUID(first_invoice["invoice_id"]))
+            if invoice is None:
+                raise APIError(
+                    code="BILL-007",
+                    message="Invoice not found after generation",
+                    status_code=404,
+                )
+            return invoice
 
         raise APIError(
             code=BILL_009_CONTRACT_NOT_FOUND,
@@ -324,6 +331,13 @@ class BillingService:
 
         # Get updated invoice for audit
         invoice = await self.repo.get_invoice_by_id(invoice_id)
+        if invoice is None:
+            # This should never happen as we just recorded payment for it
+            raise APIError(
+                code="BILL-007",
+                message="Invoice not found after payment recorded",
+                status_code=404,
+            )
 
         # Publish event
         await publish_billing_event(
@@ -343,8 +357,8 @@ class BillingService:
             user_id=recorded_by,
             action="payment.recorded",
             resource_type="payment",
-            resource_id=payment.id,
-            property_id=invoice.property_id,
+            resource_id=uuid.UUID(str(payment.id)),
+            property_id=uuid.UUID(str(invoice.property_id)),
             metadata={
                 "invoice_id": str(invoice_id),
                 "invoice_number": invoice.invoice_number,
@@ -376,7 +390,7 @@ class BillingService:
         return await self.repo.list_invoices(property_id)
 
     async def get_current_user_property_ids(
-        self, current_user: dict
+        self, current_user: dict[str, Any]
     ) -> list[uuid.UUID] | None:
         """Return the property ids the caller may access, or ``None`` for global.
 

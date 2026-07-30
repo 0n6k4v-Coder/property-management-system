@@ -301,7 +301,7 @@ class TestMeEndpoint:
         app.dependency_overrides[get_current_user] = lambda: {
             "user_id": str(user.id),
             "email": user.email,
-            "property_scopes": [],
+            "property_scopes": [],  # Empty list is valid (no property access)
             "token_type": "access",
         }
 

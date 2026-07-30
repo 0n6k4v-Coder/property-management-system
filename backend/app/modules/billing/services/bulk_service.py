@@ -15,6 +15,7 @@ import uuid
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal
 from http import HTTPStatus
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +35,8 @@ from app.modules.billing.models import (
 )
 from app.modules.billing.repository import BillingRepository
 from app.modules.billing.services.rate_service import RateService
+from app.modules.contract.constants import ContractStatus
+from app.modules.contract.models import Contract
 from app.modules.property.models import Room
 from app.shared.audit import log_audit
 from app.shared.exceptions import APIError
@@ -57,7 +60,7 @@ class BulkInvoiceService:
         billing_month: int,
         billing_year: int,
         created_by: uuid.UUID,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Generate invoices for all occupied rooms in a property (FR-METER-07).
 
         Parameters
@@ -76,7 +79,7 @@ class BulkInvoiceService:
         APIError:
             BILL-004 if invoices already exist for this property/month.
         """
-        billing_date = date(billing_year, billing_month, 1)
+        _ = date(billing_year, billing_month, 1)
 
         # Check for existing invoices
         existing = await self.repo.get_invoices_for_month(
@@ -178,11 +181,10 @@ class BulkInvoiceService:
             )
         except APIError as e:
             if e.code == BILL_003_RATE_NOT_FOUND:
-                raise ValueError(f"No utility rate for room {room.room_number}")
+                raise ValueError(f"No utility rate for room {room.room_number}") from e
             raise
 
         # Get contract for this room
-        from app.modules.contract.models import Contract, ContractStatus
         contract_result = await self.db.execute(
             select(Contract).where(
                 Contract.room_id == room.id,
@@ -246,8 +248,9 @@ class BulkInvoiceService:
             )
             await self.repo.create_line_item(item)
 
-        # Audit log - wrap in try/except to prevent transaction issues
-        try:
+        # Audit log - use contextlib.suppress for fail-silent
+        import contextlib
+        with contextlib.suppress(Exception):
             await log_audit(
                 db=self.db,
                 user_id=created_by,
@@ -263,8 +266,5 @@ class BulkInvoiceService:
                     "room_number": room.room_number,
                 },
             )
-        except Exception:
-            # Fail-silent: audit must never break the primary operation
-            pass
 
         return invoice

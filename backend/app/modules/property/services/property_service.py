@@ -40,7 +40,7 @@ class PropertyService:
         self.property_repo = PropertyRepository(db)
         self.room_repo = RoomRepository(db)
 
-    async def list_properties(self) -> list:
+    async def list_properties(self) -> list[Property]:
         """Return all properties (unpaginated — legacy/internal helper)."""
         return await self.property_repo.get_all()
 

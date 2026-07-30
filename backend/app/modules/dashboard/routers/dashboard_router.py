@@ -25,13 +25,16 @@ from app.modules.dashboard.schemas import (
     RevenueReportResponse,
 )
 from app.modules.dashboard.services.dashboard_service import DashboardService
+from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
-    get_db,
     require_property_scope,
 )
 
 router = APIRouter(tags=["dashboard"], redirect_slashes=False)
+
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+GET_DB = Depends(get_db)
 
 PROPERTY_QUERY = Query(..., description="Property to query")
 START_DATE_QUERY = Query(None, description="Start date (YYYY-MM-DD)")
@@ -46,8 +49,8 @@ END_DATE_QUERY = Query(None, description="End date (YYYY-MM-DD)")
 )
 async def get_dashboard_summary(
     response: Response,
-    _current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,  # noqa: ARG001
+    db: Annotated[AsyncSession, GET_DB],
     _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = PROPERTY_QUERY,
 ) -> DashboardSummaryWrapper:
@@ -68,8 +71,8 @@ async def get_dashboard_summary(
 )
 async def get_revenue_report(
     response: Response,
-    _current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,  # noqa: ARG001
+    db: Annotated[AsyncSession, GET_DB],
     _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = PROPERTY_QUERY,
     start_date: date | None = START_DATE_QUERY,
@@ -98,8 +101,8 @@ async def get_revenue_report(
 )
 async def get_occupancy(
     response: Response,
-    _current_user: CurrentUser,
-    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: CurrentUser,  # noqa: ARG001
+    db: Annotated[AsyncSession, GET_DB],
     _: Annotated[None, require_property_scope(query_param="property_id")],
     property_id: uuid.UUID = PROPERTY_QUERY,
 ) -> OccupancyWrapper:

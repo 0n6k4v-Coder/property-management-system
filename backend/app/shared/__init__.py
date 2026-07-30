@@ -1,3 +1,3 @@
-from app.shared.database import Base
+from app.shared.database import Base, get_db
 
-__all__ = ["Base"]
+__all__ = ["Base", "get_db"]

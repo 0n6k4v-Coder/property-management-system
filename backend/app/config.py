@@ -1,6 +1,7 @@
 """Minimal Pydantic Settings for development (SDD.md §4.4, §9.1)."""
 
 from functools import lru_cache
+from typing import Any
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -25,7 +26,7 @@ class Settings(BaseSettings):
     ARGON2_PARALLELISM: int = 1
 
     @property
-    def argon2_config(self) -> dict:
+    def argon2_config(self) -> dict[str, Any]:
         """Return Argon2id parameters as a dict for passlib CryptContext."""
         return {
             "time_cost": self.ARGON2_TIME_COST,
@@ -75,4 +76,4 @@ class Settings(BaseSettings):
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     """Return a singleton Settings instance (cached after first call)."""
-    return Settings()  # type: ignore[call-arg]
+    return Settings()

@@ -73,8 +73,8 @@ export async function navigateTo(
   // Wait for heading to be visible (React may need time to render).
   // NOTE: MainLayout renders its own <h2>Property Management</h2> brand
   // title before page content, so matching 'h1, h2' would pick that up
-  // instead of the page's actual heading — match h1 only.
-  await expect(page.locator('h1').first()).toContainText(expectedHeading, { timeout: 30000 });
+  // instead of the page's actual heading — match 'main h1' only.
+  await expect(page.locator('main h1').first()).toContainText(expectedHeading, { timeout: 30000 });
 }
 
 // -- Token Verification Helper --

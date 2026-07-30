@@ -5,7 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/shared/api/fetchClient';
 import type { API } from '@/types/api.d';
 
-const SAMPLE_PROPERTY = '00000000-0000-0000-0000-000000000001';
+// Use the deterministic seeded property ID from e2e/fixtures/seeded-ids.ts
+// This matches the backend's seed_e2e.py PROPERTY_SUNSET_ID = uuid.uuid5(_NS, "property-sunset-tower")
+const SAMPLE_PROPERTY = 'c92df6ed-2bf7-5ac2-8fa3-a50c060ea530';
 
 /** @public - Query key factory for reports cache management (exported for test mocks and advanced cache invalidation) */
 export const reportKeys = {

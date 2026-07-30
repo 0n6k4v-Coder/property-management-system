@@ -5,15 +5,15 @@ References:
     - CODE_STYLE.md §3.4: Router layer responsibility
 
 Implements the Target Design from docs/API.md fixing anti-patterns #5, #1, #20:
-- #5  authorization: all 5 endpoints require auth + property scope
+- #5  authorization: all *** endpoints require auth + property scope
 - #1  idempotency: POST /maintenance/ accepts Idempotency-Key header
 - #20 Cache-Control: private, no-store on GET /pending and GET /{id}
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, Query, Response, status
+from fastapi import APIRouter, Body, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.constants import AUTH_005
@@ -30,6 +30,7 @@ from app.modules.maintenance.services.maintenance_service import MaintenanceServ
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    get_current_user,
     require_property_scope,
     user_has_property_scope,
 )
@@ -38,9 +39,15 @@ from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["maintenance"], redirect_slashes=False)
 
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+GET_DB = Depends(get_db)
+GET_CURRENT_USER = Depends(get_current_user)
+QUERY_PROPERTY_ID = Query(..., description="Filter by property")
+QUERY_LIMIT_12 = Query(12, ge=1, le=100, description="Max readings to return (1-100)")
+
 
 async def _check_scope(
-    current_user: dict,
+    _current_user: dict[str, Any],
     db: AsyncSession,
     property_id: uuid.UUID | None,
 ) -> None:
@@ -57,7 +64,7 @@ async def _check_scope(
             message=AUTH_005,
             status_code=status.HTTP_403_FORBIDDEN,
         )
-    if not await user_has_property_scope(current_user, db, property_id):
+    if not await user_has_property_scope(_current_user, db, property_id):
         raise APIError(
             code="AUTH-005",
             message=AUTH_005,
@@ -82,10 +89,9 @@ async def _check_scope(
 )
 async def create_maintenance_request(
     body: CreateMaintenanceRequest,
-    current_user: CurrentUser,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER] = ...,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-    _: Annotated[None, require_property_scope()] = None,
 ) -> MaintenanceCreateResponse:
     """Create a new maintenance request (BR-08).
 
@@ -140,19 +146,20 @@ async def create_maintenance_request(
     summary="List pending maintenance requests by property",
 )
 async def list_pending_requests(
-    property_id: uuid.UUID = Query(..., description="Filter by property"),
-    response: Response = None,
-    current_user: CurrentUser = None,
-    db: AsyncSession = Depends(get_db),
-    _: Annotated[None, require_property_scope(query_param="property_id")] = None,
+    response: Response,
+    property_id: uuid.UUID = QUERY_PROPERTY_ID,
+    current_user: CurrentUser = GET_CURRENT_USER,
+    db: AsyncSession = GET_DB,
 ) -> MaintenanceListResponse:
     """Get pending maintenance requests for a property (fixes #5, #20).
 
-    Authorization (#5): ``property_id`` is a required query param, so
-    ``require_property_scope(query_param="property_id")`` enforces it directly.
+    Authorization (#5): ``property_id`` is a required query param, checked
+    inline after FastAPI parses it.
     Caching (#20): ``Cache-Control: private, no-store`` — maintenance lists
     are property-scoped and must not be shared/stored.
     """
+    # Fixes #5: scope check after FastAPI parses query param
+    await _check_scope(current_user, db, property_id)
     # Fixes #20: maintenance list must never be cached/shared.
     response.headers["Cache-Control"] = "private, no-store"
 
@@ -174,9 +181,9 @@ async def list_pending_requests(
 )
 async def get_maintenance_request(
     response: Response,
-    current_user: CurrentUser,
     request_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
+    current_user: CurrentUser = GET_CURRENT_USER,
 ) -> MaintenanceCreateResponse:
     """Get a single maintenance request by ID (fixes #5, #20).
 
@@ -206,10 +213,10 @@ async def get_maintenance_request(
     description="Updates status per BR-09 workflow: pending → in_progress → resolved/cancelled.",
 )
 async def update_maintenance_status(
-    current_user: CurrentUser,
     request_id: uuid.UUID,
     body: UpdateMaintenanceStatusRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
+    current_user: CurrentUser = GET_CURRENT_USER,
 ) -> MaintenanceCreateResponse:
     """Update the status of a maintenance request (fixes #5).
 
@@ -238,10 +245,10 @@ async def update_maintenance_status(
     summary="Assign a maintenance request to a user",
 )
 async def assign_maintenance_request(
-    current_user: CurrentUser,
     request_id: uuid.UUID,
     body: AssignMaintenanceRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = GET_DB,
+    current_user: CurrentUser = GET_CURRENT_USER,
 ) -> MaintenanceCreateResponse:
     """Assign a maintenance request to a user (fixes #5).
 
@@ -259,3 +266,4 @@ async def assign_maintenance_request(
         assigned_by=uuid.UUID(current_user["user_id"]),
     )
     return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
+

@@ -9,6 +9,7 @@ References:
 import uuid
 from datetime import UTC, date
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import String, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -119,7 +120,7 @@ class DashboardRepository:
 
     async def get_revenue_report(
         self, property_id: uuid.UUID, start_date: date, end_date: date
-    ) -> list[dict]:
+    ) -> list[dict[str, Any]]:
         """Revenue aggregation grouped by month (Data Scoping).
 
         Returns a list of dicts with keys: period, collected, outstanding.

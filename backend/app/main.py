@@ -4,6 +4,7 @@ import asyncio
 import os
 import signal
 import sys
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -86,7 +87,7 @@ async def wait_for_shutdown(db_pool: Any, redis_client: Any | None = None) -> No
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     """Application lifespan — startup/shutdown hooks."""
     # Configure structured logging
     structlog.configure(
@@ -154,7 +155,7 @@ def create_app() -> FastAPI:
 
     # Register exception handlers
     @app.exception_handler(APIError)
-    async def api_error_handler(_: Request, exc: APIError):
+    async def api_error_handler(_: Request, exc: APIError) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
             content={
@@ -167,17 +168,27 @@ def create_app() -> FastAPI:
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_error_handler(_: Request, exc: RequestValidationError):
+    async def validation_error_handler(_: Request, exc: RequestValidationError) -> JSONResponse:
         # Unified error envelope (anti-pattern #3 fix): a 422 on any
         # endpoint returns the same ``{"error": {...}}`` shape as every
         # domain error instead of FastAPI's default ``{"detail": [...]}``.
+        def serialize_error(err: dict) -> dict:
+            """Convert error dict to JSON-serializable format."""
+            result = dict(err)
+            if "ctx" in result:
+                # Convert any non-serializable context values to strings
+                ctx = result["ctx"]
+                if isinstance(ctx, dict):
+                    result["ctx"] = {k: str(v) for k, v in ctx.items()}
+            return result
+
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content={
                 "error": {
                     "code": "VAL-001",
                     "message": "Request validation failed",
-                    "details": {"errors": exc.errors()},
+                    "details": {"errors": [serialize_error(e) for e in exc.errors()]},
                 }
             },
         )

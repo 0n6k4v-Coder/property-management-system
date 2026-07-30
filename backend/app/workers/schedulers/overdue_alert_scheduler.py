@@ -46,21 +46,21 @@ def register_overdue_alert_jobs(scheduler: AsyncIOScheduler | None = None) -> As
     return scheduler
 
 
-async def _run_overdue_alerts():
+async def _run_overdue_alerts() -> None:
     """Wrapper to run the Celery task from APScheduler."""
     logger.info("overdue_alert_scheduler_triggered")
     # Trigger the Celery task
     send_overdue_alerts_task.delay()
 
 
-def start_overdue_alert_scheduler():
+def start_overdue_alert_scheduler() -> None:
     """Start the overdue alert scheduler."""
     register_overdue_alert_jobs()
     overdue_alert_scheduler.start()
     logger.info("overdue_alert_scheduler_started")
 
 
-def stop_overdue_alert_scheduler():
+def stop_overdue_alert_scheduler() -> None:
     """Stop the overdue alert scheduler."""
     overdue_alert_scheduler.shutdown(wait=True)
     logger.info("overdue_alert_scheduler_stopped")

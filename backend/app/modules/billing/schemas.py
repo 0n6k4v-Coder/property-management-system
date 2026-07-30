@@ -6,16 +6,20 @@ frontend's ``API.*`` type definitions in ``frontend/src/types/api.d.ts`` —
 keep both in sync when either side changes.
 """
 
-import uuid
-from datetime import UTC
-from decimal import Decimal
+from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+import uuid
+from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
+
+from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from app.modules.billing.constants import PaymentMethod
+from app.modules.billing.models import Invoice, InvoiceLineItem, MeterReading, Payment
 
 
-def _iso_utc(value) -> str:
+def _iso_utc(value: datetime | None) -> str:
     """Serialize a (possibly tz-naive) datetime with an explicit UTC offset.
 
     The ``MeterReading.created_at`` column is stored as a naive UTC value, so
@@ -43,7 +47,7 @@ class MeterReadingRequest(BaseModel):
 
     @field_validator("electric_current")
     @classmethod
-    def check_electric_reading(cls, v: int, info) -> int:
+    def check_electric_reading(cls, v: int, info: ValidationInfo) -> int:
         previous = info.data.get("electric_previous")
         if previous is not None and v <= previous:
             raise ValueError("Current electric reading must be greater than previous")
@@ -51,7 +55,7 @@ class MeterReadingRequest(BaseModel):
 
     @field_validator("water_current")
     @classmethod
-    def check_water_reading(cls, v: int, info) -> int:
+    def check_water_reading(cls, v: int, info: ValidationInfo) -> int:
         previous = info.data.get("water_previous")
         if previous is not None and v <= previous:
             raise ValueError("Current water reading must be greater than previous")
@@ -72,7 +76,7 @@ class MeterReadingResponse(BaseModel):
     read_date: str
 
     @classmethod
-    def from_model(cls, reading) -> MeterReadingResponse:
+    def from_model(cls, reading: MeterReading) -> MeterReadingResponse:
         return cls(
             id=reading.id,
             room_id=reading.room_id,
@@ -114,7 +118,7 @@ class InvoiceResponse(BaseModel):
     created_at: str | None = None
 
     @classmethod
-    def from_model(cls, invoice) -> InvoiceResponse:
+    def from_model(cls, invoice: Invoice) -> InvoiceResponse:
         return cls(
             id=invoice.id,
             invoice_number=invoice.invoice_number,
@@ -149,7 +153,7 @@ class InvoiceLineItemResponse(BaseModel):
     amount: Decimal
 
     @classmethod
-    def from_model(cls, item) -> InvoiceLineItemResponse:
+    def from_model(cls, item: InvoiceLineItem) -> InvoiceLineItemResponse:
         return cls(
             id=item.id,
             invoice_id=item.invoice_id,
@@ -166,7 +170,7 @@ class InvoiceDetailResponse(BaseModel):
     line_items: list[InvoiceLineItemResponse]
 
     @classmethod
-    def from_model(cls, invoice) -> InvoiceDetailResponse:
+    def from_model(cls, invoice: Invoice) -> InvoiceDetailResponse:
         return cls(
             invoice=InvoiceResponse.from_model(invoice),
             line_items=[InvoiceLineItemResponse.from_model(li) for li in invoice.line_items],
@@ -196,7 +200,7 @@ class PaymentResponse(BaseModel):
     notes: str | None = None
 
     @classmethod
-    def from_model(cls, payment) -> PaymentResponse:
+    def from_model(cls, payment: Payment) -> PaymentResponse:
         return cls(
             id=payment.id,
             invoice_id=payment.invoice_id,
@@ -219,7 +223,7 @@ class MeterReadingCreateResponse(BaseModel):
 
 class MeterReadingHistoryWrapperResponse(BaseModel):
     data: list[MeterReadingResponse]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 class InvoiceCreateResponse(BaseModel):
@@ -229,7 +233,7 @@ class InvoiceCreateResponse(BaseModel):
 
 class InvoiceListWrapperResponse(BaseModel):
     data: list[InvoiceResponse]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 class InvoiceDetailWrapperResponse(BaseModel):

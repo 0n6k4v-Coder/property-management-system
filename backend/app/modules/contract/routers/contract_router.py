@@ -14,9 +14,9 @@ Implements the Target Design from docs/API.md fixing anti-patterns #5, #13, #1, 
 
 import uuid
 from datetime import date
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Header, Response, status
+from fastapi import APIRouter, Body, Depends, Header, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.constants import AUTH_005
@@ -35,6 +35,8 @@ from app.modules.contract.services.contract_service import ContractService
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    GET_CURRENT_USER,
+    get_current_user,
     require_property_scope,
     user_has_property_scope,
 )
@@ -45,7 +47,7 @@ router = APIRouter(tags=["contracts"], redirect_slashes=False)
 
 
 async def _check_scope(
-    current_user: dict,
+    current_user: dict[str, Any],
     db: AsyncSession,
     property_id: uuid.UUID | None,
 ) -> None:
@@ -87,10 +89,9 @@ async def _check_scope(
 )
 async def create_contract(
     body: CreateContractRequest,
-    current_user: CurrentUser,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
-    _: Annotated[None, require_property_scope()] = None,
 ) -> ContractCreateResponse:
     """POST /api/v1/contracts/ — SDD §3.3.
 
@@ -151,7 +152,7 @@ async def create_contract(
 )
 async def list_active_contracts(
     response: Response,
-    current_user: CurrentUser,
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     db: Annotated[AsyncSession, Depends(get_db)],
     property_id: uuid.UUID | None = None,
     page: int = 1,
@@ -204,9 +205,9 @@ async def list_active_contracts(
 )
 async def get_contract(
     response: Response,
-    current_user: CurrentUser,
     contract_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
 ) -> ContractCreateResponse:
     """GET /api/v1/contracts/{id} — SDD §3.3.
 
@@ -237,10 +238,10 @@ async def get_contract(
     description="Terminates an active contract (BR-04). Requires reason. Sets room to available.",
 )
 async def terminate_contract(
-    current_user: CurrentUser,
     contract_id: uuid.UUID,
     body: TerminateContractRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
 ) -> ContractCreateResponse:
     """PATCH /api/v1/contracts/{id}/terminate — SDD §3.3.
 
@@ -273,10 +274,10 @@ async def terminate_contract(
     description="Extends the end date of an active contract and records the extension.",
 )
 async def extend_lease(
-    current_user: CurrentUser,
     contract_id: uuid.UUID,
     body: ExtendLeaseRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ContractCreateResponse:
     """POST /api/v1/contracts/{id}/extend — SDD §3.3.
@@ -332,10 +333,10 @@ async def extend_lease(
     description="Creates a new contract from a terminated/expired original. Same room/tenant, updated terms.",
 )
 async def renew_contract(
-    current_user: CurrentUser,
     contract_id: uuid.UUID,
     body: RenewContractRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> ContractCreateResponse:
     """POST /api/v1/contracts/{id}/renew — SDD §3.3.
@@ -393,9 +394,9 @@ async def renew_contract(
 )
 async def get_lease_history(
     response: Response,
-    current_user: CurrentUser,
     room_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     page: int = 1,
     limit: int = 20,
 ) -> LeaseHistoryResponse:

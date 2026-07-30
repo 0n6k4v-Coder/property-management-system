@@ -13,9 +13,10 @@ References:
 import asyncio
 from logging.config import fileConfig
 
-from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
+
+from alembic import context
 
 # Alembic Config object
 config = context.config
@@ -25,16 +26,25 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # Import all models so that Base.metadata is fully populated
-from app.shared.database import Base  # noqa: E402
-
 # Import module models to register with Base.metadata
 from app.modules.auth.models import User  # noqa: F401, E402
-from app.shared.audit import AuditLog  # noqa: F401, E402
-from app.modules.property.models import Property, Building, Floor, Room  # noqa: F401, E402
-from app.modules.tenant.models import Tenant  # noqa: F401, E402
-from app.modules.billing.models import Invoice, InvoiceLineItem, MeterReading, Payment, UtilityRate  # noqa: F401, E402
-from app.modules.contract.models import Contract, ContractTermination, LeaseExtension  # noqa: F401, E402
+from app.modules.billing.models import (  # noqa: F401, E402
+    Invoice,
+    InvoiceLineItem,
+    MeterReading,
+    Payment,
+    UtilityRate,
+)
+from app.modules.contract.models import (  # noqa: F401, E402
+    Contract,
+    ContractTermination,
+    LeaseExtension,
+)
 from app.modules.maintenance.models import MaintenanceRequest  # noqa: F401, E402
+from app.modules.property.models import Building, Floor, Property, Room  # noqa: F401, E402
+from app.modules.tenant.models import Tenant  # noqa: F401, E402
+from app.shared.audit import AuditLog  # noqa: F401, E402
+from app.shared.database import Base  # noqa: E402
 
 target_metadata = Base.metadata
 

@@ -11,8 +11,9 @@ References:
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.modules.contract.constants import ContractStatus, TerminationReason
 
@@ -43,7 +44,7 @@ class CreateContractRequest(BaseModel):
 
     @field_validator("end_date")
     @classmethod
-    def end_must_be_after_start(cls, v: date, info) -> date:
+    def end_must_be_after_start(cls, v: date, info: ValidationInfo) -> date:
         start = info.data.get("start_date")
         if start and v <= start:
             raise ValueError("end_date must be after start_date")
@@ -94,7 +95,7 @@ class RenewContractRequest(BaseModel):
 
     @field_validator("new_end_date")
     @classmethod
-    def end_must_be_after_start(cls, v: date, info) -> date:
+    def end_must_be_after_start(cls, v: date, info: ValidationInfo) -> date:
         start = info.data.get("new_start_date")
         if start and v <= start:
             raise ValueError("new_end_date must be after new_start_date")
@@ -165,7 +166,7 @@ class ContractListResponse(BaseModel):
     """Paginated list response for contracts (SDD §3.1)."""
 
     data: list[ContractResponse]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 # ── Lease History ──────────────────────────────────────────────────────
@@ -192,5 +193,5 @@ class LeaseHistoryResponse(BaseModel):
     """Response for GET /api/v1/leases/{room_id}/history."""
 
     data: list[LeaseHistoryItem]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 

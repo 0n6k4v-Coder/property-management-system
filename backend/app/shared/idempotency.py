@@ -38,7 +38,7 @@ async def check_idempotency(
     key: str,
     path: str,
     body: dict[str, Any],
-) -> dict | None:
+) -> dict[str, Any] | None:
     """Return the cached response body for a replayed key, else ``None``.
 
     Parameters
@@ -81,8 +81,9 @@ async def check_idempotency(
         )
 
     import json
+    from typing import cast
 
-    return json.loads(record.response_body)
+    return cast(dict[str, Any], json.loads(record.response_body))
 
 
 async def store_idempotency(
@@ -90,7 +91,7 @@ async def store_idempotency(
     key: str,
     path: str,
     body: dict[str, Any],
-    response_body: dict,
+    response_body: dict[str, Any],
     repo_class: Any,
 ) -> None:
     """Persist a successful response for the given idempotency key.
