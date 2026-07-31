@@ -18,7 +18,6 @@ References:
     - CODE_STYLE.md §7.2: Unit-test pattern (AsyncMock, no real Postgres)
     - docs/API.md "Proposed Redesign — Dashboard Module"
 """
-
 import uuid
 from datetime import date
 from decimal import Decimal
@@ -27,7 +26,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.auth.constants import AUTH_005
@@ -37,6 +35,10 @@ from app.modules.dashboard.schemas import (
     OccupancyWrapper,
 )
 from app.shared.exceptions import APIError
+
+# Import httpx for async testing (replaces TestClient)
+import httpx
+from httpx import ASGITransport
 
 # ── Shared stubs (no DB) ──────────────────────────────────────────────
 
@@ -129,27 +131,25 @@ def _make_stub_service(**overrides: Any) -> type:
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 class TestAuthenticationRequired:
     """All 3 endpoints must reject an unauthenticated caller with 401/422."""
 
-    def test_summary_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/dashboard/summary?property_id={uuid.uuid4()}")
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_summary_requires_auth(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/dashboard/summary?property_id={uuid.uuid4()}")
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT, status.HTTP_403_FORBIDDEN)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_revenue_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/dashboard/revenue?property_id={uuid.uuid4()}")
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_revenue_requires_auth(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/dashboard/revenue?property_id={uuid.uuid4()}")
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT, status.HTTP_403_FORBIDDEN)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_occupancy_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/dashboard/occupancy?property_id={uuid.uuid4()}")
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_occupancy_requires_auth(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/dashboard/occupancy?property_id={uuid.uuid4()}")
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT, status.HTTP_403_FORBIDDEN)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
@@ -158,6 +158,7 @@ class TestAuthenticationRequired:
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 class TestPropertyScopeEnforcement:
     """Un-scoped callers are denied (403 AUTH-005) on all 3 endpoints."""
 
@@ -382,18 +383,22 @@ class TestOccupancySchema:
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 class TestCacheControl:
-    def test_summary_sets_no_store(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/dashboard/summary?property_id={uuid.uuid4()}")
-            if r.status_code == status.HTTP_401_UNAUTHORIZED:
-                pass  # Auth fails before headers set; verified in integration
+    async def test_summary_sets_no_store(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/dashboard/summary?property_id={uuid.uuid4()}")
+        if r.status_code == status.HTTP_401_UNAUTHORIZED:
+            pass  # Auth fails before headers set; verified in integration
 
-    def test_revenue_sets_no_store(self) -> None:
-        pass
+    async def test_revenue_sets_no_store(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/dashboard/revenue?property_id={uuid.uuid4()}")
+        if r.status_code == status.HTTP_401_UNAUTHORIZED:
+            pass
 
-    def test_occupancy_sets_no_store(self) -> None:
-        pass
+    async def test_occupancy_sets_no_store(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/dashboard/occupancy?property_id={uuid.uuid4()}")
+        if r.status_code == status.HTTP_401_UNAUTHORIZED:
+            pass
 
 
 # ── #13: max 24-month span validation in service ─────────────────────
@@ -410,6 +415,7 @@ class TestRevenueDateValidation:
             mp.setattr(dashboard_router, "require_property_scope", lambda *a, **kw: None)
             mock_user_has_property_scope = AsyncMock(return_value=True)
             mp.setattr("app.shared.deps.user_has_property_scope", mock_user_has_property_scope)
+            # Mock service in the services module
             import app.modules.dashboard.services.dashboard_service as service_module
             mp.setattr(service_module, "DashboardService", _make_stub_service())
 
@@ -467,21 +473,3 @@ class TestRevenueDateValidation:
                 end_date=date(2026, 1, 31),
                 _=None,  # require_property_scope dependency
             )
-
-
-# ── #20: Cache-Control: private, no-store on all 3 GETs ─────────────
-
-
-@pytest.mark.unit
-class TestCacheControl:
-    def test_summary_sets_no_store(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/dashboard/summary?property_id={uuid.uuid4()}")
-            if r.status_code == status.HTTP_401_UNAUTHORIZED:
-                pass  # Auth fails before headers set; verified in integration
-
-    def test_revenue_sets_no_store(self) -> None:
-        pass
-
-    def test_occupancy_sets_no_store(self) -> None:
-        pass

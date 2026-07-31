@@ -95,7 +95,7 @@ export default function ContractListPage() {
                     <td className="px-4 py-3 text-surface-600">{contract.tenant_id.slice(0, 8)}</td>
                     <td className="px-4 py-3"><Badge>{contract.status}</Badge></td>
                     <td className="px-4 py-3 text-surface-600">
-                      {formatDate(contract.start_date)} — {formatDate(contract.end_date)}
+                      {formatDate(contract.start_date)} - {formatDate(contract.end_date)}
                     </td>
                     <td className="px-4 py-3 text-right font-medium text-surface-900">
                       {formatCurrency(contract.monthly_rent)}

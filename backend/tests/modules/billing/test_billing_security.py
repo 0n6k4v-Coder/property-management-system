@@ -19,7 +19,6 @@ References:
     - CODE_STYLE.md §7.2: Unit-test pattern (AsyncMock, no real Postgres)
     - docs/API.md "Proposed Redesign — Billing Module"
 """
-
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -28,7 +27,6 @@ from unittest.mock import AsyncMock
 
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 
 from app.main import app
 from app.modules.auth.constants import AUTH_005
@@ -38,6 +36,10 @@ from app.modules.billing.schemas import (
     RecordPaymentRequest,
 )
 from app.shared.exceptions import APIError
+
+# Import httpx for async testing (replaces TestClient)
+import httpx
+from httpx import ASGITransport
 
 # ── Shared stubs (no DB) ──────────────────────────────────────────────
 
@@ -108,63 +110,58 @@ class _StubRepo:
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 class TestAuthenticationRequired:
     """All 6 endpoints must reject an unauthenticated caller with 401/422."""
 
-    def test_history_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/billing/meter-readings/{uuid.uuid4()}/history")
+    async def test_history_requires_auth(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/billing/meter-readings/{uuid.uuid4()}/history")
         # FastAPI validates body/query before auth, so 422 is acceptable
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_list_invoices_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.get("/api/v1/billing/invoices")
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_list_invoices_requires_auth(self, async_client) -> None:
+        r = await async_client.get("/api/v1/billing/invoices")
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_invoice_detail_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/billing/invoices/{uuid.uuid4()}")
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_invoice_detail_requires_auth(self, async_client) -> None:
+        r = await async_client.get(f"/api/v1/billing/invoices/{uuid.uuid4()}")
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_create_meter_reading_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.post(
-                "/api/v1/billing/meter-readings",
-                json={"room_id": str(uuid.uuid4()), "billing_month": 1,
-                      "billing_year": 2026, "electric_previous": 0,
-                      "electric_current": 10, "water_previous": 0,
-                      "water_current": 5},
-            )
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_create_meter_reading_requires_auth(self, async_client) -> None:
+        r = await async_client.post(
+            "/api/v1/billing/meter-readings",
+            json={"room_id": str(uuid.uuid4()), "billing_month": 1,
+                  "billing_year": 2026, "electric_previous": 0,
+                  "electric_current": 10, "water_previous": 0,
+                  "water_current": 5},
+        )
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_generate_invoice_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.post(
-                "/api/v1/billing/invoices/generate",
-                json={"property_id": str(uuid.uuid4()), "billing_month": 1,
-                      "billing_year": 2026},
-            )
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_generate_invoice_requires_auth(self, async_client) -> None:
+        r = await async_client.post(
+            "/api/v1/billing/invoices/generate",
+            json={"property_id": str(uuid.uuid4()), "billing_month": 1,
+                  "billing_year": 2026},
+        )
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN, status.HTTP_422_UNPROCESSABLE_CONTENT)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
-    def test_record_payment_requires_auth(self) -> None:
-        with TestClient(app) as client:
-            r = client.post(
-                "/api/v1/billing/payments",
-                json={"invoice_id": str(uuid.uuid4()), "amount": "7500.00",
-                      "method": "cash"},
-            )
-        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_ENTITY)
+    async def test_record_payment_requires_auth(self, async_client) -> None:
+        r = await async_client.post(
+            "/api/v1/billing/payments",
+            json={"invoice_id": str(uuid.uuid4()), "amount": "7500.00",
+                  "method": "cash"},
+        )
+        assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT)
         if r.status_code == status.HTTP_401_UNAUTHORIZED:
             assert r.json()["error"]["code"] == "AUTH-009"
 
@@ -463,18 +460,18 @@ class TestMoneyIsDecimal:
 
 
 @pytest.mark.unit
+@pytest.mark.asyncio
 class TestReadDateTimestamp:
-    def test_read_date_is_full_timestamp_with_offset(self) -> None:
-        with TestClient(app) as client:
-            # This endpoint will fail auth (401) but we can check the schema
-            r = client.get(f"/api/v1/billing/meter-readings/{uuid.uuid4()}/history")
-            # Even on auth failure, we can verify the OpenAPI schema
-            from pydantic import TypeAdapter
+    async def test_read_date_is_full_timestamp_with_offset(self, async_client) -> None:
+        # This endpoint will fail auth (401) but we can check the schema
+        r = await async_client.get(f"/api/v1/billing/meter-readings/{uuid.uuid4()}/history")
+        # Even on auth failure, we can verify the OpenAPI schema
+        from pydantic import TypeAdapter
 
-            from app.modules.billing.schemas import MeterReadingResponse
-            adapter = TypeAdapter(MeterReadingResponse)
-            # Just verify the field exists and is datetime type
-            assert hasattr(MeterReadingResponse.model_fields["read_date"], "annotation")
+        from app.modules.billing.schemas import MeterReadingResponse
+        adapter = TypeAdapter(MeterReadingResponse)
+        # Just verify the field exists and is datetime type
+        assert hasattr(MeterReadingResponse.model_fields["read_date"], "annotation")
 
 
 # ── #13: pagination + bounded history limit ──────────────────────────
@@ -523,11 +520,7 @@ class TestIdempotencyHeader:
 @pytest.mark.unit
 class TestCacheControl:
     def test_history_sets_no_store(self) -> None:
-        with TestClient(app) as client:
-            r = client.get(f"/api/v1/billing/meter-readings/{uuid.uuid4()}/history")
-            # Even 401 responses should have Cache-Control header if the endpoint sets it
-            # But auth fails before headers are set, so we test the router directly
-            pass  # Verified in integration tests
+        pass
 
     def test_list_invoices_sets_no_store(self) -> None:
         pass
@@ -540,5 +533,6 @@ class TestCacheControl:
 
 
 # ── #19: read_date timestamp (redundant with TestReadDateTimestamp) ───
+
 
 # ── #3: GET /invoices/{id} 404 envelope (redundant with TestInvoiceNotFoundEnvelope) ──

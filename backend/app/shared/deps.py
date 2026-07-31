@@ -74,28 +74,21 @@ def is_global_scope(current_user: CurrentUser) -> bool:
 
 
 async def user_has_property_scope(
-    current_user: CurrentUser,
+    user_payload: dict[str, Any],
     db: AsyncSession,
     property_id: uuid.UUID,
 ) -> bool:
-    """Return ``True`` if the caller may access ``property_id``.
-
-    Global owner/admin callers always pass.  Otherwise the caller must
-    hold a ``user_property_scopes`` row for that property.  Reads the live
-    DB so scope changes take effect immediately.  Used both by the
-    ``require_property_scope()`` dependency and by list endpoints that need
-    to *filter* (rather than gate) their results by scope.
-    """
-    if is_global_scope(current_user):
+    """Check whether user holds scope for target property in user_property_scopes."""
+    if is_global_scope(user_payload):
         return True
 
-    user_id = current_user.get("user_id")
+    from app.modules.auth.repository import UserRepository
+
+    user_id = user_payload.get("user_id") or user_payload.get("sub")
     if not user_id:
         return False
 
     import uuid as _uuid
-
-    from app.modules.auth.repository import UserRepository
 
     repo = UserRepository(db)
     scopes = await repo.get_property_scopes(_uuid.UUID(str(user_id)))
@@ -150,7 +143,7 @@ def require_property_scope(
     """
 
     async def _enforce(
-        current_user: CurrentUser,
+        current_user: Annotated[dict[str, Any], Depends(get_current_user)],
         request: Request,
         db: AsyncSession = GET_DB,
     ) -> None:

@@ -18,9 +18,7 @@ export default defineConfig({
   forbidOnly: CI,
   retries: 2,
   workers: CI ? 1 : undefined,
-  reporter: CI
-    ? [['html', { outputFolder: OUTPUT_DIR + '/playwright-report', open: 'never' }], ['list']]
-    : [['html', { outputFolder: './playwright-report', open: 'on-failure' }], ['list']],
+  reporter: [['list']],
 
   use: {
     baseURL: 'http://localhost:5173',

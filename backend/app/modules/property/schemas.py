@@ -47,7 +47,7 @@ class UpdateRoomStatusRequest(BaseModel):
 
     model_config = ConfigDict(strict=True, extra="forbid")
 
-    status: RoomStatus
+    status: RoomStatus = Field(strict=False)
 
 
 # ── Response Schemas ───────────────────────────────────────────────────

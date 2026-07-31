@@ -118,7 +118,7 @@ async def _handle_sla_breach(
             property_id=request.property_id,
             user_id=property_obj.created_by,
             channel=NotificationChannel.IN_APP,
-            title=f"SLA Breach: Maintenance Request {request.id}",
+            subject=f"SLA Breach: Maintenance Request {request.id}",
             body=(
                 f"Maintenance request {request.id} for room {request.room_id} "
                 f"has breached its SLA. "
@@ -126,7 +126,6 @@ async def _handle_sla_breach(
                 f"{'Resolution time exceeded.' if resolution_breach else ''}"
             ),
             status=NotificationStatus.PENDING,
-            priority="high",
         )
         await notification_repo.create(notification)
 
@@ -221,7 +220,7 @@ async def _send_overdue_alert(
         property_id=invoice.property_id,
         user_id=invoice.tenant_id,  # Assuming tenant has user_id
         channel=NotificationChannel.IN_APP,
-        title=f"Overdue Payment: Invoice {invoice.invoice_number}",
+        subject=f"Overdue Payment: Invoice {invoice.invoice_number}",
         body=(
             f"Your invoice {invoice.invoice_number} for "
             f"{invoice.billing_month:02d}/{invoice.billing_year} "
@@ -229,7 +228,6 @@ async def _send_overdue_alert(
             f"Due date was {invoice.due_date.strftime('%Y-%m-%d')}."
         ),
         status=NotificationStatus.PENDING,
-        priority="high",
     )
     await notification_repo.create(notification)
 
@@ -340,14 +338,13 @@ async def _send_contract_expiry_notification(
         property_id=contract.property_id,
         user_id=property_obj.created_by,  # Using created_by as property manager
         channel=NotificationChannel.IN_APP,
-        title=f"Contract Expiring in {days_ahead} Days",
+        subject=f"Contract Expiring in {days_ahead} Days",
         body=(
             f"Contract {contract.id} for room {contract.room_id} "
             f"expires on {contract.end_date.strftime('%Y-%m-%d')} "
             f"({days_ahead} days from now)."
         ),
         status=NotificationStatus.PENDING,
-        priority="high" if days_ahead <= 14 else "normal",
     )
     await notification_repo.create(notification)
 

@@ -57,7 +57,8 @@ FROM development AS testing
 RUN pip install --no-cache-dir \
     pytest pytest-asyncio pytest-cov pytest-benchmark \
     factory-boy schemathesis \
-    ruff mypy bandit safety
+    ruff mypy bandit safety \
+    apscheduler prometheus-client
 RUN pip install --no-cache-dir locust
 
 CMD ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml"]

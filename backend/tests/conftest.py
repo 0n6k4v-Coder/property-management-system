@@ -28,6 +28,7 @@ from fastapi import FastAPI
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+
 from app.config import get_settings
 from app.main import create_app
 from app.modules.auth.models import User
@@ -35,6 +36,14 @@ from app.modules.auth.repository import UserRepository
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.invite_service import InviteService
 from app.shared.database import Base
+import app.modules.auth.models  # noqa: F401
+import app.modules.billing.models  # noqa: F401
+import app.modules.contract.models  # noqa: F401
+import app.modules.maintenance.models  # noqa: F401
+import app.modules.notification.models  # noqa: F401
+import app.modules.property.models  # noqa: F401
+import app.modules.tenant.models  # noqa: F401
+import app.shared.audit  # noqa: F401
 from app.shared.deps import get_current_user
 from app.shared.security import hash_password
 

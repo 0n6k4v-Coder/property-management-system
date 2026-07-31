@@ -11,14 +11,15 @@ References:
 """
 
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import status
 
-from app.modules.auth.constants import AUTH_001, AUTH_002
+from app.modules.auth.constants import AUTH_001, AUTH_002, AUTH_003, AUTH_004
 from app.modules.auth.models import User
 from app.modules.auth.services.auth_service import AuthService
+from app.modules.auth.services.invite_service import InviteService
 from app.shared.exceptions import APIError
 from app.shared.security import hash_password
 
@@ -43,7 +44,9 @@ class TestAuthenticate:
 
         service = AuthService.__new__(AuthService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        # Use MagicMock for db.add to avoid coroutine warning
+        service._db = MagicMock()
+        service._db.add = MagicMock()
 
         result_user, tokens = await service.authenticate("alice@example.com", "SecurePass123")
 
@@ -54,6 +57,7 @@ class TestAuthenticate:
         assert tokens["access"].count(".") == 2
         assert tokens["refresh"].count(".") == 2
         mock_repo.get_by_email.assert_awaited_once_with("alice@example.com")
+        service._db.add.assert_called()
 
     async def test_authenticate_wrong_password(self) -> None:
         """Invalid password → raises APIError (AUTH-001)."""
@@ -70,7 +74,8 @@ class TestAuthenticate:
 
         service = AuthService.__new__(AuthService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock()
+        service._db.add = MagicMock()
 
         with pytest.raises(APIError) as exc:
             await service.authenticate("bob@example.com", "WrongPass1")
@@ -86,7 +91,8 @@ class TestAuthenticate:
 
         service = AuthService.__new__(AuthService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock()
+        service._db.add = MagicMock()
 
         with pytest.raises(APIError) as exc:
             await service.authenticate("nobody@example.com", "AnyPass1")
@@ -94,28 +100,29 @@ class TestAuthenticate:
         assert exc.value.code == "AUTH-001"
 
     async def test_authenticate_inactive_user(self) -> None:
-        """``is_active=False`` → raises APIError (AUTH-002)."""
-        user = User(
-            id=uuid.uuid4(),
-            email="inactive@example.com",
-            password_hash=hash_password("InactivePass1"),
-            full_name="Inactive",
-            phone="0833333333",
-            is_active=False,
-        )
-        mock_repo = AsyncMock()
-        mock_repo.get_by_email.return_value = user
+            """``is_active=False`` → raises APIError (AUTH-002)."""
+            user = User(
+                id=uuid.uuid4(),
+                email="inactive@example.com",
+                password_hash=hash_password("InactivePass1"),
+                full_name="Inactive",
+                phone="0899999999",
+                is_active=False,
+            )
+            mock_repo = AsyncMock()
+            mock_repo.get_by_email.return_value = user
 
-        service = AuthService.__new__(AuthService)
-        service._repo = mock_repo
-        service._db = AsyncMock()
+            service = AuthService.__new__(AuthService)
+            service._repo = mock_repo
+            service._db = MagicMock()
+            service._db.add = MagicMock()
 
-        with pytest.raises(APIError) as exc:
-            await service.authenticate("inactive@example.com", "InactivePass1")
+            with pytest.raises(APIError) as exc:
+                await service.authenticate("inactive@example.com", "InactivePass1")
 
-        assert exc.value.code == "AUTH-002"
-        assert exc.value.message == AUTH_002
-        assert exc.value.status_code == status.HTTP_403_FORBIDDEN
+            assert exc.value.code == "AUTH-002"
+            assert exc.value.message == AUTH_002
+            assert exc.value.status_code == status.HTTP_403_FORBIDDEN
 
 
 @pytest.mark.unit
@@ -168,7 +175,8 @@ class TestRegister:
 
         service = AuthService.__new__(AuthService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock()
+        service._db.add = MagicMock()
 
         result = await service.register(
             email="newuser@example.com",
@@ -181,6 +189,7 @@ class TestRegister:
         assert result.email == "newuser@example.com"
         mock_repo.get_by_email.assert_awaited_once_with("newuser@example.com")
         mock_repo.create.assert_awaited_once()
+        service._db.add.assert_called()
 
     async def test_register_duplicate_email(self) -> None:
         """Existing email → raises APIError (AUTH-004)."""
@@ -238,7 +247,8 @@ class TestRefreshAccessToken:
         # Create a real refresh token via the auth_service
         service = AuthService.__new__(AuthService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock()
+        service._db.add = MagicMock()
 
         # Generate a proper refresh token
         tokens = await service.generate_tokens(user)

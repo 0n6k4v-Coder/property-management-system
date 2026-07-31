@@ -263,6 +263,7 @@ test-e2e: check-docker check-compose ## Run E2E tests with Playwright (self-cont
 	@mkdir -p frontend/playwright-report frontend/e2e-results
 	@# 1. Start test stack (backend + db + redis + minio)
 	@echo "$(COLOR_BLUE)  [1/4] Starting test stack...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d backend
 	@# 2. Apply migrations
 	@echo "$(COLOR_BLUE)  [2/4] Applying migrations...$(COLOR_RESET)"
@@ -287,11 +288,9 @@ test-integration: check-docker check-compose ## Run integration tests only (requ
 
 test-coverage: check-docker check-compose ## Run tests + generate HTML coverage report
 	@echo "$(COLOR_GREEN)→ Running tests with coverage...$(COLOR_RESET)"
-	@mkdir -p /tmp/coverage backend/htmlcov
+	@mkdir -p backend/htmlcov
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
-		-v /tmp/coverage:/tmp/coverage \
 		-v $(CURDIR)/backend/htmlcov:/app/htmlcov \
-		-e COVERAGE_FILE=/tmp/coverage/.coverage \
 		backend-test pytest --cov=app --cov-report=html --cov-report=term-missing -v --color=yes
 	@echo ""
 	@echo "$(COLOR_GREEN)✓ Coverage report: backend/htmlcov/index.html$(COLOR_RESET)"

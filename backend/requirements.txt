@@ -55,6 +55,8 @@ pytest-cov
 pytest-benchmark
 factory-boy
 schemathesis
+apscheduler
+prometheus-client
 
 # =============================================================================
 # Quality & Security Tools (Development Only)

@@ -107,6 +107,7 @@ services:
       - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
       - DEBUG=true
       - PYTEST_ADDOPTS=--color=yes
+      - COVERAGE_FILE=/tmp/coverage/.coverage
     volumes:
       - ./backend:/app:cached
       - test-backend-pytest-cache:/app/.pytest_cache
@@ -135,6 +136,9 @@ services:
       options:
         max-size: "10m"
         max-file: "2"
+    tmpfs:
+      - /app/.hypothesis:mode=1777,size=100M
+      - /tmp/coverage:mode=1777,size=100M
     command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html"]
 
   # -------------------------------------------------------------------------
