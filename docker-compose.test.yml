@@ -1,0 +1,335 @@
+# =============================================================================
+# docker-compose.test.yml — Isolated Test Environment
+# Property Management System — Self-contained test stack
+# =============================================================================
+#
+# Fully isolated from docker-compose.dev.yml:
+#   - Separate project name (pms-test)
+#   - Separate volumes (pms-test_*)
+#   - Separate network (pms-test-network)
+#   - No ports exposed to host (services communicate internally)
+#   - No profiles needed — all services start by default
+#
+# Services:
+#   backend       — FastAPI (testing stage, runs real API for E2E)
+#   backend-test  — Ephemeral pytest runner (unit + integration tests)
+#   frontend-test — Ephemeral Vitest + Playwright runner (E2E tests)
+#   db            — PostgreSQL 18.4 (ephemeral data via tmpfs)
+#   redis         — Redis 7.4
+#   minio         — MinIO object storage
+#
+# Usage:
+#   Start full stack:  docker compose -f docker-compose.test.yml up -d
+#   Run backend tests: docker compose -f docker-compose.test.yml run --rm backend-test
+#   Run E2E tests:     docker compose -f docker-compose.test.yml run --rm frontend-test npx playwright test
+#   Seed E2E data:    docker compose -f docker-compose.test.yml exec backend python -m scripts.seed_e2e --reset
+#   Stop + cleanup:   docker compose -f docker-compose.test.yml down -v
+# =============================================================================
+
+name: pms-test
+
+services:
+  # -------------------------------------------------------------------------
+  # Backend Service — Real API for fullstack E2E tests
+  # -------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: testing
+      args:
+        PIP_CACHE_DIR: /tmp/pip-cache
+    expose:
+      - "8000"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/pms_test
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=http://minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - SECRET_KEY=test-secret-key-for-testing-only-not-for-prod
+      - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
+      - DEBUG=true
+      - APP_DOMAIN=http://backend:8000
+      - DB_POOL_SIZE=5
+      - DB_MAX_OVERFLOW=10
+      - DB_POOL_TIMEOUT=30
+      - DB_POOL_RECYCLE=1800
+    volumes:
+      - ./backend:/app:cached
+      - test-backend-pytest-cache:/app/.pytest_cache
+      - test-backend-coverage:/app/htmlcov
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    # Override Dockerfile CMD: run uvicorn (not pytest) — this service is the real API for E2E
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  # -------------------------------------------------------------------------
+  # Backend Test Runner — Ephemeral container for pytest
+  # -------------------------------------------------------------------------
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: testing
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/pms_test
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=http://minio:9000
+      - SECRET_KEY=test-secret-key-for-testing-only-not-for-prod
+      - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
+      - DEBUG=true
+      - PYTEST_ADDOPTS=--color=yes
+      - COVERAGE_FILE=/tmp/coverage/.coverage
+    volumes:
+      - ./backend:/app:cached
+      - test-backend-pytest-cache:/app/.pytest_cache
+      - test-backend-coverage:/app/htmlcov
+      - ./backend/test-reports:/app/test-reports
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    tmpfs:
+      - /app/.hypothesis:mode=1777,size=100M
+      - /tmp/coverage:mode=1777,size=100M
+    command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html"]
+
+  # -------------------------------------------------------------------------
+  # Frontend Test Runner — Ephemeral container for Vitest + Playwright E2E
+  # -------------------------------------------------------------------------
+  frontend-test:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      - VITE_API_URL=/api/v1
+      - NODE_ENV=test
+      - CI=true
+      - PLAYWRIGHT_OUTPUT_DIR=/app/test-results/playwright
+    volumes:
+      - ./frontend:/app:cached
+      - test-frontend-node-modules:/app/node_modules
+      - test-frontend-coverage:/app/coverage
+      - ./frontend/playwright-report:/app/playwright-report
+      - ./frontend/e2e-results:/app/e2e-results
+      # tmpfs for test-results — trace:'on' can generate hundreds of MB
+      - type: tmpfs
+        target: /app/test-results
+        tmpfs:
+          size: 1G
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: "no"
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+    user: "root"
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+    # Default: unit tests (vitest). Override for E2E:
+    #   docker compose -f docker-compose.test.yml run --rm frontend-test npx playwright test
+    command: ["npx", "vitest", "run", "--coverage"]
+
+  # -------------------------------------------------------------------------
+  # PostgreSQL 18.4 — Test database (tmpfs for speed + auto-cleanup)
+  # -------------------------------------------------------------------------
+  db:
+    image: postgres:18.4-alpine
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=pass
+      - POSTGRES_DB=pms_test
+      - POSTGRES_MAX_CONNECTIONS=50
+      - POSTGRES_SHARED_BUFFERS=128MB
+      - POSTGRES_EFFECTIVE_CACHE_SIZE=512MB
+      - POSTGRES_WORK_MEM=4MB
+      - POSTGRES_MAINTENANCE_WORK_MEM=32MB
+    volumes:
+      # tmpfs: ephemeral, fast, auto-cleaned on container removal
+      # PG18+ expects mount at /var/lib/postgresql (not /var/lib/postgresql/data)
+      - type: tmpfs
+        target: /var/lib/postgresql
+        tmpfs:
+          size: 512M
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d pms_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # -------------------------------------------------------------------------
+  # Redis 7.4 — Cache, Celery broker, rate limiting
+  # -------------------------------------------------------------------------
+  redis:
+    image: redis:7.4-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 128mb
+      - --maxmemory-policy
+      - allkeys-lru
+      - --notify-keyspace-events
+      - "Ex"
+    volumes:
+      - test-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.25'
+          memory: 64M
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  # -------------------------------------------------------------------------
+  # MinIO — S3-compatible object storage
+  # -------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+      - MINIO_BROWSER=on
+      - MINIO_UPDATE=off
+    volumes:
+      - test-minio-data:/data
+      - ./backend/scripts/init-minio-buckets.sh:/docker-entrypoint-initdb.d/init-buckets.sh:ro
+    healthcheck:
+      test: >
+        /bin/sh -c "
+        mc alias set myminio http://localhost:9000 minioadmin minioadmin &&
+        mc ready myminio
+        "
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+# =============================================================================
+# Volumes — Test-isolated (separate from dev volumes)
+# =============================================================================
+volumes:
+  test-backend-pytest-cache:
+    driver: local
+  test-backend-coverage:
+    driver: local
+  test-frontend-node-modules:
+    driver: local
+  test-frontend-coverage:
+    driver: local
+  test-redis-data:
+    driver: local
+  test-minio-data:
+    driver: local
+
+# =============================================================================
+# Network — Test-isolated
+# =============================================================================
+networks:
+  default:
+    name: pms-test-network
+    driver: bridge

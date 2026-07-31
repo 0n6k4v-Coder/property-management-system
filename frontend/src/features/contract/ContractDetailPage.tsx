@@ -1,17 +1,17 @@
 // File: src/features/contract/ContractDetailPage.tsx
 // Contract detail with termination, extend, and renew actions.
 // SCR-CONTRACT-DETAIL: GET /contracts/{id}, PATCH /contracts/{id}/terminate, POST /contracts/{id}/extend, POST /contracts/{id}/renew
-
-import { useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { useContractDetail, useTerminateContract, useExtendLease, useRenewContract } from './api';
 import { Card, CardHeader } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
 import { Button } from '@/shared/ui/Button';
-import { Input } from '@/shared/ui/Input';
-import { Modal } from '@/shared/ui/Modal';
 import { useToast } from '@/shared/ui/Toast';
 import { Skeleton } from '@/shared/ui/Skeleton';
+import TerminateModal from './TerminateModal';
+import ExtendModal from './ExtendModal';
+import RenewModal from './RenewModal';
 
 function formatDate(date: string): string {
   return new Date(date).toLocaleDateString('en-GB', {
@@ -38,16 +38,6 @@ export default function ContractDetailPage() {
   const renewMutation = useRenewContract();
   const [modalMode, setModalMode] = useState<ModalMode>(null);
 
-  // Form state
-  const [termReason, setTermReason] = useState('');
-  const [termNotes, setTermNotes] = useState('');
-  const [extendDate, setExtendDate] = useState('');
-  const [extendReason, setExtendReason] = useState('');
-  const [renewStart, setRenewStart] = useState('');
-  const [renewEnd, setRenewEnd] = useState('');
-  const [renewRent, setRenewRent] = useState('');
-  const [renewDeposit, setRenewDeposit] = useState('');
-
   if (isLoading) {
     return <Skeleton className="h-64" />;
   }
@@ -65,56 +55,53 @@ export default function ContractDetailPage() {
 
   const isActive = contract.status === 'active';
 
-  async function handleTerminate() {
-    if (!id || !termReason) return;
+  async function handleTerminate(reason: string, notes: string | null) {
+    if (!id) return;
     try {
       await terminateMutation.mutateAsync({
         contractId: id,
-        data: { reason: termReason as never, notes: termNotes || null },
+        data: { reason: reason as never, notes },
       });
       showToast('Contract terminated successfully', 'success');
       setModalMode(null);
-      setTermReason('');
-      setTermNotes('');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Termination failed', 'error');
     }
   }
 
-  async function handleExtend() {
-    if (!id || !extendDate) return;
+  async function handleExtend(newEndDate: string, reason: string | null) {
+    if (!id) return;
     try {
       await extendMutation.mutateAsync({
         contractId: id,
-        data: { new_end_date: extendDate, reason: extendReason || null },
+        data: { new_end_date: newEndDate, reason },
       });
       showToast('Lease extended successfully', 'success');
       setModalMode(null);
-      setExtendDate('');
-      setExtendReason('');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Extension failed', 'error');
     }
   }
 
-  async function handleRenew() {
-    if (!id || !renewStart || !renewEnd || !renewRent || !renewDeposit) return;
+  async function handleRenew(
+    newStartDate: string,
+    newEndDate: string,
+    newMonthlyRent: string,
+    newDepositAmount: string
+  ) {
+    if (!id) return;
     try {
       const newContract = await renewMutation.mutateAsync({
         contractId: id,
         data: {
-          new_start_date: renewStart,
-          new_end_date: renewEnd,
-          new_monthly_rent: parseFloat(renewRent),
-          new_deposit_amount: parseFloat(renewDeposit),
+          new_start_date: newStartDate,
+          new_end_date: newEndDate,
+          new_monthly_rent: parseFloat(newMonthlyRent),
+          new_deposit_amount: parseFloat(newDepositAmount),
         },
       });
       showToast('Contract renewed successfully', 'success');
       setModalMode(null);
-      setRenewStart('');
-      setRenewEnd('');
-      setRenewRent('');
-      setRenewDeposit('');
       // Renew creates a NEW contract (new id) — navigate to it so the user
       // sees the renewed terms instead of the still-terminated original.
       if (newContract?.id) navigate(`/contracts/${newContract.id}`);
@@ -128,7 +115,7 @@ export default function ContractDetailPage() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <Link to="/contracts" className="text-sm text-primary-600 hover:text-primary-700">
-            &larr; Back to contracts
+            ← Back to contracts
           </Link>
           <h1 className="mt-2 text-2xl font-bold text-surface-900">
             Contract {contract.id.slice(0, 8)}
@@ -146,9 +133,7 @@ export default function ContractDetailPage() {
           </div>
         )}
         {!isActive && (
-          <Button onClick={() => setModalMode('renew')}>
-            Renew Contract
-          </Button>
+          <Button onClick={() => setModalMode('renew')}>Renew Contract</Button>
         )}
       </div>
 
@@ -222,9 +207,9 @@ export default function ContractDetailPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-surface-200 text-left text-xs font-medium uppercase tracking-wide text-surface-500">
-                <th className="px-4 py-2">Previous End Date</th>
-                <th className="px-4 py-2">Extended To</th>
-                <th className="px-4 py-2">Reason</th>
+                <th scope="col" className="px-4 py-2">Previous End Date</th>
+                <th scope="col" className="px-4 py-2">Extended To</th>
+                <th scope="col" className="px-4 py-2">Reason</th>
               </tr>
             </thead>
             <tbody>
@@ -232,7 +217,7 @@ export default function ContractDetailPage() {
                 <tr key={ext.id} className="border-b border-surface-100">
                   <td className="px-4 py-2 text-surface-600">{formatDate(ext.previous_end_date)}</td>
                   <td className="px-4 py-2 text-surface-600">{formatDate(ext.extended_to)}</td>
-                  <td className="px-4 py-2 text-surface-600">{ext.reason ?? '—'}</td>
+                  <td className="px-4 py-2 text-surface-600">{ext.reason ?? '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -241,101 +226,28 @@ export default function ContractDetailPage() {
       )}
 
       {/* Terminate Modal */}
-      <Modal open={modalMode === 'terminate'} onClose={() => setModalMode(null)} title="Terminate Contract">
-        <div className="space-y-4">
-          <div>
-            <label htmlFor="term-reason" className="block text-sm font-medium text-surface-700">
-              Reason
-            </label>
-            <select
-              id="term-reason"
-              value={termReason}
-              onChange={(e) => setTermReason(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500"
-            >
-              <option value="">Select a reason…</option>
-              <option value="tenant_moved_out">Tenant Moved Out</option>
-              <option value="owner_terminated">Owner Terminated</option>
-              <option value="breach_of_contract">Breach of Contract</option>
-              <option value="mutual_agreement">Mutual Agreement</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-          <Input
-            label="Notes (optional)"
-            value={termNotes}
-            onChange={(e) => setTermNotes(e.target.value)}
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setModalMode(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleTerminate} isLoading={terminateMutation.isPending} disabled={!termReason}>
-              Terminate
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <TerminateModal
+        open={modalMode === 'terminate'}
+        onClose={() => setModalMode(null)}
+        onSubmit={handleTerminate}
+        isLoading={terminateMutation.isPending}
+      />
 
       {/* Extend Modal */}
-      <Modal open={modalMode === 'extend'} onClose={() => setModalMode(null)} title="Extend Lease">
-        <div className="space-y-4">
-          <Input
-            label="New End Date"
-            type="date"
-            value={extendDate}
-            onChange={(e) => setExtendDate(e.target.value)}
-          />
-          <Input
-            label="Reason (optional)"
-            value={extendReason}
-            onChange={(e) => setExtendReason(e.target.value)}
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setModalMode(null)}>Cancel</Button>
-            <Button onClick={handleExtend} isLoading={extendMutation.isPending} disabled={!extendDate}>
-              Extend
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <ExtendModal
+        open={modalMode === 'extend'}
+        onClose={() => setModalMode(null)}
+        onSubmit={handleExtend}
+        isLoading={extendMutation.isPending}
+      />
 
       {/* Renew Modal */}
-      <Modal open={modalMode === 'renew'} onClose={() => setModalMode(null)} title="Renew Contract">
-        <div className="space-y-4">
-          <Input
-            label="New Start Date"
-            type="date"
-            value={renewStart}
-            onChange={(e) => setRenewStart(e.target.value)}
-          />
-          <Input
-            label="New End Date"
-            type="date"
-            value={renewEnd}
-            onChange={(e) => setRenewEnd(e.target.value)}
-          />
-          <Input
-            label="New Monthly Rent"
-            type="number"
-            min="0"
-            value={renewRent}
-            onChange={(e) => setRenewRent(e.target.value)}
-          />
-          <Input
-            label="New Deposit Amount"
-            type="number"
-            min="0"
-            value={renewDeposit}
-            onChange={(e) => setRenewDeposit(e.target.value)}
-          />
-          <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setModalMode(null)}>Cancel</Button>
-            <Button onClick={handleRenew} isLoading={renewMutation.isPending}
-              disabled={!renewStart || !renewEnd || !renewRent || !renewDeposit}>
-              Renew
-            </Button>
-          </div>
-        </div>
-      </Modal>
+      <RenewModal
+        open={modalMode === 'renew'}
+        onClose={() => setModalMode(null)}
+        onSubmit={handleRenew}
+        isLoading={renewMutation.isPending}
+      />
     </div>
   );
 }

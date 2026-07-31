@@ -17,7 +17,6 @@ References:
 """
 
 import re
-from typing import Any
 
 
 def sanitize_input(value: str, max_length: int = 1000) -> str:

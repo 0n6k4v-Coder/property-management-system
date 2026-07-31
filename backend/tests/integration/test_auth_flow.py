@@ -22,7 +22,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.models import User
 from app.modules.auth.repository import UserRepository
-from app.modules.auth.services.invite_service import InviteService
 from app.shared.security import hash_password
 
 
@@ -50,6 +49,29 @@ class TestAuthE2EFlow:
                 is_active=True,
             )
         )
+
+        # Create the property first (required for FK constraint)
+        from app.modules.property.models import Property
+        prop = Property(
+            id=aw_property_id,
+            name="Test Property",
+            address="123 Test St",
+            billing_due_day=5,
+            min_deposit_months=2,
+            created_by=admin_id,
+        )
+        db_session.add(prop)
+        await db_session.flush()
+
+        # Grant admin user property scope for the invite
+        from app.modules.auth.models import UserPropertyScope
+        scope = UserPropertyScope(
+            user_id=admin_id,
+            property_id=aw_property_id,
+            role="owner",
+        )
+        db_session.add(scope)
+        await db_session.flush()
 
         # ----------------------------------------------------------------
         # Step 1 — POST /invite (admin invites a new user)

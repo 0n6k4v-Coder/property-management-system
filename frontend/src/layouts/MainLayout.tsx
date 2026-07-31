@@ -1,71 +1,34 @@
 // File: src/layouts/MainLayout.tsx
-// Main application layout with header, navigation, and responsive content area.
+// Application shell — collapsible sidebar + top header + card-panel content area.
+// SDD §SCR-APP-SHELL — replaces the old top-nav-only layout.
 
-import { Outlet, NavLink } from 'react-router-dom';
-import { useAuth } from '@/shared/auth/AuthContext';
+import { Outlet } from 'react-router-dom';
+import { Sidebar } from '@/layouts/components/Sidebar';
+import { TopHeader } from '@/layouts/TopHeader';
+import { useSidebar } from '@/shared/hooks/useSidebar';
 
 export function MainLayout() {
-  const { user, logout } = useAuth();
-  const year = new Date().getFullYear();
-
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-      isActive
-        ? 'bg-primary-50 text-primary-700'
-        : 'text-surface-600 hover:bg-surface-100 hover:text-surface-900'
-    }`;
+  const sidebar = useSidebar();
 
   return (
-    <div className="flex min-h-screen flex-col">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-surface-200 bg-white shadow-sm">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-3">
-            <h2 className="text-lg font-semibold text-surface-900">
-              Property Management
-            </h2>
+    <div className="flex h-screen overflow-hidden bg-surface-50-light [color-scheme:light]">
+      {/* Sidebar (desktop fixed / tablet collapsed / mobile hidden) */}
+      <Sidebar sidebarState={sidebar} />
+
+      {/* Main column: header + content */}
+      <div className="flex h-full flex-1 flex-col overflow-hidden">
+        {/* Top Header Bar */}
+        <TopHeader onToggleSidebar={sidebar.toggleMobile} />
+
+        {/* Main Content Area — card panel with rounded corners */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-surface-200/50 sm:p-6 lg:p-8">
+              <Outlet />
+            </div>
           </div>
-          <nav className="flex items-center gap-4">
-            <div className="hidden md:flex items-center gap-1">
-              <NavLink to="/dashboard" className={navLinkClass}>Dashboard</NavLink>
-              <NavLink to="/property" className={navLinkClass}>Properties</NavLink>
-              <NavLink to="/tenants" className={navLinkClass}>Tenants</NavLink>
-              <NavLink to="/meter-reading" className={navLinkClass}>Meters</NavLink>
-              <NavLink to="/invoices" className={navLinkClass}>Invoices</NavLink>
-              <NavLink to="/contracts" className={navLinkClass}>Contracts</NavLink>
-              <NavLink to="/maintenance" className={navLinkClass}>Maintenance</NavLink>
-              <NavLink to="/reports" className={navLinkClass}>Reports</NavLink>
-              <NavLink to="/settings" className={navLinkClass}>Settings</NavLink>
-            </div>
-            <div className="flex items-center gap-4">
-              {user && (
-                <span className="text-sm text-surface-600">
-                  {user.full_name}
-                </span>
-              )}
-              <button
-                onClick={logout}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-surface-600 hover:bg-surface-100 active:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-                type="button"
-              >
-                Logout
-              </button>
-            </div>
-          </nav>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 lg:px-8">
-        <Outlet />
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-surface-200 bg-white py-4">
-        <div className="mx-auto max-w-7xl px-4 text-center text-xs text-surface-600 sm:px-6 lg:px-8">
-          &copy; {year} Property Management System
-        </div>
-      </footer>
+        </main>
+      </div>
     </div>
   );
 }

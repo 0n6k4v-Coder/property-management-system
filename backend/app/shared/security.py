@@ -6,13 +6,13 @@ References:
 - CODE_STYLE.md §6: Security Guidelines
 """
 
-from datetime import datetime, timedelta, timezone
 import uuid
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import jwt
-from passlib.context import CryptContext
 from cryptography.fernet import Fernet
+from passlib.context import CryptContext
 
 from app.config import get_settings
 
@@ -31,7 +31,7 @@ pwd_context = CryptContext(
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against an Argon2id hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bool(pwd_context.verify(plain_password, hashed_password))
 
 
 def hash_password(plain_password: str) -> str:
@@ -50,7 +50,7 @@ def hash_password(plain_password: str) -> str:
     str
         Argon2id hash string.
     """
-    return pwd_context.hash(plain_password)
+    return str(pwd_context.hash(plain_password))
 
 
 # JWT utilities
@@ -76,11 +76,11 @@ def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = 
         Encoded JWT string.
     """
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=_settings.ACCESS_TOKEN_EXPIRE_MINUTES))
+    expire = datetime.now(UTC) + (expires_delta or timedelta(minutes=_settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({
         "jti": uuid.uuid4().hex,  # unique token ID for rotation verification
         "exp": expire,
-        "iat": datetime.now(timezone.utc),
+        "iat": datetime.now(UTC),
     })
     return jwt.encode(to_encode, _settings.SECRET_KEY, algorithm="HS256")
 
@@ -105,7 +105,7 @@ def decode_token(token: str) -> dict[str, Any] | None:
         return None
 
 
-async def verify_token(token: str, db: Any) -> dict[str, Any] | None:
+async def verify_token(token: str) -> dict[str, Any] | None:
     """Verify JWT token and return user payload.
 
     .. note::

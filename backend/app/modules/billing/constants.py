@@ -7,7 +7,6 @@ References:
 
 from enum import StrEnum
 
-
 # ── Error Codes (BILL-0xx, VAL-0xx shared) ────────────────────────────
 
 BILL_001_METER_DECREASED: str = "BILL-001"

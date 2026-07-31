@@ -8,10 +8,11 @@ References:
   - SDD §3.3: API Contract / CORS
   - SDD §4.5: Security
 """
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 
-def setup_cors_middleware(app, allowed_origins: list[str] | None = None):
+def setup_cors_middleware(app: FastAPI, allowed_origins: list[str] | None = None) -> None:
     """Configure CORS for the FastAPI application.
 
     Defaults to the Vite dev-server origins expected during local

@@ -9,7 +9,7 @@ References:
 import uuid
 from datetime import date
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -49,6 +49,30 @@ class ContractRepository:
         await self.db.flush()
         await self.db.refresh(contract)
         return contract
+
+    # ── Scope Resolution Helpers (fixes #5) ──────────────────────────────
+
+    async def get_contract_property_id(self, contract_id: uuid.UUID) -> uuid.UUID | None:
+        """Return the property_id of a contract, or None if not found.
+
+        Used by the router for resolve-then-check authorization on endpoints
+        that don't carry property_id directly.
+        """
+        stmt = select(Contract.property_id).where(Contract.id == contract_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_room_property_id(self, room_id: uuid.UUID) -> uuid.UUID | None:
+        """Return the property_id of a room, or None if not found.
+
+        Used by the router for resolve-then-check authorization on the
+        lease history endpoint (GET /leases/{room_id}/history).
+        """
+        from app.modules.property.models import Room
+
+        stmt = select(Room.property_id).where(Room.id == room_id)
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
 
     # ── Business Queries ─────────────────────────────────────────────────
 
@@ -98,6 +122,38 @@ class ContractRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_active_contracts_paginated(
+        self,
+        property_ids: list[uuid.UUID] | None,
+        page: int,
+        limit: int,
+    ) -> tuple[list[Contract], int]:
+        """Return paginated active contracts for scope-filtered list.
+
+        Returns (contracts, total_count).
+        """
+        from sqlalchemy import func as sqlfunc
+
+        # Base query for active contracts
+        base_stmt = select(Contract).where(Contract.status == "active")
+        if property_ids:
+            base_stmt = base_stmt.where(Contract.property_id.in_(property_ids))
+
+        # Count total
+        count_stmt = select(sqlfunc.count()).select_from(base_stmt.subquery())
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Paginated query
+        stmt = base_stmt.options(
+            selectinload(Contract.termination),
+            selectinload(Contract.extensions),
+        ).order_by(Contract.created_at.desc()).offset((page - 1) * limit).limit(limit)
+
+        result = await self.db.execute(stmt)
+        contracts = list(result.scalars().all())
+        return contracts, total
+
     async def get_contracts_by_status(self, status: str) -> list[Contract]:
         """Return contracts matching a given status."""
         stmt = (
@@ -139,6 +195,35 @@ class ContractRepository:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_lease_history_paginated(
+        self,
+        room_id: uuid.UUID,
+        page: int,
+        limit: int,
+    ) -> tuple[list[Contract], int]:
+        """Return paginated lease history for a room.
+
+        Returns (contracts, total_count).
+        """
+        from sqlalchemy import func as sqlfunc
+
+        base_stmt = select(Contract).where(Contract.room_id == room_id)
+
+        # Count total
+        count_stmt = select(sqlfunc.count()).select_from(base_stmt.subquery())
+        total_result = await self.db.execute(count_stmt)
+        total = total_result.scalar_one()
+
+        # Paginated query
+        stmt = base_stmt.options(
+            selectinload(Contract.termination),
+            selectinload(Contract.extensions),
+        ).order_by(Contract.start_date.desc()).offset((page - 1) * limit).limit(limit)
+
+        result = await self.db.execute(stmt)
+        contracts = list(result.scalars().all())
+        return contracts, total
 
     async def has_date_overlap(
         self,
@@ -202,3 +287,4 @@ class ContractRepository:
         await self.db.flush()
         await self.db.refresh(termination)
         return termination
+

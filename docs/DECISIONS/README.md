@@ -36,6 +36,7 @@ Directory นี้เก็บ **Architecture Decision Records (ADR)** แล�
 |----|-------|--------|------|------|
 | 000 | Adopt Hermes Multi-Agent Profiles + Kanban Board for PMS Fullstack Integration Testing & Hardening | 🟢 Accepted | 2026-07-05 | [000-discussion-hermes-multi-agent.md](000-discussion-hermes-multi-agent.md) |
 | 001 | Adopt Hermes Single E2E Profile (pms-e2e) for Phase 1 E2E Campaign | ✅ Accepted | 2026-07-05 | [001-adopt-hermes-single-e2e-profile.md](001-adopt-hermes-single-e2e-profile.md) |
+| 005 | Adopt Orchestrator Evaluation Checklist as Mandatory Standard | ✅ Accepted | 2026-07-24 | [005-adopt-orchestrator-evaluation-checklist.md](005-adopt-orchestrator-evaluation-checklist.md) |
 
 > เพิ่ม row ใหม่ทุกครั้งที่สร้าง discussion หรือ decision ใหม่
 

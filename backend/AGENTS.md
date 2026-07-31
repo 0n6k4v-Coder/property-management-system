@@ -55,7 +55,7 @@ backend/
 |   │   ├── contract/       # ✅ Sprint 4 Complete (FR-CONTRACT-01~05)
 │   │   ├── dashboard/      # ✅ Sprint 6 Complete (FR-DASH-01~04)
 │   │   ├── maintenance/    # ✅ Sprint 5 Complete (FR-MAINT-01~03)
-│   │   ├── notification/   # ✅ Sprint 7 Complete (notification stubs)
+│   │   ├── notification/   # ✅ Sprint 7 Complete + 2026-07-11 anti-pattern redesign: #5/#3/#15/#1/#20/#13 fixed, router/service/repository/schemas + 23 DB-free tests
 │   │   └── admin/          # ✅ Sprint 7 Complete (audit log, RBAC, system config)
 │   │       └── __init__.py # Public exports only
 │   ├── shared/
@@ -126,8 +126,11 @@ backend/
 
 ### Essential Docker Commands
 ```bash
-# 🔹 Start development environment (hot-reload enabled) — ใช้เมื่อจำเป็นเท่านั้น
+# 🔹 Start development environment (self-contained: migrate + seed admin, hot-reload enabled) — ใช้เมื่อจำเป็นเท่านั้น
 make dev
+
+# 🔹 Restart dev environment (dev-down + dev)
+make dev-restart
 
 # 🔹 Run tests in isolated container
 docker compose -f docker-compose.dev.yml --profile test run --rm backend-test
@@ -150,7 +153,8 @@ docker compose -f docker-compose.dev.yml --profile test run --rm backend-test sc
 docker compose -f docker-compose.dev.yml --profile test down -v
 
 # 🔹 Makefile shortcuts (recommended)
-make dev          # Start dev environment (only when needed)
+make dev          # Start dev environment (self-contained: migrate + seed)
+make dev-restart  # Restart dev environment (dev-down + dev)
 make test         # Run all tests
 make test-unit    # Run unit tests only
 make lint         # Run linters

@@ -438,6 +438,20 @@ answer when grounded, state when evidence is missing, do not conflate sources or
 
 ---
 
+## TEMPLATE: CLEAR-ALL-OF-DOCKER-CONTAINER
+**Name:** `clear-all-of-docker-container`    
+**Attach when:** 
+
+``````markdown
+1. หลาย task → วิเคราะห์ parallel vs sequence ก่อน
+2. แจกแจงให้ผมดู → รออนุมัติ
+3. อนุมัติแล้ว → spawn sub-agent แยกตาม task ที่ parallel ได้
+4. ห้าม bundle หลาย task ใน sub-agent เดียว
+5. sequence ทำทีละอัน
+``````
+
+---
+
 ## 📝 USAGE INSTRUCTIONS
 
 ### How to Attach a Template

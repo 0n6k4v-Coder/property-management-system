@@ -5,6 +5,8 @@ References:
     - SDD.md §5.2: Contract Termination Sequence Diagram
 """
 
+from typing import Any
+
 import structlog
 
 from app.modules.contract.constants import (
@@ -26,7 +28,7 @@ __all__ = [
 ]
 
 
-async def publish_contract_event(event_name: str, contract_id: str, metadata: dict | None = None) -> None:
+async def publish_contract_event(event_name: str, contract_id: str, metadata: dict[str, Any] | None = None) -> None:
     """Publish a contract-related domain event.
 
     Current implementation logs to structlog.  Replaced with Redis
@@ -51,3 +53,4 @@ async def publish_contract_event(event_name: str, contract_id: str, metadata: di
         )
     except Exception:
         logger.warning("contract.event.publish_failed", event_name=event_name, exc_info=True)
+

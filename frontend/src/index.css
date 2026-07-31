@@ -119,6 +119,12 @@
   }
 }
 
+/* Sidebar mobile drawer slide-in animation (SDD §5.3 — 200ms ease-out) */
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 /* Physics-based spring easing on Login interactions (Sprint 10 / ADR 003) */
 /* Fallback ease-out declared first; modern browsers override with linear() spring */
 .login-submit-btn {

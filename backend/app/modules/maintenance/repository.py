@@ -7,6 +7,7 @@ References:
 """
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,3 +65,48 @@ class MaintenanceRepository:
         Convenience wrapper around ``get_by_property(property_id, status)``.
         """
         return await self.get_by_property(property_id, status=None)
+
+    async def get_request_property_id(self, request_id: uuid.UUID) -> uuid.UUID | None:
+        """Return the property_id of a maintenance request, or None if not found.
+
+        Used by the router for resolve-then-check authorization on endpoints
+        that don't carry property_id directly.
+        """
+        stmt = select(MaintenanceRequest.property_id).where(
+            MaintenanceRequest.id == request_id
+        )
+        result = await self.db.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_sla_breaches(self, property_id: uuid.UUID | None = None) -> list[MaintenanceRequest]:
+        """Return maintenance requests that have breached their SLA response or resolution times.
+
+        Args:
+            property_id: Optional filter by property. If None, checks all properties.
+
+        Returns:
+            List of MaintenanceRequest objects with breached SLA.
+        """
+        now = datetime.now(UTC)
+        stmt = select(MaintenanceRequest).where(
+            MaintenanceRequest.status.in_(["pending", "in_progress"]),
+        )
+        if property_id:
+            stmt = stmt.where(MaintenanceRequest.property_id == property_id)
+
+        # Check for response breach
+        response_breach = (
+            MaintenanceRequest.sla_response_due.is_not(None) &
+            (MaintenanceRequest.sla_response_due < now)
+        )
+        # Check for resolution breach
+        resolution_breach = (
+            MaintenanceRequest.sla_resolution_due.is_not(None) &
+            (MaintenanceRequest.sla_resolution_due < now)
+        )
+
+        stmt = stmt.where(response_breach | resolution_breach)
+        stmt = stmt.order_by(MaintenanceRequest.created_at.asc())
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())

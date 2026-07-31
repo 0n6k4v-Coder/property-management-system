@@ -7,7 +7,7 @@ References:
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -42,6 +42,75 @@ class PropertyRepository:
         stmt = select(Property).options(selectinload(Property.buildings))
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_paginated(self, offset: int, limit: int) -> list[Property]:
+        """Return a page of all properties (global owner/admin view)."""
+        stmt = (
+            select(Property)
+            .options(selectinload(Property.buildings))
+            .order_by(Property.created_at)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_all(self) -> int:
+        """Return the total number of properties (global view)."""
+        stmt = select(func.count()).select_from(Property)
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())
+
+    async def get_paginated_for_user(
+        self, user_id: uuid.UUID, offset: int, limit: int
+    ) -> list[Property]:
+        """Return a page of properties the user holds a scope row for."""
+        from app.modules.auth.models import UserPropertyScope
+
+        stmt = (
+            select(Property)
+            .join(
+                UserPropertyScope,
+                UserPropertyScope.property_id == Property.id,
+            )
+            .where(UserPropertyScope.user_id == user_id)
+            .options(selectinload(Property.buildings))
+            .order_by(Property.created_at)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_for_user(self, user_id: uuid.UUID) -> int:
+        """Return the count of properties the user holds a scope row for."""
+        from app.modules.auth.models import UserPropertyScope
+
+        stmt = (
+            select(func.count())
+            .select_from(UserPropertyScope)
+            .where(UserPropertyScope.user_id == user_id)
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())
+
+    async def add_owner_scope(
+        self, user_id: uuid.UUID, property_id: uuid.UUID
+    ) -> None:
+        """Grant the ``owner`` role to a user for a property (anti-pattern #5).
+
+        Inserted in the same session/transaction as the property creation
+        so the creator immediately holds a ``user_property_scopes`` row.
+        """
+        from app.modules.auth.models import PropertyRole, UserPropertyScope
+
+        scope = UserPropertyScope(
+            user_id=user_id,
+            property_id=property_id,
+            role=PropertyRole.owner,
+        )
+        self.db.add(scope)
+        await self.db.flush()
 
     async def update(self, property_obj: Property) -> Property:
         """Persist changes to an existing Property."""
@@ -194,3 +263,27 @@ class RoomRepository:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_rooms_by_property_paginated(
+        self, property_id: uuid.UUID, offset: int, limit: int
+    ) -> list[Room]:
+        """Return a page of rooms for a property (anti-pattern #13 fix)."""
+        stmt = (
+            select(Room)
+            .where(Room.property_id == property_id)
+            .order_by(Room.room_number)
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def count_rooms_by_property(self, property_id: uuid.UUID) -> int:
+        """Return the total number of rooms belonging to a property."""
+        stmt = (
+            select(func.count())
+            .select_from(Room)
+            .where(Room.property_id == property_id)
+        )
+        result = await self.db.execute(stmt)
+        return int(result.scalar_one())

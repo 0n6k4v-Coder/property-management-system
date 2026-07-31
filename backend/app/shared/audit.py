@@ -80,7 +80,7 @@ def _sanitize_metadata(raw: dict[str, Any] | None) -> dict[str, Any]:
     """
     if not raw:
         return {}
-    result = {}
+    result: dict[str, Any] = {}
     for k, v in raw.items():
         if k.lower() in _SENSITIVE_KEYS:
             continue

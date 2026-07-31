@@ -95,16 +95,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build test image
-        run: docker compose -f docker-compose.dev.yml build backend-test
+        run: docker compose -f docker-compose.test.yml build backend-test
       - name: Lint & Format (Ruff + ESLint + Prettier)
-        run: docker compose -f docker-compose.dev.yml run --rm backend-test ruff check .
+        run: docker compose -f docker-compose.test.yml run --rm backend-test ruff check .
       - name: Type Check (Mypy + tsc --noEmit)
-        run: docker compose -f docker-compose.dev.yml run --rm backend-test mypy app/
+        run: docker compose -f docker-compose.test.yml run --rm backend-test mypy app/
       - name: Secret Scan (Gitleaks)
-        run: docker compose -f docker-compose.dev.yml run --rm backend-test gitleaks detect
+        run: docker compose -f docker-compose.test.yml run --rm backend-test gitleaks detect
       - name: Dependency + Container Scan (Safety + Trivy)
         run: |
-          docker compose -f docker-compose.dev.yml run --rm backend-test safety check
+          docker compose -f docker-compose.test.yml run --rm backend-test safety check
           trivy image --severity HIGH,CRITICAL pms-backend:latest
   
   unit-integration:
@@ -116,9 +116,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Backend Tests in Container
-        run: docker compose -f docker-compose.dev.yml run --rm backend-test pytest --cov=app --cov-report=xml
+        run: docker compose -f docker-compose.test.yml run --rm backend-test pytest --cov=app --cov-report=xml
       - name: Coverage Gate
-        run: docker compose -f docker-compose.dev.yml run --rm backend-test coverage report --fail-under=85
+        run: docker compose -f docker-compose.test.yml run --rm backend-test coverage report --fail-under=85
   
   contract-e2e:
     needs: unit-integration

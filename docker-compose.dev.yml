@@ -1,12 +1,12 @@
 # docker-compose.dev.yml
-# Property Management System — Development & Testing Environment
-# 2026 Docker Compose Best Practices + Project Context (SDD v1.4, AGENTS v1.1, SPRINT_1)
+# Property Management System — Development Environment
 #
 # Usage:
 #   Development:  docker compose -f docker-compose.dev.yml --profile dev up
-#   Testing:      docker compose -f docker-compose.dev.yml --profile test run --rm backend-test
-#   Full stack:   docker compose -f docker-compose.dev.yml --profile dev --profile test up
 #   Cleanup:      docker compose -f docker-compose.dev.yml down -v
+#
+# Testing:       Use docker-compose.test.yml (fully isolated test stack)
+# Production:    Use docker-compose.prod.yml
 
 name: pms-dev
 
@@ -45,6 +45,8 @@ services:
       - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-20}
       - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
       - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-1800}
+      # Ruff cache directory to avoid permission issues
+      - RUFF_CACHE_DIR=/tmp/ruff_cache
     env_file:
       - path: ./backend/.env
         required: true  # 2026: fail fast if env missing
@@ -95,70 +97,9 @@ services:
         max-size: "10m"
         max-file: "3"
         tag: "{{.Name}}"
-    # Profile: only start with `--profile dev` or `--profile test`
+    # Profile: only start with `--profile dev`
     profiles:
       - dev
-      - test
-
-  # -------------------------------------------------------------------------
-  # Backend Test Runner — Ephemeral container for CI/local testing
-  # -------------------------------------------------------------------------
-  backend-test:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-      target: testing  # Always use testing stage for test runner
-    environment:
-      # Same env as backend, but with test-specific overrides
-      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-user}:${DB_PASSWORD:-pass}@db:5432/${DB_NAME:-pms_test}
-      - REDIS_URL=redis://redis:6379/0
-      - MINIO_ENDPOINT=http://minio:9000
-      - SECRET_KEY=test-secret-key-for-testing-only-not-for-prod
-      - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
-      - DEBUG=true
-      - PYTEST_ADDOPTS=--color=yes  # Colored output in terminal
-    env_file:
-      - path: ./backend/.env.test  # Optional: override for testing
-        required: false
-    volumes:
-      # Mount source for live code updates during test development
-      - ./backend:/app:cached
-      # Persist test artifacts for inspection
-      - backend-pytest-cache:/app/.pytest_cache
-      - backend-coverage:/app/htmlcov
-      # Mount test reports for CI artifact collection
-      - ./backend/test-reports:/app/test-reports
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      minio:
-        condition: service_healthy
-    # 2026: Test containers are ephemeral — no restart policy
-    restart: "no"
-    # Security: same hardening as backend
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    # Resource limits: tests can be memory-intensive
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'  # Allow more CPU for parallel test execution
-          memory: 2G
-        reservations:
-          cpus: '1.0'
-          memory: 512M
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "2"
-    # Profile: only start with `--profile test` (not dev)
-    profiles:
-      - test
-    # Default command overridden via `docker compose run --rm backend-test <command>`
-    command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html"]
 
   # -------------------------------------------------------------------------
   # Frontend Service — Vite dev server with hot-reload
@@ -198,63 +139,6 @@ services:
         max-file: "3"
     profiles:
       - dev
-
-  # -------------------------------------------------------------------------
-  # Frontend Test Runner — Ephemeral container for Vitest + Playwright E2E
-  # -------------------------------------------------------------------------
-  frontend-test:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-      target: development
-    environment:
-      - VITE_API_URL=/api/v1
-      - NODE_ENV=test
-      - CI=true
-      - PLAYWRIGHT_OUTPUT_DIR=/app/test-results/playwright
-    volumes:
-      - ./frontend:/app:cached
-      - frontend-node-modules:/app/node_modules
-      - frontend-coverage:/app/coverage
-      # Playwright reports and traces (Sprint 6)
-      - ./frontend/playwright-report:/app/playwright-report
-      - ./frontend/e2e-results:/app/e2e-results
-      # Use tmpfs for test-results to avoid permission issues.
-      # 1G: trace:'on' in playwright.config.ts records a trace for every
-      # test (not just failures), so a full-suite run (80+ tests) can
-      # exceed a couple hundred MB and hit ENOSPC on a small tmpfs.
-      - type: tmpfs
-        target: /app/test-results
-        tmpfs:
-          size: 1G
-    depends_on:
-      backend:
-        condition: service_healthy  # wait for real backend readiness, not just container start
-    restart: "no"
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    user: "root"
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 256M
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "2"
-    profiles:
-      - test
-      - dev
-    # Default: unit tests (vitest). For fullstack Playwright E2E against the
-    # real backend+db, override the command, e.g.:
-    #   ./scripts/reset-e2e-db.sh
-    #   docker compose --profile dev run --rm frontend-test npx playwright test --reporter=list
-    command: ["npx", "vitest", "run", "--coverage"]
 
   # -------------------------------------------------------------------------
   # PostgreSQL 18.4 — Primary database with asyncpg-optimized config
@@ -302,7 +186,6 @@ services:
         max-file: "3"
     profiles:
       - dev
-      - test
 
   # -------------------------------------------------------------------------
   # Redis 7.4 — Cache, Celery broker, rate limiting
@@ -346,7 +229,6 @@ services:
         max-file: "2"
     profiles:
       - dev
-      - test
 
   # -------------------------------------------------------------------------
   # MinIO — S3-compatible object storage for file uploads (ID cards, slips)
@@ -395,7 +277,6 @@ services:
         max-file: "3"
     profiles:
       - dev
-      - test
 
 # =============================================================================
 # 2026 Best Practice: Named volumes with driver options for portability
@@ -403,15 +284,11 @@ services:
 volumes:
   postgres-data:
     driver: local
-    # Optional: use tmpfs for ephemeral test data (faster, auto-cleanup)
-    # driver_opts:
-    #   type: tmpfs
-    #   device: tmpfs
   redis-data:
     driver: local
   minio-data:
     driver: local
-  # Cache volumes for dev/test persistence
+  # Cache volumes for dev persistence
   backend-pytest-cache:
     driver: local
   backend-coverage:
@@ -420,8 +297,6 @@ volumes:
   frontend-node-modules:
     driver: local
   frontend-coverage:
-    driver: local
-  frontend-test-results:
     driver: local
 
 # =============================================================================

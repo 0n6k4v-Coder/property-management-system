@@ -11,35 +11,42 @@ References:
 - SDD §10.3: Workers
 - backend/docs/OPERATIONS.md: Task monitoring
 """
-import structlog
-from datetime import date, datetime, timedelta
 import uuid
+from datetime import UTC, date, datetime, timedelta
+from typing import TYPE_CHECKING, Any
 
-from celery import shared_task
-from sqlalchemy import and_, or_, select
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+import structlog
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import selectinload
 
-from app.config import settings
+from app.config import get_settings
+from app.modules.billing.models import Invoice
 from app.modules.billing.repository import BillingRepository
-from app.modules.billing.models import Invoice, InvoiceStatus
-from app.modules.contract.repository import ContractRepository
-from app.modules.contract.models import Contract, ContractStatus
+from app.modules.contract.models import Contract
+from app.modules.maintenance.models import MaintenanceRequest
 from app.modules.maintenance.repository import MaintenanceRepository
-from app.modules.maintenance.models import MaintenanceRequest, MaintenanceStatus
+from app.modules.notification.constants import NotificationChannel, NotificationStatus
+from app.modules.notification.models import Notification
 from app.modules.notification.repository import NotificationRepository
-from app.modules.notification.models import Notification, NotificationChannel, NotificationStatus
+from app.modules.property.models import Property
 from app.shared.audit import log_audit
+from app.workers.typing import CeleryTask, shared_task
+
+if TYPE_CHECKING:
+    pass
 
 logger = structlog.get_logger()
 
+settings = get_settings()
+
 # Create async engine for Celery tasks
 engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=300, queue="maintenance")
-async def check_sla_breaches_task(self, property_id: str | None = None):
+@shared_task(bind=True, max_retries=2, default_retry_delay=300, queue="maintenance")  # type: ignore[untyped-decorator]
+async def check_sla_breaches_task(self: CeleryTask, property_id: str | None = None) -> dict[str, Any]:
     """Check for SLA breaches in maintenance requests.
 
     Runs hourly to identify maintenance requests that have exceeded
@@ -88,10 +95,12 @@ async def check_sla_breaches_task(self, property_id: str | None = None):
             raise self.retry(exc=exc, countdown=300 * (2**self.request.retries)) from exc
 
 
-async def _handle_sla_breach(db: AsyncSession, request: MaintenanceRequest, notification_repo: NotificationRepository):
+async def _handle_sla_breach(
+    db: AsyncSession, request: MaintenanceRequest, notification_repo: NotificationRepository
+) -> None:
     """Handle a single SLA breach - create notifications, escalate if needed."""
     # Determine breach type
-    now = datetime.utcnow()
+    now = datetime.now(UTC)
     response_breach = False
     resolution_breach = False
 
@@ -101,28 +110,24 @@ async def _handle_sla_breach(db: AsyncSession, request: MaintenanceRequest, noti
         resolution_breach = True
 
     # Create notification for property manager
-    from app.modules.property.models import Property
-    from sqlalchemy import select as sa_select
-
-    prop_result = await db.execute(sa_select(Property).where(Property.id == request.property_id))
+    prop_result = await db.execute(select(Property).where(Property.id == request.property_id))
     property_obj = prop_result.scalars().first()
 
-    if property_obj and property_obj.manager_id:
+    if property_obj and property_obj.created_by:
         notification = Notification(
             property_id=request.property_id,
-            user_id=property_obj.manager_id,
+            user_id=property_obj.created_by,
             channel=NotificationChannel.IN_APP,
-            title=f"SLA Breach: Maintenance Request {request.request_number}",
+            subject=f"SLA Breach: Maintenance Request {request.id}",
             body=(
-                f"Maintenance request {request.request_number} for room {request.room_number} "
+                f"Maintenance request {request.id} for room {request.room_id} "
                 f"has breached its SLA. "
                 f"{'Response time exceeded. ' if response_breach else ''}"
                 f"{'Resolution time exceeded.' if resolution_breach else ''}"
             ),
             status=NotificationStatus.PENDING,
-            priority="high",
         )
-        await notification_repo.create_notification(notification)
+        await notification_repo.create(notification)
 
         # Also send email for high-priority breaches
         if request.priority in ("high", "urgent"):
@@ -132,13 +137,13 @@ async def _handle_sla_breach(db: AsyncSession, request: MaintenanceRequest, noti
     # Audit log
     await log_audit(
         db=db,
-        user_id=property_obj.manager_id if property_obj else None,
+        user_id=property_obj.created_by if property_obj else None,
         action="maintenance.sla_breach",
         resource_type="maintenance_request",
         resource_id=request.id,
         property_id=request.property_id,
         metadata={
-            "request_number": request.request_number,
+            "request_id": str(request.id),
             "response_breach": response_breach,
             "resolution_breach": resolution_breach,
             "priority": request.priority,
@@ -146,8 +151,8 @@ async def _handle_sla_breach(db: AsyncSession, request: MaintenanceRequest, noti
     )
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=600, queue="notifications")
-async def send_overdue_alerts_task(self):
+@shared_task(bind=True, max_retries=2, default_retry_delay=600, queue="notifications")  # type: ignore[untyped-decorator]
+async def send_overdue_alerts_task(self: CeleryTask) -> dict[str, Any]:
     """Send overdue payment reminders to tenants.
 
     Runs daily at 02:00 UTC to find overdue invoices and send reminders.
@@ -198,14 +203,13 @@ async def _send_overdue_alert(
     db: AsyncSession,
     invoice: Invoice,
     notification_repo: NotificationRepository,
-):
+) -> None:
     """Send overdue alert for a single invoice."""
-    # Get tenant info (simplified - would use actual tenant lookup)
+    # Get tenant info
     from app.modules.tenant.repository import TenantRepository
-    from app.modules.tenant.models import Tenant
 
     tenant_repo = TenantRepository(db)
-    tenant = await tenant_repo.get_tenant_by_id(invoice.tenant_id)
+    tenant = await tenant_repo.get_by_id(invoice.tenant_id)
 
     if not tenant or not tenant.email:
         logger.warning("maintenance.overdue_alert_no_email", invoice_id=str(invoice.id))
@@ -216,7 +220,7 @@ async def _send_overdue_alert(
         property_id=invoice.property_id,
         user_id=invoice.tenant_id,  # Assuming tenant has user_id
         channel=NotificationChannel.IN_APP,
-        title=f"Overdue Payment: Invoice {invoice.invoice_number}",
+        subject=f"Overdue Payment: Invoice {invoice.invoice_number}",
         body=(
             f"Your invoice {invoice.invoice_number} for "
             f"{invoice.billing_month:02d}/{invoice.billing_year} "
@@ -224,9 +228,8 @@ async def _send_overdue_alert(
             f"Due date was {invoice.due_date.strftime('%Y-%m-%d')}."
         ),
         status=NotificationStatus.PENDING,
-        priority="high",
     )
-    await notification_repo.create_notification(notification)
+    await notification_repo.create(notification)
 
     # TODO: Send email notification via send_email_notification_task
     # await send_email_notification_task.delay(
@@ -253,8 +256,8 @@ async def _send_overdue_alert(
     )
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")
-async def check_contract_expiry_task(self):
+@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")  # type: ignore[untyped-decorator]
+async def check_contract_expiry_task(self: CeleryTask) -> dict[str, Any]:
     """Check for contracts expiring in 90, 60, 30 days and send notifications.
 
     Runs daily at 00:00 UTC.
@@ -267,7 +270,6 @@ async def check_contract_expiry_task(self):
 
     async with async_session() as db:
         try:
-            repo = ContractRepository(db)
             notification_repo = NotificationRepository(db)
 
             # Check for contracts expiring at specific intervals
@@ -276,7 +278,16 @@ async def check_contract_expiry_task(self):
 
             for days_ahead in intervals:
                 target_date = date.today() + timedelta(days=days_ahead)
-                expiring_contracts = await repo.get_contracts_expiring_on(target_date)
+                # Query contracts expiring on target_date
+                stmt = select(Contract).where(
+                    Contract.status == "active",
+                    Contract.end_date == target_date,
+                ).options(
+                    selectinload(Contract.termination),
+                    selectinload(Contract.extensions),
+                )
+                result = await db.execute(stmt)
+                expiring_contracts = list(result.scalars().all())
 
                 for contract in expiring_contracts:
                     try:
@@ -313,52 +324,48 @@ async def _send_contract_expiry_notification(
     contract: Contract,
     notification_repo: NotificationRepository,
     days_ahead: int,
-):
+) -> None:
     """Send contract expiry notification."""
     # Get property manager
-    from app.modules.property.models import Property
-    from sqlalchemy import select as sa_select
-
-    prop_result = await db.execute(sa_select(Property).where(Property.id == contract.property_id))
+    prop_result = await db.execute(select(Property).where(Property.id == contract.property_id))
     property_obj = prop_result.scalars().first()
 
-    if not property_obj or not property_obj.manager_id:
+    if not property_obj or not property_obj.created_by:
         return
 
     # Create in-app notification for property manager
     notification = Notification(
         property_id=contract.property_id,
-        user_id=property_obj.manager_id,
+        user_id=property_obj.created_by,  # Using created_by as property manager
         channel=NotificationChannel.IN_APP,
-        title=f"Contract Expiring in {days_ahead} Days",
+        subject=f"Contract Expiring in {days_ahead} Days",
         body=(
-            f"Contract {contract.contract_number} for room {contract.room_id} "
+            f"Contract {contract.id} for room {contract.room_id} "
             f"expires on {contract.end_date.strftime('%Y-%m-%d')} "
             f"({days_ahead} days from now)."
         ),
         status=NotificationStatus.PENDING,
-        priority="high" if days_ahead <= 14 else "normal",
     )
-    await notification_repo.create_notification(notification)
+    await notification_repo.create(notification)
 
     # Audit log
     await log_audit(
         db=db,
-        user_id=property_obj.manager_id,
+        user_id=property_obj.created_by,  # Using created_by as property manager
         action="contract.expiry_notification",
         resource_type="contract",
         resource_id=contract.id,
         property_id=contract.property_id,
         metadata={
-            "contract_number": contract.contract_number,
+            "contract_id": str(contract.id),
             "days_ahead": days_ahead,
             "expiry_date": contract.end_date.isoformat(),
         },
     )
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")
-async def cleanup_expired_sessions_task(self):
+@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")  # type: ignore[untyped-decorator]
+async def cleanup_expired_sessions_task(self: CeleryTask) -> dict[str, Any]:
     """Clean up expired sessions and tokens.
 
     Runs hourly to remove expired JWT tokens, refresh tokens, and sessions.
@@ -369,7 +376,7 @@ async def cleanup_expired_sessions_task(self):
     """
     logger.info("maintenance.session_cleanup_start")
 
-    async with async_session() as db:
+    async with async_session() as _db:
         try:
             # TODO: Implement actual session cleanup
             # This would delete expired:

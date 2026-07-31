@@ -8,12 +8,14 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
   hint?: string;
+  requiredIndicator?: boolean;
 }
 
 export function Input({
   label,
   error,
   hint,
+  requiredIndicator = false,
   id,
   className = '',
   ref,
@@ -36,6 +38,7 @@ export function Input({
         className="block text-sm font-medium text-surface-700"
       >
         {label}
+        {requiredIndicator && <span className="text-red-500 ml-1" aria-hidden="true">*</span>}
       </label>
       <input
         ref={ref}

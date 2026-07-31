@@ -4,12 +4,14 @@ References:
 - SDD.md §2.4: Tenant module domain events
 """
 
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger()
 
 
-async def publish_tenant_event(event_name: str, tenant_id: str, metadata: dict | None = None) -> None:
+async def publish_tenant_event(event_name: str, tenant_id: str, metadata: dict[str, Any] | None = None) -> None:
     """Publish a tenant-related domain event.
 
     Current implementation logs to structlog.  Replaced with Redis

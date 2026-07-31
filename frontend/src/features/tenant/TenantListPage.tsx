@@ -12,7 +12,9 @@ import { TableSkeleton } from '@/shared/ui/TableSkeleton';
 import { useToast } from '@/shared/ui/Toast';
 import { createTenantSchema, type CreateTenantForm } from '@/shared/utils/validators';
 
-const SAMPLE_PROPERTY_ID = '00000000-0000-0000-0000-000000000001';
+// Use the real seeded property ID from the E2E fixtures
+import { SEEDED } from '@/../e2e/fixtures/seeded-ids';
+const DEFAULT_PROPERTY_ID = SEEDED.propertySunsetId;
 
 interface SearchState {
   debouncedQuery: string;
@@ -51,7 +53,7 @@ export default function TenantListPage() {
   }, [searchQuery]);
 
   const { data: searchResults, isLoading } = useSearchTenants(
-    { propertyId: SAMPLE_PROPERTY_ID, query: search.debouncedQuery, page: search.page },
+    { propertyId: DEFAULT_PROPERTY_ID, query: search.debouncedQuery, page: search.page },
     search.debouncedQuery.length >= 3,
   );
 
@@ -173,7 +175,7 @@ function CreateTenantModal({
   const { showToast } = useToast();
   const createTenant = useCreateTenant();
   const [form, setForm] = useState<CreateTenantForm>({
-    property_id: SAMPLE_PROPERTY_ID,
+    property_id: DEFAULT_PROPERTY_ID,
     full_name: '',
     id_card_number: '',
     phone: '',
@@ -200,7 +202,7 @@ function CreateTenantModal({
       showToast('Tenant created successfully', 'success');
       onClose();
       setForm({
-        property_id: SAMPLE_PROPERTY_ID,
+        property_id: DEFAULT_PROPERTY_ID,
         full_name: '',
         id_card_number: '',
         phone: '',

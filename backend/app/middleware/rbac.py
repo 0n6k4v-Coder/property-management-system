@@ -5,16 +5,16 @@ References:
     - CODE_STYLE.md §6: Security Guidelines
 """
 
-import uuid
+from collections.abc import Callable
 from functools import wraps
+from typing import Any
 
-from fastapi import Depends, status
+from fastapi import status
 
-from app.shared.deps import get_current_user
 from app.shared.exceptions import APIError
 
 
-def require_role(role: str = "owner"):
+def require_role(role: str = "owner") -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     """Decorator that restricts endpoint access to users with the specified role.
 
     Usage::
@@ -32,11 +32,12 @@ def require_role(role: str = "owner"):
     role
         The required role (default: "owner").
     """
-    def decorator(func):
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         @wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: Any, **kwargs: Any) -> Any:
             # Extract current_user from kwargs (injected by Depends)
-            current_user = kwargs.get("current_user")
+            # Check both "current_user" and "_current_user" parameter names
+            current_user: dict[str, Any] | None = kwargs.get("current_user") or kwargs.get("_current_user")
             if current_user is None:
                 for arg in args:
                     if isinstance(arg, dict) and "user_id" in arg:

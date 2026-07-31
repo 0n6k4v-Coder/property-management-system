@@ -8,6 +8,7 @@
 
 | # | File | Screen ID | Route |
 |---|------|-----------|-------|
+| 0 | [00-app-shell.md](00-app-shell.md) | SCR-APP-SHELL | All protected routes (wrapper layout) |
 | 1 | [01-login.md](01-login.md) | SCR-LOGIN | `/login` |
 | 2 | [02-register.md](02-register.md) | SCR-REGISTER | `/auth/register?token=...` |
 | 3 | [03-dashboard.md](03-dashboard.md) | SCR-DASHBOARD | `/dashboard` |

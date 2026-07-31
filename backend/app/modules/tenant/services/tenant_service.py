@@ -17,7 +17,6 @@ from app.modules.tenant.constants import (
     EVENT_TENANT_CREATED,
     TENANT_001_DUPLICATE_PHONE,
     TENANT_004_TENANT_NOT_FOUND,
-    TENANT_007_PROPERTY_NOT_FOUND,
     TENANT_008_QUERY_TOO_SHORT,
 )
 from app.modules.tenant.events import publish_tenant_event
@@ -129,6 +128,57 @@ class TenantService:
         )
 
         return tenant
+
+    async def list_tenants_paginated(
+        self,
+        page: int,
+        limit: int,
+        property_id: uuid.UUID | None,
+        user_id: uuid.UUID,
+        is_global: bool,
+    ) -> tuple[list[Tenant], int]:
+        """List tenants with pagination and property scope filtering.
+
+        Parameters
+        ----------
+        page
+            Page number (1-indexed).
+        limit
+            Items per page.
+        property_id
+            Optional property UUID to filter by.
+        user_id
+            UUID of the user making the request.
+        is_global
+            Whether the user has global (owner/admin) access.
+
+        Returns
+        -------
+        tuple[list[Tenant], int]
+            (tenants list, total count)
+        """
+        offset = (page - 1) * limit
+
+        if property_id is not None:
+            # Scoped to a specific property
+            tenants = await self.repo.get_paginated_for_property(property_id, offset, limit)
+            total = await self.repo.count_for_property(property_id)
+        elif is_global:
+            # Global access - all tenants
+            tenants = await self.repo.get_paginated(offset, limit)
+            total = await self.repo.count_all()
+        else:
+            # User has specific property scopes - get their accessible properties
+            from app.modules.auth.repository import UserRepository
+            user_repo = UserRepository(self.db)
+            scopes = await user_repo.get_property_scopes(user_id)
+            property_ids = [s.property_id for s in scopes]
+            if not property_ids:
+                return [], 0
+            tenants = await self.repo.get_paginated_for_properties(property_ids, offset, limit)
+            total = await self.repo.count_for_properties(property_ids)
+
+        return tenants, total
 
     async def search_tenants(
         self,

@@ -6,18 +6,13 @@ References:
 """
 
 import uuid
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.modules.admin.constants import (
-    ADMIN_001_NOT_FOUND, ADMIN_002_FORBIDDEN, ADMIN_005_CONFIG_READ_ONLY,
-    ERROR_MESSAGES,
-)
 from app.modules.admin.repository import AuditLogRepository
-from app.modules.admin.schemas import AuditLogResponse, SystemConfigResponse
-from app.shared.audit import log_audit
-from app.shared.exceptions import APIError
+from app.modules.admin.schemas import SystemConfigResponse
 
 # Config keys that should be masked in responses
 _SENSITIVE_CONFIG_KEYS = {"SECRET_KEY", "ID_CARD_ENCRYPTION_KEY", "DATABASE_URL", "REDIS_URL"}
@@ -34,41 +29,32 @@ class AdminService:
         self.repo = AuditLogRepository(db)
 
     async def get_audit_logs(
-        self,
-        property_id: uuid.UUID | None,
-        action: str | None = None,
-        page: int = 1,
-        limit: int = 50,
-        requested_by: uuid.UUID | None = None,
-    ) -> dict:
-        """Return paginated audit logs with metadata.
+            self,
+            property_id: uuid.UUID | None,
+            action: str | None = None,
+            page: int = 1,
+            limit: int = 50,
+            _requested_by: uuid.UUID | None = None,
+        ) -> tuple[list[Any], int]:
+            """Return paginated audit logs with metadata.
 
-        Data Scoping: property_id is mandatory for non-admin users.
+            Data Scoping: property_id is mandatory for non-admin users.
 
-        Returns
-        -------
-        dict
-            {"data": [...], "meta": {"page", "limit", "total", "has_next"}}
-        """
-        offset = (page - 1) * limit
-        logs = await self.repo.get_audit_logs(
-            property_id=property_id, action=action,
-            limit=limit, offset=offset,
-        )
-        total = await self.repo.count_audit_logs(property_id=property_id, action=action)
-        has_next = (offset + limit) < total
+            Returns
+            -------
+            tuple
+                (logs_list, total_count)
+            """
+            offset = (page - 1) * limit
+            logs = await self.repo.get_audit_logs(
+                property_id=property_id, action=action,
+                limit=limit, offset=offset,
+            )
+            total = await self.repo.count_audit_logs(property_id=property_id, action=action)
 
-        return {
-            "data": [AuditLogResponse.model_validate(log) for log in logs],
-            "meta": {
-                "page": page,
-                "limit": limit,
-                "total": total,
-                "has_next": has_next,
-            },
-        }
+            return logs, total
 
-    async def get_system_config(self, requested_by: uuid.UUID | None = None) -> list[SystemConfigResponse]:
+    async def get_system_config(self, _requested_by: uuid.UUID | None = None) -> list[SystemConfigResponse]:
         """Return system configuration with secrets masked."""
         settings = get_settings()
         config_items = [

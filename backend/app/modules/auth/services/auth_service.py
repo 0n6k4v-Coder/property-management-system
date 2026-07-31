@@ -67,7 +67,7 @@ class AuthService:
         scopes = await self._repo.get_property_scopes(user_id)
         return [str(s.property_id) for s in scopes]
 
-    async def _build_user_response(self, user: User) -> dict:
+    async def _build_user_response(self, user: User) -> dict[str, Any]:
         """Build the ``user`` sub-document of ``TokenResponse``/``UserResponse``.
 
         ``property_scopes`` is populated from the real DB relationship, not
@@ -167,8 +167,6 @@ class AuthService:
             Dictionary with ``access`` (short-lived JWT) and
             ``refresh`` (long-lived JWT) keys.
         """
-        now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
-
         property_scopes = await self._property_scopes_claim(user.id)
 
         access_token = create_access_token(
@@ -204,13 +202,13 @@ class AuthService:
         return {"access": access_token, "refresh": refresh_token}
 
     async def register(
-        self,
-        email: str,
-        password: str,
-        full_name: str,
-        phone: str,
-        property_scopes: list[uuid.UUID] | None = None,
-    ) -> User:
+            self,
+            email: str,
+            password: str,
+            full_name: str,
+            phone: str,
+            _property_scopes: list[uuid.UUID] | None = None,
+        ) -> User:
         """Register a new user directly (admin registration, no invite).
 
         Checks for duplicate email, hashes the password, persists the
@@ -349,7 +347,7 @@ class AuthService:
             "user": user_doc,
         }
 
-    async def get_current_user_info(self, token_payload: dict) -> User:
+    async def get_current_user_info(self, token_payload: dict[str, Any]) -> User:
         """Retrieve the full User ORM instance from a JWT payload.
 
         Parameters

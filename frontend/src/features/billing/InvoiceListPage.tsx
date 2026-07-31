@@ -15,6 +15,10 @@ import { useToast } from '@/shared/ui/Toast';
 import { TableSkeleton } from '@/shared/ui/TableSkeleton';
 import type { API } from '@/types/api.d';
 
+// Use the real seeded property ID from the E2E fixtures
+import { SEEDED } from '@/../e2e/fixtures/seeded-ids';
+const DEFAULT_PROPERTY_ID = SEEDED.propertySunsetId;
+
 export default function InvoiceListPage() {
   const { showToast } = useToast();
   const { data: invoices, isLoading } = useInvoices();
@@ -26,7 +30,7 @@ export default function InvoiceListPage() {
   async function handleGenerate() {
     try {
       await generateInvoice.mutateAsync({
-        property_id: '00000000-0000-0000-0000-000000000001',
+        property_id: DEFAULT_PROPERTY_ID,
         billing_month: genMonth,
         billing_year: genYear,
       });

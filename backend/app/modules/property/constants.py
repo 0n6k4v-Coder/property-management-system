@@ -7,7 +7,6 @@ References:
 
 from enum import StrEnum
 
-
 # ── Error Codes (PROP-0xx) ─────────────────────────────────────────────
 
 PROP_001_ROOM_NUMBER_EXISTS: str = "PROP-001"

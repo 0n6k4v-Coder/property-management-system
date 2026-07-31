@@ -12,8 +12,8 @@ import time
 import uuid
 
 import structlog
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import FastAPI, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 logger = structlog.get_logger()
 
@@ -26,7 +26,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     the same correlation token — no manual plumbing required.
     """
 
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
         start_time = time.time()
 
@@ -57,6 +59,6 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise
 
 
-def setup_logging_middleware(app):
+def setup_logging_middleware(app: FastAPI) -> None:
     """Register logging middleware on FastAPI app."""
     app.add_middleware(LoggingMiddleware)

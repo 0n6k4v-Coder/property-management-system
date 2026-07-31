@@ -9,6 +9,8 @@ References:
     - SDD.md §5: Sequence diagrams for user.registered / user.logged_in
 """
 
+from typing import Any
+
 import structlog
 
 from app.shared.events import publish as shared_publish
@@ -16,7 +18,7 @@ from app.shared.events import publish as shared_publish
 logger = structlog.get_logger()
 
 
-async def publish(event_name: str, payload: dict | None = None) -> None:
+async def publish(event_name: str, payload: dict[str, Any] | None = None) -> None:
     """Publish an auth-domain event through the shared event bus.
 
     Delegates to ``app.shared.events.publish``, which logs the event

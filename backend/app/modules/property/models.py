@@ -6,10 +6,12 @@ References:
 - SDD.md §6: State Machines — RoomStatus transitions
 """
 
-from decimal import Decimal
+from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     DateTime,
@@ -23,12 +25,15 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.modules.property.constants import RoomStatus, RoomType
-from app.shared.database import Base
-
 # Imported so the relationship string "UserPropertyScope" resolves at
 # mapper-configuration time (registered on Base.metadata via auth.models).
 from app.modules.auth.models import UserPropertyScope  # noqa: F401
+from app.modules.property.constants import RoomStatus, RoomType
+from app.shared.database import Base
+
+if TYPE_CHECKING:
+    from app.modules.billing.models import Invoice, MeterReading
+    from app.modules.maintenance.models import MaintenanceRequest
 
 
 class Property(Base):
@@ -63,18 +68,18 @@ class Property(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    buildings: Mapped[list["Building"]] = relationship(
+    buildings: Mapped[list[Building]] = relationship(
         "Building", back_populates="property", lazy="selectin",
         cascade="all, delete-orphan",
     )
-    rooms: Mapped[list["Room"]] = relationship(
+    rooms: Mapped[list[Room]] = relationship(
         "Room", back_populates="property", lazy="selectin",
         cascade="all, delete-orphan",
     )
-    invoices: Mapped[list["Invoice"]] = relationship(
+    invoices: Mapped[list[Invoice]] = relationship(
         "Invoice", back_populates="property", lazy="selectin", cascade="all, delete-orphan"
     )
-    users: Mapped[list["UserPropertyScope"]] = relationship(
+    users: Mapped[list[UserPropertyScope]] = relationship(
         "UserPropertyScope", back_populates="property", lazy="selectin", cascade="all, delete-orphan"
     )
 
@@ -106,8 +111,8 @@ class Building(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Relationships ──────────────────────────────────────────────────
-    property: Mapped["Property"] = relationship("Property", back_populates="buildings")
-    floors: Mapped[list["Floor"]] = relationship(
+    property: Mapped[Property] = relationship("Property", back_populates="buildings")
+    floors: Mapped[list[Floor]] = relationship(
         "Floor", back_populates="building", lazy="selectin",
         cascade="all, delete-orphan",
     )
@@ -143,8 +148,8 @@ class Floor(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Relationships ──────────────────────────────────────────────────
-    building: Mapped["Building"] = relationship("Building", back_populates="floors")
-    rooms: Mapped[list["Room"]] = relationship(
+    building: Mapped[Building] = relationship("Building", back_populates="floors")
+    rooms: Mapped[list[Room]] = relationship(
         "Room", back_populates="floor", lazy="selectin",
         cascade="all, delete-orphan",
     )
@@ -198,16 +203,19 @@ class Room(Base):
     status: Mapped[str] = mapped_column(
         String(20), default=RoomStatus.AVAILABLE, nullable=False,
     )
-    images: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    images: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
 
     # ── Relationships ──────────────────────────────────────────────────
-    property: Mapped["Property"] = relationship("Property", back_populates="rooms")
-    floor: Mapped["Floor | None"] = relationship("Floor", back_populates="rooms")
-    meter_readings: Mapped[list["MeterReading"]] = relationship(
+    property: Mapped[Property] = relationship("Property", back_populates="rooms")
+    floor: Mapped[Floor | None] = relationship("Floor", back_populates="rooms")
+    meter_readings: Mapped[list[MeterReading]] = relationship(
         "MeterReading", back_populates="room", lazy="selectin", cascade="all, delete-orphan"
     )
-    invoices: Mapped[list["Invoice"]] = relationship(
+    invoices: Mapped[list[Invoice]] = relationship(
         "Invoice", back_populates="room", lazy="selectin", cascade="all, delete-orphan"
+    )
+    maintenance_requests: Mapped[list[MaintenanceRequest]] = relationship(
+        "MaintenanceRequest", back_populates="room", lazy="selectin", cascade="all, delete-orphan"
     )
 
     __table_args__ = (

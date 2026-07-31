@@ -11,7 +11,7 @@ from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.modules.notification.constants import NotificationChannel, NotificationStatus
+from app.modules.notification.constants import NotificationStatus
 from app.shared.database import Base
 
 

@@ -10,8 +10,6 @@ import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.workers.tasks.notification_tasks import send_in_app_notification_task
-
 logger = structlog.get_logger()
 
 # Scheduler instance
@@ -46,7 +44,7 @@ def register_meter_reminder_jobs(scheduler: AsyncIOScheduler | None = None) -> A
     return scheduler
 
 
-async def _run_meter_reading_reminders():
+async def _run_meter_reading_reminders() -> None:
     """Wrapper to send meter reading reminders to all active tenants."""
     logger.info("meter_reminder_scheduler_triggered")
 
@@ -79,14 +77,14 @@ async def _run_meter_reading_reminders():
         logger.error("meter_reminder_scheduler_failed", error=str(exc))
 
 
-def start_meter_reminder_scheduler():
+def start_meter_reminder_scheduler() -> None:
     """Start the meter reminder scheduler."""
     register_meter_reminder_jobs()
     meter_reminder_scheduler.start()
     logger.info("meter_reminder_scheduler_started")
 
 
-def stop_meter_reminder_scheduler():
+def stop_meter_reminder_scheduler() -> None:
     """Stop the meter reminder scheduler."""
     meter_reminder_scheduler.shutdown(wait=True)
     logger.info("meter_reminder_scheduler_stopped")

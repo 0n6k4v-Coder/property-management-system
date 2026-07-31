@@ -25,9 +25,9 @@ import httpx
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
-from fastapi.testclient import TestClient  # back-compat for unconverted tests
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
+
 
 from app.config import get_settings
 from app.main import create_app
@@ -36,6 +36,14 @@ from app.modules.auth.repository import UserRepository
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.invite_service import InviteService
 from app.shared.database import Base
+import app.modules.auth.models  # noqa: F401
+import app.modules.billing.models  # noqa: F401
+import app.modules.contract.models  # noqa: F401
+import app.modules.maintenance.models  # noqa: F401
+import app.modules.notification.models  # noqa: F401
+import app.modules.property.models  # noqa: F401
+import app.modules.tenant.models  # noqa: F401
+import app.shared.audit  # noqa: F401
 from app.shared.deps import get_current_user
 from app.shared.security import hash_password
 
@@ -50,7 +58,7 @@ VALID_PHONE = "0812345678"
 
 
 @pytest.fixture(scope="function")
-def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
+def event_loop() -> Generator[asyncio.AbstractEventLoop]:
     """Create a single event loop for the whole test session.
 
     Required by pytest-asyncio when scope > function.
@@ -61,7 +69,7 @@ def event_loop() -> Generator[asyncio.AbstractEventLoop, None, None]:
 
 
 @pytest_asyncio.fixture
-async def db_session() -> AsyncGenerator[AsyncSession, None]:
+async def db_session() -> AsyncGenerator[AsyncSession]:
     """Provide an async DB session with a dedicated engine per test.
 
     Creates a fresh engine + session for each test to prevent event-loop
@@ -89,6 +97,31 @@ async def db_session() -> AsyncGenerator[AsyncSession, None]:
         await session.rollback()
         await session.close()
         await test_engine.dispose()
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def create_tables() -> AsyncGenerator[None]:
+    """Create all DB tables once per test session.
+
+    Required because the test DB uses tmpfs (ephemeral, empty on each
+    start).  In the old dev-compose setup the persistent volume retained
+    the schema from a prior ``alembic upgrade head``; the isolated test
+    stack has no such volume so tables must be created explicitly.
+
+    Uses ``Base.metadata.create_all()`` (not alembic) because the test
+    suite only needs the final schema state, not migration history.
+    """
+    settings = get_settings()
+    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    await engine.dispose()
+    yield
+    # Cleanup: drop all tables after the session
+    engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+    await engine.dispose()
 
 
 # ── Dependency-override helpers ───────────────────────────────────────
@@ -119,10 +152,22 @@ def app() -> FastAPI:
     return application
 
 
+# Removed TestClient fixture - use async_client fixture instead which uses httpx.AsyncClient with ASGITransport
+# This avoids the deprecation warning about httpx with starlette.testclient
+
+# Add synchronous client fixture for tests that need it
+# Uses httpx.Client with ASGITransport to avoid deprecation warnings
+
 @pytest.fixture
-def client(app: FastAPI) -> Generator[TestClient, None, None]:
-    """Yield a TestClient bound to the test application."""
-    with TestClient(app) as c:
+def client(app: FastAPI) -> Generator[httpx.Client]:
+    """Yield a synchronous httpx.Client bound to the test application.
+    
+    Uses ASGITransport so the entire request life-cycle runs in the
+    same process — no more "attached to a different loop" errors
+    and no deprecation warnings about starlette.testclient.
+    """
+    transport = httpx.ASGITransport(app=app)
+    with httpx.Client(transport=transport, base_url="http://test") as c:
         yield c
 
 
@@ -130,7 +175,7 @@ def client(app: FastAPI) -> Generator[TestClient, None, None]:
 
 
 @pytest_asyncio.fixture
-async def async_client(app: FastAPI, db_session: AsyncSession) -> AsyncGenerator[httpx.AsyncClient, None]:
+async def async_client(app: FastAPI, db_session: AsyncSession) -> AsyncGenerator[httpx.AsyncClient]:
     """Yield an ``httpx.AsyncClient`` bound to the test app.
 
     Uses ``ASGITransport`` so the entire request life-cycle runs **in the
@@ -436,8 +481,9 @@ async def rate_factory(db_session: AsyncSession):
             scope_id=..., electric_rate_per_unit=Decimal("7"),
         )
     """
-    from app.modules.billing.models import UtilityRate
     from datetime import date
+
+    from app.modules.billing.models import UtilityRate
 
     async def _factory(**kwargs: Any) -> UtilityRate:
         defaults: dict[str, Any] = {
@@ -468,8 +514,9 @@ async def invoice_factory(db_session: AsyncSession):
 
         inv = await invoice_factory(property_id=..., status="draft")
     """
-    from app.modules.billing.models import Invoice
     from datetime import date
+
+    from app.modules.billing.models import Invoice
 
     async def _factory(**kwargs: Any) -> Invoice:
         defaults: dict[str, Any] = {

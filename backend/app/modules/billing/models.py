@@ -6,30 +6,38 @@ References:
 - BR-12: Invoice calculation breakdown
 """
 
-import enum
+from __future__ import annotations
+
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
-    Column,
-    DateTime,
     Date,
+    DateTime,
     Enum,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
     UniqueConstraint,
-    Index,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.database import Base
 
+if TYPE_CHECKING:
+    from app.modules.contract.models import Contract
+    from app.modules.property.models import Property, Room
+    from app.modules.tenant.models import Tenant
 
-class InvoiceStatus(str, enum.Enum):
+
+class InvoiceStatus(StrEnum):
     """Invoice lifecycle status."""
 
     DRAFT = "draft"
@@ -43,7 +51,7 @@ class InvoiceStatus(str, enum.Enum):
         return self.value
 
 
-class LineItemType(str, enum.Enum):
+class LineItemType(StrEnum):
     """Invoice line item types."""
 
     RENT = "rent"
@@ -64,30 +72,42 @@ class MeterReading(Base):
 
     __tablename__ = "meter_readings"
 
-    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    room_id = Column(PG_UUID(as_uuid=True), ForeignKey("rooms.id"), index=True)
-    billing_month = Column(Integer, index=True)
-    billing_year = Column(Integer, index=True)
-    electric_previous = Column(Integer, default=0)
-    electric_current = Column(Integer, default=0)
-    water_previous = Column(Integer, default=0)
-    water_current = Column(Integer, default=0)
-    recorded_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    room_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("rooms.id"), index=True
+    )
+    billing_month: Mapped[int] = mapped_column(Integer, index=True)
+    billing_year: Mapped[int] = mapped_column(Integer, index=True)
+    electric_previous: Mapped[int] = mapped_column(Integer, default=0)
+    electric_current: Mapped[int] = mapped_column(Integer, default=0)
+    water_previous: Mapped[int] = mapped_column(Integer, default=0)
+    water_current: Mapped[int] = mapped_column(Integer, default=0)
+    recorded_by: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
 
     # Computed properties
     @property
     def electric_used(self) -> int:
-        return max(0, self.electric_current - self.electric_previous)
+        diff = self.electric_current - self.electric_previous
+        return max(0, int(diff or 0))
 
     @property
     def water_used(self) -> int:
-        return max(0, self.water_current - self.water_previous)
+        diff = self.water_current - self.water_previous
+        return max(0, int(diff or 0))
 
-    room = relationship("Room", back_populates="meter_readings")
+    room: Mapped[Room] = relationship("Room", back_populates="meter_readings")
 
     __table_args__ = (
-        UniqueConstraint("room_id", "billing_month", "billing_year", name="uq_meter_reading_room_month_year"),
+        UniqueConstraint(
+            "room_id", "billing_month", "billing_year", name="uq_meter_reading_room_month_year"
+        ),
     )
 
 
@@ -100,27 +120,51 @@ class UtilityRate(Base):
 
     __tablename__ = "utility_rates"
 
-    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    scope_type = Column(String(20), index=True)  # 'property', 'building', 'floor', 'room'
-    scope_id = Column(PG_UUID(as_uuid=True), index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    scope_type: Mapped[str] = mapped_column(String(20), index=True)  # 'property', 'building', 'floor', 'room'
+    scope_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), index=True)
 
     # Rate values (per unit)
-    electric_rate_per_unit = Column(Numeric(10, 4), default=Decimal("0"))
-    water_rate_per_unit = Column(Numeric(10, 4), default=Decimal("0"))
-    common_fee = Column(Numeric(10, 4), default=Decimal("0"))
+    electric_rate_per_unit: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0")
+    )
+    water_rate_per_unit: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0")
+    )
+    common_fee: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0")
+    )
 
     # Effective date range
-    effective_from = Column(Date, index=True)
-    effective_to = Column(Date, index=True, nullable=True)
+    effective_from: Mapped[date] = mapped_column(Date, index=True)
+    effective_to: Mapped[date | None] = mapped_column(Date, index=True, nullable=True)
 
     # Audit columns
-    created_by = Column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
 
     __table_args__ = (
-        Index("ix_utility_rates_scope_effective", "scope_type", "scope_id", "effective_from", "effective_to"),
-        UniqueConstraint("scope_type", "scope_id", "effective_from", name="uq_utility_rate_scope_effective"),
+        Index(
+            "ix_utility_rates_scope_effective",
+            "scope_type",
+            "scope_id",
+            "effective_from",
+            "effective_to",
+        ),
+        UniqueConstraint(
+            "scope_type", "scope_id", "effective_from", name="uq_utility_rate_scope_effective"
+        ),
     )
 
 
@@ -129,41 +173,59 @@ class Invoice(Base):
 
     __tablename__ = "invoices"
 
-    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    invoice_number = Column(String(50), unique=True, index=True)
-    contract_id = Column(PG_UUID(as_uuid=True), ForeignKey("contracts.id"), index=True)
-    room_id = Column(PG_UUID(as_uuid=True), ForeignKey("rooms.id"), index=True)
-    tenant_id = Column(PG_UUID(as_uuid=True), ForeignKey("tenants.id"), index=True)
-    property_id = Column(PG_UUID(as_uuid=True), ForeignKey("properties.id"), index=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    invoice_number: Mapped[str] = mapped_column(String(50), unique=True, index=True)
+    contract_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("contracts.id"), index=True
+    )
+    room_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("rooms.id"), index=True
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("tenants.id"), index=True
+    )
+    property_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("properties.id"), index=True
+    )
 
-    billing_month = Column(Integer, index=True)
-    billing_year = Column(Integer, index=True)
-    due_date = Column(Date, index=True)
+    billing_month: Mapped[int] = mapped_column(Integer, index=True)
+    billing_year: Mapped[int] = mapped_column(Integer, index=True)
+    due_date: Mapped[date] = mapped_column(Date, index=True)
 
-    status = Column(
+    status: Mapped[InvoiceStatus] = mapped_column(
         Enum(InvoiceStatus, name="invoice_status_enum", values_callable=lambda x: [e.value for e in x]),
         default=InvoiceStatus.DRAFT.value,
         index=True,
     )
 
-    total_amount = Column(Numeric(12, 2), default=Decimal("0"))
-    paid_amount = Column(Numeric(12, 2), default=Decimal("0"))
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
+    paid_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0"))
 
-    created_by = Column(PG_UUID(as_uuid=True))
-    created_at = Column(DateTime, default=datetime.utcnow, index=True)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    issued_at = Column(DateTime, nullable=True)
-    paid_at = Column(DateTime, nullable=True)
+    created_by: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # Relationships
-    contract = relationship("Contract", back_populates="invoices")
-    room = relationship("Room", back_populates="invoices")
-    tenant = relationship("Tenant", back_populates="invoices")
-    property = relationship("Property", back_populates="invoices")
-    line_items = relationship(
+    contract: Mapped[Contract] = relationship("Contract", back_populates="invoices")
+    room: Mapped[Room] = relationship("Room", back_populates="invoices")
+    tenant: Mapped[Tenant] = relationship("Tenant", back_populates="invoices")
+    property: Mapped[Property] = relationship("Property", back_populates="invoices")
+    line_items: Mapped[list[InvoiceLineItem]] = relationship(
         "InvoiceLineItem", back_populates="invoice", cascade="all, delete-orphan"
     )
-    payments = relationship("Payment", back_populates="invoice", cascade="all, delete-orphan")
+    payments: Mapped[list[Payment]] = relationship(
+        "Payment", back_populates="invoice", cascade="all, delete-orphan"
+    )
 
 
 class InvoiceLineItem(Base):
@@ -171,17 +233,22 @@ class InvoiceLineItem(Base):
 
     __tablename__ = "invoice_line_items"
 
-    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    invoice_id = Column(PG_UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
-    line_type = Column(Enum(LineItemType, name="line_item_type_enum", values_callable=lambda x: [e.value for e in x]), index=True)
-    description = Column(String(500))
-    quantity = Column(Numeric(10, 2), default=Decimal("1"))
-    unit_price = Column(Numeric(12, 4))
-    amount = Column(Numeric(12, 2))
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), index=True
+    )
+    line_type: Mapped[LineItemType] = mapped_column(
+        Enum(LineItemType, name="line_item_type_enum", values_callable=lambda x: [e.value for e in x]),
+        nullable=False,
+    )
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    invoice = relationship("Invoice", back_populates="line_items")
+    invoice: Mapped[Invoice] = relationship("Invoice", back_populates="line_items")
 
 
 class Payment(Base):
@@ -189,15 +256,24 @@ class Payment(Base):
 
     __tablename__ = "payments"
 
-    id = Column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    invoice_id = Column(PG_UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), index=True)
-    amount = Column(Numeric(12, 2))
-    method = Column(String(50))  # 'cash', 'bank_transfer', 'credit_card', 'qr_code', 'wallet'
-    reference = Column(String(100), nullable=True)  # Transaction ID, slip number, etc.
-    payment_date = Column(Date, default=date.today, index=True)
-    recorded_by = Column(PG_UUID(as_uuid=True), nullable=False)
-    processed_by = Column(PG_UUID(as_uuid=True), nullable=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), index=True
+    )
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    method: Mapped[str] = mapped_column(String(50), nullable=False)  # cash, bank_transfer, credit_card, qr_code, wallet
+    reference: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Transaction ID / slip number
+    payment_date: Mapped[date] = mapped_column(Date, default=date.today, index=True)
+    recorded_by: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False
+    )
+    processed_by: Mapped[uuid.UUID | None] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
 
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-    invoice = relationship("Invoice", back_populates="payments")
+    invoice: Mapped[Invoice] = relationship("Invoice", back_populates="payments")

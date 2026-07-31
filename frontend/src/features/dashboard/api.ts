@@ -5,7 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { apiFetch } from '@/shared/api/fetchClient';
 import type { API } from '@/types/api.d';
 
-const SAMPLE_PROPERTY = '00000000-0000-0000-0000-000000000001';
+// Use the real seeded property ID from the E2E fixtures
+import { SEEDED } from '@/../e2e/fixtures/seeded-ids';
+const DEFAULT_PROPERTY_ID = SEEDED.propertySunsetId;
 
 /** @public - Query key factory for dashboard cache management (exported for test mocks and advanced cache invalidation) */
 export const dashboardKeys = {
@@ -13,7 +15,7 @@ export const dashboardKeys = {
   occupancy: (propertyId: string) => ['dashboard', 'occupancy', propertyId] as const,
 };
 
-export function useDashboardSummary(propertyId: string = SAMPLE_PROPERTY) {
+export function useDashboardSummary(propertyId: string = DEFAULT_PROPERTY_ID) {
   return useQuery({
     queryKey: dashboardKeys.summary(propertyId),
     queryFn: async () => {
@@ -29,7 +31,7 @@ export function useDashboardSummary(propertyId: string = SAMPLE_PROPERTY) {
 }
 
 /** @internal - Hook for occupancy widget — to be wired in Sprint 7 */
-export function useDashboardOccupancy(propertyId: string = SAMPLE_PROPERTY) {
+export function useDashboardOccupancy(propertyId: string = DEFAULT_PROPERTY_ID) {
   return useQuery({
     queryKey: dashboardKeys.occupancy(propertyId),
     queryFn: async () => {

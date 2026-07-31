@@ -4,65 +4,77 @@ Protected by ``@require_role("owner")`` decorator (RBAC).
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.middleware.rbac import require_role
 from app.modules.admin.schemas import (
     AuditLogListResponse,
+    AuditLogResponse,
     SystemConfigListResponse,
-    SystemConfigResponse,
-    UpdateSystemConfigRequest,
 )
 from app.modules.admin.services.admin_service import AdminService
-from app.middleware.rbac import require_role
-from app.shared.deps import get_current_user, get_db
+from app.shared.deps import GET_DB, get_current_user
 
 router = APIRouter(tags=["admin"], redirect_slashes=False)
+
+QUERY_PROPERTY_ID = Query(None, description="Filter by property (omit for all properties)")
+QUERY_ACTION = Query(None, description="Filter by action type")
+QUERY_PAGE = Query(1, ge=1, description="Page number")
+QUERY_LIMIT = Query(20, ge=1, le=100, description="Items per page (1-100)")
 
 
 @router.get(
     "/audit-logs",
     response_model=AuditLogListResponse,
-    summary="View audit logs (paginated)",
-    description="Returns paginated audit logs for a property. Owner role required.",
+    summary="Get paginated audit logs",
 )
 @require_role("owner")
 async def get_audit_logs(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-    property_id: uuid.UUID | None = Query(None, description="Filter by property (omit for all properties)"),
-    action: str | None = Query(None, description="Filter by action type"),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(50, ge=1, le=200, description="Items per page"),
-) -> dict:
-    """GET /api/v1/admin/audit-logs."""
+    response: Response,
+    _current_user: Annotated[dict[str, Any], Depends(get_current_user)],
+    db: AsyncSession = GET_DB,
+    property_id: uuid.UUID | None = QUERY_PROPERTY_ID,
+    action: str | None = QUERY_ACTION,
+    page: int = QUERY_PAGE,
+    limit: int = QUERY_LIMIT,
+) -> AuditLogListResponse:
+    """GET /api/v1/admin/audit-logs.
+
+    Returns paginated audit logs with optional property/action filters.
+    """
     service = AdminService(db)
-    result = await service.get_audit_logs(
+    logs, total = await service.get_audit_logs(
         property_id=property_id,
         action=action,
         page=page,
         limit=limit,
-        requested_by=uuid.UUID(current_user["user_id"]),
     )
-    return result
+    response.headers["Cache-Control"] = "private, no-store"
+    return AuditLogListResponse(
+        data=[AuditLogResponse.model_validate(log) for log in logs],
+        meta={"page": page, "limit": limit, "total": total, "has_next": page * limit < total},
+    )
 
 
 @router.get(
-    "/config",
+    "/system-config",
     response_model=SystemConfigListResponse,
-    summary="View system configuration",
-    description="Returns system settings with secrets masked. Owner role required.",
+    summary="Get system configuration",
 )
 @require_role("owner")
 async def get_system_config(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-) -> dict:
-    """GET /api/v1/admin/config."""
+    response: Response,
+    _current_user: Annotated[dict[str, Any], Depends(get_current_user)],
+    db: AsyncSession = GET_DB,
+) -> SystemConfigListResponse:
+    """GET /api/v1/admin/system-config.
+
+    Returns system configuration (secrets masked).
+    """
     service = AdminService(db)
-    config = await service.get_system_config(
-        requested_by=uuid.UUID(current_user["user_id"]),
-    )
-    return {"data": config, "meta": None}
+    configs = await service.get_system_config()
+    response.headers["Cache-Control"] = "private, no-store"
+    return SystemConfigListResponse(data=configs, meta=None)

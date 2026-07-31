@@ -5,12 +5,14 @@ References:
 - SDD.md §5: Critical Sequence Diagrams
 """
 
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger()
 
 
-async def publish_room_event(event_name: str, room_id: str, metadata: dict | None = None) -> None:
+async def publish_room_event(event_name: str, room_id: str, metadata: dict[str, Any] | None = None) -> None:
     """Publish a room-related domain event.
 
     Current implementation logs to structlog.  Replaced with Redis
@@ -36,7 +38,7 @@ async def publish_room_event(event_name: str, room_id: str, metadata: dict | Non
         logger.warning("room.event.publish_failed", event_name=event_name, exc_info=True)
 
 
-async def publish_property_event(event_name: str, property_id: str, metadata: dict | None = None) -> None:
+async def publish_property_event(event_name: str, property_id: str, metadata: dict[str, Any] | None = None) -> None:
     """Publish a property-related domain event."""
     try:
         logger.info(

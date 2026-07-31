@@ -1,17 +1,21 @@
 """User model for auth module (SDD.md §4.1.1, §4.2)."""
 
-import enum
 import uuid
 from datetime import datetime
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
-from sqlalchemy import String, Boolean, DateTime, Enum, ForeignKey, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.shared.database import Base
 
+if TYPE_CHECKING:
+    from app.modules.property.models import Property
 
-class PropertyRole(str, enum.Enum):
+
+class PropertyRole(StrEnum):
     """Per-property role assigned to a user via ``user_property_scopes``.
 
     ``owner`` and ``admin`` bypass per-property scope checks; ``staff`` is
@@ -54,7 +58,7 @@ class UserPropertyScope(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="property_scopes")
-    property: Mapped["Property"] = relationship("Property", back_populates="users")
+    property: Mapped[Property] = relationship("Property", back_populates="users")
 
     def __repr__(self) -> str:
         return f"<UserPropertyScope(user_id={self.user_id}, property_id={self.property_id}, role={self.role.value})>"
@@ -154,7 +158,7 @@ class User(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    property_scopes: Mapped[list["UserPropertyScope"]] = relationship(
+    property_scopes: Mapped[list[UserPropertyScope]] = relationship(
         "UserPropertyScope",
         back_populates="user",
         lazy="selectin",

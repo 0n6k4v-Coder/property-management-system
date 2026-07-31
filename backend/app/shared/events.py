@@ -10,12 +10,14 @@ References:
     - SDD.md §5: Critical Sequence Diagrams
 """
 
+from typing import Any
+
 import structlog
 
 logger = structlog.get_logger()
 
 
-async def publish(event_name: str, payload: dict | None = None) -> None:
+async def publish(event_name: str, payload: dict[str, Any] | None = None) -> None:
     """Publish a domain event to the internal event bus.
 
     Current implementation logs the event to structlog and returns.

@@ -8,19 +8,15 @@ References:
 
 from datetime import timedelta
 
-import pytest
-from jwt import PyJWTError
-
 from app.config import Settings
 from app.shared.security import (
     create_access_token,
-    decrypt_sensitive,
     decode_token,
+    decrypt_sensitive,
     encrypt_sensitive,
     hash_password,
     verify_password,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════
 # Argon2id Password Hashing Tests

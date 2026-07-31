@@ -99,7 +99,7 @@ class TestLoginEndpoint:
 class TestRegisterEndpoint:
     """``POST /api/v1/auth/register`` — SDD §3.3."""
 
-    async def test_register_success(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
+    async def test_register_success(self, async_client: AsyncClient, db_session: AsyncSession, property_factory) -> None:
         """Valid invite token → 201 with user data."""
         # Create an invite token first - use a valid inviter_id
         repo = UserRepository(db_session)
@@ -115,7 +115,7 @@ class TestRegisterEndpoint:
         invite_service = InviteService(db_session)
         invite_link = await invite_service.create_invite(
             email="newuser@example.com",
-            property_id=uuid.uuid4(),
+            property_id=property_factory.id,
             inviter_id=inviter.id,
         )
         token = invite_link.split("token=")[1]
@@ -136,7 +136,7 @@ class TestRegisterEndpoint:
         assert body["data"]["email"] == "newuser@example.com"
         assert body["data"]["is_active"] is True
 
-    async def test_register_duplicate(self, async_client: AsyncClient, db_session: AsyncSession) -> None:
+    async def test_register_duplicate(self, async_client: AsyncClient, db_session: AsyncSession, property_factory) -> None:
         """Email already registered → 409 AUTH-004."""
         # Create invite first (service checks email doesn't exist yet)
         # Use a valid inviter_id
@@ -153,7 +153,7 @@ class TestRegisterEndpoint:
         invite_service = InviteService(db_session)
         invite_link = await invite_service.create_invite(
             email="dup@example.com",
-            property_id=uuid.uuid4(),
+            property_id=property_factory.id,
             inviter_id=inviter.id,
         )
         token = invite_link.split("token=")[1]
@@ -193,16 +193,18 @@ class TestInviteEndpoint:
         """Authenticated user invites → 201 with invite_link."""
         from app.shared.deps import get_current_user
 
+        prop_id = str(uuid.uuid4())
         app.dependency_overrides[get_current_user] = lambda: {
             "user_id": str(uuid.uuid4()),
             "email": "admin@example.com",
-            "property_scopes": [],
+            "property_scopes": [prop_id],
             "token_type": "access",
+            "is_owner": True,
         }
 
         response = await async_client.post(
             "/api/v1/auth/invite",
-            json={"email": "invited@example.com", "property_id": str(uuid.uuid4())},
+            json={"email": "invited@example.com", "property_id": prop_id},
         )
 
         assert response.status_code == 201
@@ -299,7 +301,7 @@ class TestMeEndpoint:
         app.dependency_overrides[get_current_user] = lambda: {
             "user_id": str(user.id),
             "email": user.email,
-            "property_scopes": [],
+            "property_scopes": [],  # Empty list is valid (no property access)
             "token_type": "access",
         }
 

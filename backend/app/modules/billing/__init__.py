@@ -1,8 +1,4 @@
 # Export all submodules for easier importing
-from . import models
-from . import schemas
-from . import repository
-from . import services
-from . import routers
+from . import models, repository, routers, schemas, services
 
 __all__ = ['models', 'schemas', 'repository', 'services', 'routers']

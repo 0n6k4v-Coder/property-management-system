@@ -131,7 +131,7 @@ export function createErrorMock(
   status: number,
   code: string,
   message: string
-): (route: any) => Promise<void> {
+): (route: { fulfill: (options: { status: number; contentType: string; body: string }) => Promise<void> }) => Promise<void> {
   return async (route) => {
     await route.fulfill({
       status,

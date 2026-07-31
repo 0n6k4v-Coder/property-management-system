@@ -92,6 +92,8 @@ curl http://localhost:8000/docs            # → เปิด Swagger UI
 | 3.2 | `notification/routers/notification_router.py` — 3 endpoints | `docker compose run --rm backend-test pytest tests/modules/notification/test_notification_api.py -v` | `POST /notifications/test`, `GET /notifications/history`, `PATCH /notifications/{id}/resend` ตรง §3.3 | 90 min |
 | 3.3 | อัปเดต `shared/constants.py` + `shared/audit.py` | เพิ่ม action codes & error codes ใหม่ | `ruff check app/shared/` ผ่าน | 30 min |
 
+> **📌 Redesign Note (2026-07-11):** The Notification module was subsequently redesigned during the API anti-pattern audit campaign. The original Sprint 6 build shipped `fail-silent` stubs (POST /test returning 201 synchronously). The redesign fixed anti-patterns `#5` (property-scope IDOR on GET /history), `#3`/`#15` (POST /test → 202 Accepted + async Celery), `#1` (Idempotency-Key on mutating endpoints), `#20` (Cache-Control: private, no-store), and `#13` (pagination on GET /history). The router now lives at `notification/routers/notification_router.py` with `require_property_scope()` enforcement, and `test_notification_security.py` (23 DB-free tests) replaces the original `test_notification_api.py` plan. See `docs/API.md` → "Proposed Redesign — Notification Module (Implemented in Code)".
+
 ### 🔹 Phase 4: Testing & CI Integration (Day 6) — ~4 ชั่วโมง
 | ลำดับ | งาน | Docker Command | Acceptance Criteria | Estimated |
 |------|-----|---------------|-------------------|-----------|

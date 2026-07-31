@@ -46,21 +46,21 @@ def register_sla_monitoring_jobs(scheduler: AsyncIOScheduler | None = None) -> A
     return scheduler
 
 
-async def _run_sla_check():
+async def _run_sla_check() -> None:
     """Wrapper to run the Celery task from APScheduler."""
     logger.info("sla_monitoring_scheduler_triggered")
     # Trigger the Celery task
     check_sla_breaches_task.delay()
 
 
-def start_sla_monitoring_scheduler():
+def start_sla_monitoring_scheduler() -> None:
     """Start the SLA monitoring scheduler."""
     register_sla_monitoring_jobs()
     sla_monitoring_scheduler.start()
     logger.info("sla_monitoring_scheduler_started")
 
 
-def stop_sla_monitoring_scheduler():
+def stop_sla_monitoring_scheduler() -> None:
     """Stop the SLA monitoring scheduler."""
     sla_monitoring_scheduler.shutdown(wait=True)
     logger.info("sla_monitoring_scheduler_stopped")

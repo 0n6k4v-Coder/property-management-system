@@ -8,6 +8,13 @@ version = "1.0.0"
 description = "Backend API for Property Management System"
 requires-python = ">=3.14"
 
+[dependency-groups]
+test = [
+    "apscheduler",
+    "prometheus-client",
+]
+
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -51,3 +58,4 @@ strict = true
 warn_unused_configs = true
 ignore_missing_imports = true
 no_implicit_optional = true
+cache_dir = "/tmp/mypy_cache"

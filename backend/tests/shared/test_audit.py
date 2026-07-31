@@ -12,7 +12,7 @@ References:
 """
 
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,7 +84,8 @@ class TestLogAudit:
     async def test_log_audit_fail_silent(self) -> None:
         """DB error during add → no exception raised, returns record (fail-silent per SDD §7.4.2)."""
         mock_session = AsyncMock(spec=AsyncSession)
-        mock_session.add.side_effect = Exception("DB connection lost")
+        # db.add() is synchronous in SQLAlchemy, so use regular Mock for add()
+        mock_session.add = MagicMock(side_effect=Exception("DB connection lost"))
 
         # Must NOT raise — fail-silent per SDD §7.4.2
         record = await log_audit(

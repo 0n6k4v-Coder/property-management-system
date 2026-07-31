@@ -4,6 +4,8 @@ References:
     - SDD.md §2.5: Maintenance module domain events
 """
 
+from typing import Any
+
 import structlog
 
 from app.modules.maintenance.constants import (
@@ -22,7 +24,7 @@ __all__ = [
 ]
 
 
-async def publish_maintenance_event(event_name: str, request_id: str, metadata: dict | None = None) -> None:
+async def publish_maintenance_event(event_name: str, request_id: str, metadata: dict[str, Any] | None = None) -> None:
     """Publish a maintenance-related domain event.
 
     Current implementation logs to structlog.  Replaced with Redis

@@ -35,7 +35,7 @@ class AuditLogResponse(BaseModel):
 
 class AuditLogListResponse(BaseModel):
     data: list[AuditLogResponse]
-    meta: dict | None = None
+    meta: dict[str, Any] | None = None
 
 
 class SystemConfigResponse(BaseModel):

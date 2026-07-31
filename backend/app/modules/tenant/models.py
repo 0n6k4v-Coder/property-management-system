@@ -7,14 +7,14 @@ References:
 - SDD.md §4.4: Security & access control (encrypted at rest)
 """
 
+import uuid
 from datetime import datetime
 
-import uuid
-
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.modules.billing.models import Invoice
 from app.shared.database import Base
 
 
@@ -76,7 +76,7 @@ class Tenant(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    invoices: Mapped[list["Invoice"]] = relationship(
+    invoices: Mapped[list[Invoice]] = relationship(
         "Invoice", back_populates="tenant", lazy="selectin", cascade="all, delete-orphan"
     )
 

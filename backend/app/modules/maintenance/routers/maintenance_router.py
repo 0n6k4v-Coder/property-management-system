@@ -1,28 +1,78 @@
-"""Maintenance REST API endpoints — 4 routes (SDD §2.5, §3.3).
+"""Maintenance REST API endpoints — 5 routes (SDD §2.5, §3.3).
 
 References:
     - SDD.md §3.3: Critical Endpoint Specifications
     - CODE_STYLE.md §3.4: Router layer responsibility
+
+Implements the Target Design from docs/API.md fixing anti-patterns #5, #1, #20:
+- #5  authorization: all *** endpoints require auth + property scope
+- #1  idempotency: POST /maintenance/ accepts Idempotency-Key header
+- #20 Cache-Control: private, no-store on GET /pending and GET /{id}
 """
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.modules.auth.constants import AUTH_005
+from app.modules.maintenance.repository import MaintenanceRepository
 from app.modules.maintenance.schemas import (
+    AssignMaintenanceRequest,
+    CreateMaintenanceRequest,
     MaintenanceCreateResponse,
     MaintenanceListResponse,
     MaintenanceResponse,
-    CreateMaintenanceRequest,
     UpdateMaintenanceStatusRequest,
-    AssignMaintenanceRequest,
 )
 from app.modules.maintenance.services.maintenance_service import MaintenanceService
-from app.shared.deps import get_current_user, get_db
+from app.shared.database import get_db
+from app.shared.deps import (
+    CurrentUser,
+    get_current_user,
+    require_property_scope,
+    user_has_property_scope,
+)
+from app.shared.exceptions import APIError
+from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["maintenance"], redirect_slashes=False)
+
+# Module-level constants for FastAPI dependencies (fixes B008 mutable default)
+GET_DB = Depends(get_db)
+GET_CURRENT_USER = Depends(get_current_user)
+QUERY_PROPERTY_ID = Query(..., description="Filter by property")
+QUERY_LIMIT_12 = Query(12, ge=1, le=100, description="Max readings to return (1-100)")
+
+
+async def _check_scope(
+    _current_user: dict[str, Any],
+    db: AsyncSession,
+    property_id: uuid.UUID | None,
+) -> None:
+    """Resolve-then-check authorization helper.
+
+    Raises ``AUTH-005`` (403) unless the caller is a global owner/admin or
+    holds a scope row for ``property_id``. A ``None`` ``property_id`` (entity
+    not found) is treated as "no scope" so the caller cannot read/guess
+    non-existent resources across properties.
+    """
+    if property_id is None:
+        raise APIError(
+            code="AUTH-005",
+            message=AUTH_005,
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+    if not await user_has_property_scope(_current_user, db, property_id):
+        raise APIError(
+            code="AUTH-005",
+            message=AUTH_005,
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+
+# ── POST /maintenance/ ──────────────────────────────────────────────
 
 
 @router.post(
@@ -39,10 +89,31 @@ router = APIRouter(tags=["maintenance"], redirect_slashes=False)
 )
 async def create_maintenance_request(
     body: CreateMaintenanceRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-) -> dict:
-    """POST /api/v1/maintenance/ — SDD §3.3."""
+    db: AsyncSession = GET_DB,
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER] = ...,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+) -> MaintenanceCreateResponse:
+    """Create a new maintenance request (BR-08).
+
+    Authorization (fixes #5): ``property_id`` is in the body, so
+    ``require_property_scope()`` (body-sourced form) enforces it directly.
+    Idempotency (fixes #1): an optional ``Idempotency-Key`` header replays a
+    prior 201 within the 24h dedupe window; reusing a key with a different
+    body raises ``409 VAL-409``.
+    """
+    # Additional explicit scope check (the dependency checks body.property_id)
+    await _check_scope(current_user, db, body.property_id)
+
+    if idempotency_key:
+        cached = await check_idempotency(
+            db,
+            idempotency_key,
+            "POST:/api/v1/maintenance/",
+            body.model_dump(mode="json"),
+        )
+        if cached is not None:
+            return MaintenanceCreateResponse.model_validate(cached)
+
     service = MaintenanceService(db)
     request = await service.create_request(
         property_id=body.property_id,
@@ -52,7 +123,21 @@ async def create_maintenance_request(
         created_by=uuid.UUID(current_user["user_id"]),
         priority=body.priority,
     )
-    return {"data": MaintenanceResponse.model_validate(request), "meta": None}
+    response = MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
+
+    if idempotency_key:
+        await store_idempotency(
+            db,
+            idempotency_key,
+            "POST:/api/v1/maintenance/",
+            body.model_dump(mode="json"),
+            response.model_dump(mode="json"),
+            MaintenanceRepository,
+        )
+    return response
+
+
+# ── GET /maintenance/pending ────────────────────────────────────────
 
 
 @router.get(
@@ -61,17 +146,32 @@ async def create_maintenance_request(
     summary="List pending maintenance requests by property",
 )
 async def list_pending_requests(
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-    property_id: uuid.UUID = Query(..., description="Filter by property"),
-) -> dict:
-    """GET /api/v1/maintenance/pending — SDD §3.3."""
+    response: Response,
+    property_id: uuid.UUID = QUERY_PROPERTY_ID,
+    current_user: CurrentUser = GET_CURRENT_USER,
+    db: AsyncSession = GET_DB,
+) -> MaintenanceListResponse:
+    """Get pending maintenance requests for a property (fixes #5, #20).
+
+    Authorization (#5): ``property_id`` is a required query param, checked
+    inline after FastAPI parses it.
+    Caching (#20): ``Cache-Control: private, no-store`` — maintenance lists
+    are property-scoped and must not be shared/stored.
+    """
+    # Fixes #5: scope check after FastAPI parses query param
+    await _check_scope(current_user, db, property_id)
+    # Fixes #20: maintenance list must never be cached/shared.
+    response.headers["Cache-Control"] = "private, no-store"
+
     service = MaintenanceService(db)
     requests = await service.get_pending_by_property(property_id)
-    return {
-        "data": [MaintenanceResponse.model_validate(r) for r in requests],
-        "meta": None,
-    }
+    return MaintenanceListResponse(
+        data=[MaintenanceResponse.model_validate(r) for r in requests],
+        meta=None,
+    )
+
+
+# ── GET /maintenance/{request_id} ───────────────────────────────────
 
 
 @router.get(
@@ -80,14 +180,30 @@ async def list_pending_requests(
     summary="Get a maintenance request by ID",
 )
 async def get_maintenance_request(
+    response: Response,
     request_id: uuid.UUID,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-) -> dict:
-    """GET /api/v1/maintenance/{id} — SDD §3.3."""
+    db: AsyncSession = GET_DB,
+    current_user: CurrentUser = GET_CURRENT_USER,
+) -> MaintenanceCreateResponse:
+    """Get a single maintenance request by ID (fixes #5, #20).
+
+    Authorization (#5): the request's ``property_id`` is resolved and checked
+    via ``user_has_property_scope`` (resolve-then-check pattern).
+    Caching (#20): ``Cache-Control: private, no-store``.
+    """
+    # Fixes #20: maintenance detail must never be cached/shared.
+    response.headers["Cache-Control"] = "private, no-store"
+
+    repo = MaintenanceRepository(db)
+    prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
+    await _check_scope(current_user, db, prop_id)
+
     service = MaintenanceService(db)
     request = await service.get_request(request_id)
-    return {"data": MaintenanceResponse.model_validate(request), "meta": None}
+    return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
+
+
+# ── PATCH /maintenance/{request_id}/status ──────────────────────────
 
 
 @router.patch(
@@ -99,17 +215,28 @@ async def get_maintenance_request(
 async def update_maintenance_status(
     request_id: uuid.UUID,
     body: UpdateMaintenanceStatusRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-) -> dict:
-    """PATCH /api/v1/maintenance/{id}/status — SDD §3.3."""
+    db: AsyncSession = GET_DB,
+    current_user: CurrentUser = GET_CURRENT_USER,
+) -> MaintenanceCreateResponse:
+    """Update the status of a maintenance request (fixes #5).
+
+    Authorization (#5): the request's ``property_id`` is resolved and checked
+    via ``user_has_property_scope`` (resolve-then-check pattern).
+    """
+    repo = MaintenanceRepository(db)
+    prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
+    await _check_scope(current_user, db, prop_id)
+
     service = MaintenanceService(db)
     request = await service.update_status(
         request_id=request_id,
         new_status=body.status,
         changed_by=uuid.UUID(current_user["user_id"]),
     )
-    return {"data": MaintenanceResponse.model_validate(request), "meta": None}
+    return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
+
+
+# ── PATCH /maintenance/{request_id}/assign ──────────────────────────
 
 
 @router.patch(
@@ -120,14 +247,23 @@ async def update_maintenance_status(
 async def assign_maintenance_request(
     request_id: uuid.UUID,
     body: AssignMaintenanceRequest,
-    db: Annotated[AsyncSession, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
-) -> dict:
-    """PATCH /api/v1/maintenance/{id}/assign."""
+    db: AsyncSession = GET_DB,
+    current_user: CurrentUser = GET_CURRENT_USER,
+) -> MaintenanceCreateResponse:
+    """Assign a maintenance request to a user (fixes #5).
+
+    Authorization (#5): the request's ``property_id`` is resolved and checked
+    via ``user_has_property_scope`` (resolve-then-check pattern).
+    """
+    repo = MaintenanceRepository(db)
+    prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
+    await _check_scope(current_user, db, prop_id)
+
     service = MaintenanceService(db)
     request = await service.assign_to(
         request_id=request_id,
         assigned_to=body.assigned_to,
         assigned_by=uuid.UUID(current_user["user_id"]),
     )
-    return {"data": MaintenanceResponse.model_validate(request), "meta": None}
+    return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
+

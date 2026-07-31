@@ -5,17 +5,17 @@ Revises: 015
 Create Date: 2026-07-03
 
 """
-from typing import Sequence, Union
+from collections.abc import Sequence
+
+import sqlalchemy as sa
 
 from alembic import op
-import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 
 # revision identifiers, used by Alembic.
 revision: str = "016"
-down_revision: Union[str, None] = "015"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "015"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -26,7 +26,7 @@ def upgrade() -> None:
         create_type=True
     )
     line_item_type_enum.create(op.get_bind(), checkfirst=True)
-    
+
     # Change line_type column to use the enum type
     op.alter_column('invoice_line_items', 'line_type',
                     existing_type=sa.String(50),
@@ -51,6 +51,6 @@ def downgrade() -> None:
                     existing_nullable=False)
     op.alter_column('invoice_line_items', 'line_type',
                     server_default=sa.text("'rent'"))
-    
+
     # Drop the enum type
     op.execute('DROP TYPE IF EXISTS line_item_type_enum')

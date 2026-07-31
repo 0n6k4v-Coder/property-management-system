@@ -9,29 +9,38 @@ References:
 - SDD §10.3: Workers
 - backend/docs/OPERATIONS.md: Task monitoring
 """
-import structlog
 import uuid
+from typing import TYPE_CHECKING, Any
 
-from celery import shared_task
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+import structlog
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import settings
+from app.config import get_settings
+from app.modules.notification.constants import NotificationChannel, NotificationStatus
 from app.modules.notification.repository import NotificationRepository
-from app.modules.notification.models import Notification, NotificationChannel, NotificationStatus
 from app.shared.audit import log_audit
+from app.workers.typing import CeleryTask, shared_task
+
+if TYPE_CHECKING:
+    pass
 
 logger = structlog.get_logger()
 
+settings = get_settings()
+
 # Create async engine for Celery tasks
 engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
-async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30, queue="notifications")
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, queue="notifications")  # type: ignore[untyped-decorator]
 async def send_line_notification_task(
-    self, notification_id: str, user_id: str, recipient_line_id: str, message: str
-):
+    self: CeleryTask,
+    notification_id: str,
+    user_id: str,
+    recipient_line_id: str,
+    message: str,
+) -> dict[str, Any]:
     """Send notification via LINE Messaging API.
 
     Parameters
@@ -57,23 +66,19 @@ async def send_line_notification_task(
     async with async_session() as db:
         try:
             repo = NotificationRepository(db)
-            notification = await repo.get_notification_by_id(notification_uuid)
+            notification = await repo.get_by_id(notification_uuid)
             if not notification:
                 raise ValueError(f"Notification {notification_id} not found")
 
             # Update status to sending
-            await repo.update_notification_status(
-                notification_uuid, NotificationStatus.SENDING
-            )
+            await repo.update_status(notification_uuid, NotificationStatus.SENDING)
 
             # TODO: Implement actual LINE API call using LINE Messaging API SDK
             # For now, simulate successful delivery
             await _send_line_message(recipient_line_id, message)
 
             # Update status to sent
-            await repo.update_notification_status(
-                notification_uuid, NotificationStatus.SENT
-            )
+            await repo.update_status(notification_uuid, NotificationStatus.SENT)
 
             logger.info(
                 "notification.line_send_complete",
@@ -112,24 +117,22 @@ async def send_line_notification_task(
             try:
                 async with async_session() as db:
                     repo = NotificationRepository(db)
-                    await repo.update_notification_status(
-                        notification_uuid, NotificationStatus.FAILED
-                    )
+                    await repo.update_status(notification_uuid, NotificationStatus.FAILED)
             except Exception:
                 pass
             raise self.retry(exc=exc, countdown=30 * (2**self.request.retries)) from exc
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")  # type: ignore[untyped-decorator]
 async def send_email_notification_task(
-    self,
+    self: CeleryTask,
     notification_id: str,
     user_id: str,
     recipient_email: str,
     subject: str,
     body: str,
     html_body: str | None = None,
-):
+) -> dict[str, Any]:
     """Send notification via email.
 
     Parameters
@@ -157,23 +160,19 @@ async def send_email_notification_task(
     async with async_session() as db:
         try:
             repo = NotificationRepository(db)
-            notification = await repo.get_notification_by_id(notification_uuid)
+            notification = await repo.get_by_id(notification_uuid)
             if not notification:
                 raise ValueError(f"Notification {notification_id} not found")
 
             # Update status to sending
-            await repo.update_notification_status(
-                notification_uuid, NotificationStatus.SENDING
-            )
+            await repo.update_status(notification_uuid, NotificationStatus.SENDING)
 
             # TODO: Implement actual email sending (SendGrid, SES, SMTP)
             # For now, simulate successful delivery
             await _send_email(recipient_email, subject, body, html_body)
 
             # Update status to sent
-            await repo.update_notification_status(
-                notification_uuid, NotificationStatus.SENT
-            )
+            await repo.update_status(notification_uuid, NotificationStatus.SENT)
 
             logger.info(
                 "notification.email_send_complete",
@@ -213,18 +212,21 @@ async def send_email_notification_task(
             try:
                 async with async_session() as db:
                     repo = NotificationRepository(db)
-                    await repo.update_notification_status(
-                        notification_uuid, NotificationStatus.FAILED
-                    )
+                    await repo.update_status(notification_uuid, NotificationStatus.FAILED)
             except Exception:
                 pass
             raise self.retry(exc=exc, countdown=60 * (2**self.request.retries)) from exc
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=10, queue="notifications")
+@shared_task(bind=True, max_retries=2, default_retry_delay=10, queue="notifications")  # type: ignore[untyped-decorator]
 async def send_in_app_notification_task(
-    self, notification_id: str, user_id: str, recipient_user_id: str, title: str, body: str
-):
+    self: CeleryTask,
+    notification_id: str,
+    user_id: str,
+    recipient_user_id: str,
+    title: str,
+    _body: str,
+) -> dict[str, Any]:
     """Create in-app notification (stored in database, delivered via WebSocket/polling).
 
     Parameters
@@ -233,7 +235,7 @@ async def send_in_app_notification_task(
     user_id: UUID string of the user sending the notification
     recipient_user_id: UUID string of the recipient user
     title: Notification title
-    body: Notification body
+    _body: Notification body (unused in stub)
 
     Returns
     -------
@@ -241,7 +243,7 @@ async def send_in_app_notification_task(
     """
     notification_uuid = uuid.UUID(notification_id)
     user_uuid = uuid.UUID(user_id)
-    recipient_uuid = uuid.UUID(recipient_user_id)
+    _ = uuid.UUID(recipient_user_id)  # validated but not used in this stub
 
     logger.info(
         "notification.in_app_create_start",
@@ -252,14 +254,12 @@ async def send_in_app_notification_task(
     async with async_session() as db:
         try:
             repo = NotificationRepository(db)
-            notification = await repo.get_notification_by_id(notification_uuid)
+            notification = await repo.get_by_id(notification_uuid)
             if not notification:
                 raise ValueError(f"Notification {notification_id} not found")
 
             # For in-app, just update status to sent (already stored in DB)
-            await repo.update_notification_status(
-                notification_uuid, NotificationStatus.SENT
-            )
+            await repo.update_status(notification_uuid, NotificationStatus.SENT)
 
             # TODO: Push real-time via WebSocket or server-sent events
             # For now, just log
@@ -317,16 +317,9 @@ async def _send_line_message(recipient_line_id: str, message: str) -> None:
 async def _send_email(
     recipient_email: str, subject: str, body: str, html_body: str | None = None
 ) -> None:
-    """Send email via configured provider (SendGrid, SES, SMTP).
-
-    In production, use appropriate SDK:
-    # SendGrid example:
-    from sendgrid import SendGridAPIClient
-    from sendgrid.helpers.mail import Mail
-    sg = SendGridAPIClient(SENDGRID_API_KEY)
-    message = Mail(from_email, to_emails, subject, html_content)
-    sg.send(message)
-    """
+    """Send email via configured provider (SendGrid, SES, SMTP)."""
+    _ = body  # validated but not used in stub
+    _ = html_body  # validated but not used in stub
     # Simulate API call
     logger.debug(
         "Email API call simulated", recipient=recipient_email, subject=subject

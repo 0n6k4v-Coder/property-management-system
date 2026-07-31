@@ -11,10 +11,11 @@ References:
 """
 
 import uuid
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.constants import AUTH_003, AUTH_004
 from app.modules.auth.models import User
@@ -37,7 +38,7 @@ class TestCreateInvite:
 
         service = InviteService.__new__(InviteService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock(spec=AsyncSession)
 
         invite_link = await service.create_invite(
             email="invitee@example.com",
@@ -92,11 +93,11 @@ class TestAcceptInvite:
 
         # Step 1: Create an invite token using a real InviteService
         mock_repo = AsyncMock()
-        mock_repo.get_by_email.return_value = None  # no duplicates
+        mock_repo.get_by_email.return_value = None
 
         service = InviteService.__new__(InviteService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock(spec=AsyncSession)
 
         invite_link = await service.create_invite(
             email="accept@example.com",
@@ -139,7 +140,7 @@ class TestAcceptInvite:
         mock_repo = AsyncMock()
         service = InviteService.__new__(InviteService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock(spec=AsyncSession)
 
         with pytest.raises(APIError) as exc:
             await service.accept_invite(
@@ -161,7 +162,7 @@ class TestAcceptInvite:
 
         service = InviteService.__new__(InviteService)
         service._repo = mock_repo
-        service._db = AsyncMock()
+        service._db = MagicMock(spec=AsyncSession)
 
         wrong_token = await service.create_invite(
             email="wrongtype@example.com",
@@ -198,7 +199,7 @@ class TestAcceptInvite:
         create_repo.get_by_email.return_value = None
         service = InviteService.__new__(InviteService)
         service._repo = create_repo
-        service._db = AsyncMock()
+        service._db = MagicMock(spec=AsyncSession)
 
         invite_link = await service.create_invite(
             email="taken@example.com",

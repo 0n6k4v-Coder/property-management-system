@@ -191,6 +191,18 @@ async def seed_e2e() -> None:
             await session.flush()
             print("✅ Created building: Sunset Tower / Building A")
 
+        # ── Add property scope for admin user (now that Sunset Tower exists) ─────
+        from app.modules.auth.models import UserPropertyScope, PropertyRole
+        existing_scope = await session.get(UserPropertyScope, (admin_id, PROPERTY_SUNSET_ID))
+        if not existing_scope:
+            scope = UserPropertyScope(
+                user_id=admin_id,
+                property_id=PROPERTY_SUNSET_ID,
+                role=PropertyRole.owner,
+            )
+            session.add(scope)
+            print(f"✅ Created property scope for admin user: Sunset Tower (owner)")
+
         # ── Rooms ────────────────────────────────────────────────────────
         room_101 = await _get_or_none(session, Room, ROOM_101_ID)
         if room_101 is None:

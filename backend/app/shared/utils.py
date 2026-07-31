@@ -150,7 +150,7 @@ def safe_int(value: Any, default: int = 0) -> int:
         Integer result or default.
     """
     try:
-        return int(value)  # type: ignore[arg-type]
+        return int(value)
     except (TypeError, ValueError):
         return default
 
@@ -171,7 +171,7 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         Float result or default.
     """
     try:
-        return float(value)  # type: ignore[arg-type]
+        return float(value)
     except (TypeError, ValueError):
         return default
 

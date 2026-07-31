@@ -7,7 +7,6 @@ References:
 """
 
 import uuid
-from datetime import date
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession

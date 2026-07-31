@@ -9,7 +9,6 @@ References:
 
 from enum import StrEnum
 
-
 # ── Error Codes (MAINT-0xx) ──────────────────────────────────────────
 
 MAINT_001_REQUEST_NOT_FOUND: str = "MAINT-001"

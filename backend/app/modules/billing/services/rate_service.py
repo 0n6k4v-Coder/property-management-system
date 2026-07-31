@@ -11,11 +11,10 @@ References:
 - CODE_STYLE.md §5.3: Audit logging for sensitive operations
 """
 
+import uuid
 from datetime import date
 
-import uuid
-
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.billing.constants import (

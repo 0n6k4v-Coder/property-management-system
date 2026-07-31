@@ -4,6 +4,8 @@
 
 // Upload: temporary-public-storage for CI artifact sharing
 
+/* eslint-env node */
+
 const config = {
   ci: {
     collect: [

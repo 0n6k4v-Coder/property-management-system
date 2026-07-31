@@ -7,8 +7,10 @@ References:
     - SDD.md §5.2: Contract Termination → Room Status Update
 """
 
+from __future__ import annotations
+
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy import (
@@ -27,6 +29,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.modules.contract.constants import ContractStatus
 from app.shared.database import Base
+
+# Forward reference for Invoice (from billing module) to avoid circular imports
+if False:
+    from app.modules.billing.models import Invoice
 
 
 class Contract(Base):
@@ -71,8 +77,8 @@ class Contract(Base):
         nullable=False,
         index=True,
     )
-    start_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
-    end_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
     monthly_rent: Mapped[Decimal] = mapped_column(
         Numeric(10, 2), nullable=False,
     )
@@ -127,20 +133,20 @@ class Contract(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    termination: Mapped["ContractTermination | None"] = relationship(
+    termination: Mapped[ContractTermination | None] = relationship(
         "ContractTermination",
         back_populates="contract",
         uselist=False,
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    extensions: Mapped[list["LeaseExtension"]] = relationship(
+    extensions: Mapped[list[LeaseExtension]] = relationship(
         "LeaseExtension",
         back_populates="contract",
         lazy="selectin",
         cascade="all, delete-orphan",
     )
-    invoices: Mapped[list["Invoice"]] = relationship(
+    invoices: Mapped[list[Invoice]] = relationship(
         "Invoice",
         back_populates="contract",
         lazy="selectin",
@@ -175,8 +181,8 @@ class LeaseExtension(Base):
         nullable=False,
         index=True,
     )
-    previous_end_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
-    extended_to: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    previous_end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    extended_to: Mapped[date] = mapped_column(Date, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Audit ────────────────────────────────────────────────────────────
@@ -190,7 +196,7 @@ class LeaseExtension(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    contract: Mapped["Contract"] = relationship("Contract", back_populates="extensions")
+    contract: Mapped[Contract] = relationship("Contract", back_populates="extensions")
 
     def __repr__(self) -> str:
         return (
@@ -225,7 +231,7 @@ class ContractTermination(Base):
         index=True,
     )
     reason: Mapped[str] = mapped_column(String(100), nullable=False)
-    termination_date: Mapped[datetime.date] = mapped_column(Date, nullable=False)
+    termination_date: Mapped[date] = mapped_column(Date, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Audit ────────────────────────────────────────────────────────────
@@ -239,10 +245,11 @@ class ContractTermination(Base):
     )
 
     # ── Relationships ──────────────────────────────────────────────────
-    contract: Mapped["Contract"] = relationship("Contract", back_populates="termination")
+    contract: Mapped[Contract] = relationship("Contract", back_populates="termination")
 
     def __repr__(self) -> str:
         return (
             f"<ContractTermination(id={self.id}, contract={self.contract_id}, "
             f"reason={self.reason})>"
         )
+

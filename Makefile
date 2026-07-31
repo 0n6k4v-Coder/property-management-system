@@ -33,7 +33,9 @@ DOCKER_COMPOSE := $(shell command -v docker-compose 2>/dev/null || echo "docker 
 
 # Project configuration (override via env or command line)
 COMPOSE_FILE ?= docker-compose.dev.yml
+TEST_COMPOSE = docker-compose.test.yml
 PROJECT_NAME ?= pms-dev
+TEST_PROJECT_NAME ?= pms-test
 BUILD_TARGET ?= development
 TEST_RETENTION_DAYS ?= 7
 
@@ -87,18 +89,19 @@ help: ## Display this help message with available targets
 	@echo "$(COLOR_BLUE)Property Management System — Backend Makefile$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_GREEN)Development$(COLOR_RESET)"
-	@echo "  make dev              Start development environment (hot-reload)"
-	@echo "  make dev-frontend      Start frontend development server only"
+	@echo "  make dev              Start dev environment (self-contained: migrate + seed + logs)"
+	@echo "  make dev-restart      Restart dev environment (dev-down then dev)"
+	@echo "  make dev-frontend     Start frontend development server only"
 	@echo "  make dev-down         Stop development environment"
 	@echo "  make dev-logs         View backend logs in real-time"
 	@echo "  make dev-shell        Open shell in backend container"
 	@echo ""
 	@echo "$(COLOR_GREEN)Testing$(COLOR_RESET)"
-	@echo "  make test             Run all tests in isolated container"
+	@echo "  make test             Run all backend tests (isolated test stack)"
 	@echo "  make test-unit        Run unit tests only"
-	make test-frontend    Run frontend tests (Vitest)
-	make test-e2e         Run End-to-End tests with Playwright
-	make test-integration Run integration tests only
+	@echo "  make test-frontend    Run frontend tests (Vitest)"
+	@echo "  make test-e2e         Run E2E tests with Playwright (self-contained)"
+	@echo "  make test-integration Run integration tests only"
 	@echo "  make test-coverage    Run tests + generate HTML coverage report"
 	@echo "  make test-contract    Run contract testing with Schemathesis"
 	@echo "  make test-clean       Clean test artifacts and volumes"
@@ -149,11 +152,45 @@ help: ## Display this help message with available targets
 # =============================================================================
 # Development Targets
 # =============================================================================
-.PHONY: dev dev-down dev-logs dev-shell
+.PHONY: dev dev-down dev-logs dev-shell dev-restart
 
-dev: check-docker check-compose check-env ## Start development environment with hot-reload
-	@echo "$(COLOR_GREEN)→ Starting development environment...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev up --build
+dev: check-docker check-compose check-env ## Start development environment with hot-reload (self-contained: migrate + seed)
+	@echo "$(COLOR_GREEN)→ Starting development environment (self-contained)...$(COLOR_RESET)"
+	@# 1. Start stack (backend + db + redis + minio) in detached mode with rebuild
+	@echo "$(COLOR_BLUE)  [1/5] Starting dev stack (build + detached)...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev up -d --build
+	@# 2. Wait for backend healthy (poll /health endpoint, max ~90s)
+	@echo "$(COLOR_BLUE)  [2/5] Waiting for backend to become healthy...$(COLOR_RESET)"
+	@for i in $$(seq 1 30); do \
+		if $(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec -T backend curl -sf http://localhost:8000/health >/dev/null 2>&1; then \
+			echo "$(COLOR_GREEN)  ✓ Backend healthy (attempt $$i/30)$(COLOR_RESET)"; \
+			break; \
+		fi; \
+		if [[ $$i -eq 30 ]]; then \
+			echo "$(COLOR_RED)  ✗ Backend failed to become healthy after 90s$(COLOR_RESET)"; \
+			echo "$(COLOR_YELLOW)  Check logs: make dev-logs$(COLOR_RESET)"; \
+			exit 1; \
+		fi; \
+		printf "  ... waiting (attempt %s/30)\n" "$$i"; \
+		sleep 3; \
+	done
+	@# 3. Apply Alembic migrations
+	@echo "$(COLOR_BLUE)  [3/5] Applying database migrations...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec -T backend alembic upgrade head
+	@# 4. Seed admin user (idempotent — skips if already exists)
+	@echo "$(COLOR_BLUE)  [4/5] Seeding admin user...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec -T backend python -m scripts.seed_admin || \
+		echo "$(COLOR_YELLOW)  ⚠  Seed admin skipped (already exists or non-fatal)$(COLOR_RESET)"
+	@# 5. Attach to backend logs (hot-reload output) — Ctrl+C to stop, containers keep running
+	@echo "$(COLOR_BLUE)  [5/5] Attaching to backend logs (Ctrl+C to detach, stack keeps running)...$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)✓ Dev environment ready — admin@example.com / Admin123!$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)  Backend: http://localhost:8000  |  Docs: http://localhost:8000/docs$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev logs -f backend
+
+dev-restart: check-docker check-compose ## Restart dev environment (dev-down then dev)
+	@echo "$(COLOR_YELLOW)→ Restarting development environment...$(COLOR_RESET)"
+	@$(MAKE) dev-down
+	@$(MAKE) dev
 
 dev-frontend: check-docker check-compose ## Start frontend development server only
 	@echo "$(COLOR_GREEN)→ Starting frontend development server...$(COLOR_RESET)"
@@ -171,65 +208,103 @@ dev-shell: check-docker check-compose ## Open interactive shell in backend conta
 	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev exec backend bash
 
 # =============================================================================
-# Testing Targets (2026: Isolated, reproducible, CI-identical)
+# Verification Targets (local CI cycle)
 # =============================================================================
-.PHONY: test test-unit test-integration test-coverage test-contract test-clean
+.PHONY: check-stack verify-backend verify-frontend ci-local seed-dev
 
-test: check-docker check-compose ## Run all tests in isolated container (CI-identical)
-	@echo "$(COLOR_GREEN)→ Running tests in isolated container...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+check-stack: check-docker check-compose ## Check all dev containers status
+	@./scripts/check-dev-stack.sh
+
+verify-backend: check-docker check-compose ## Run backend verification (test + typecheck + lint)
+	@./scripts/verify-backend.sh
+
+verify-frontend: check-docker check-compose ## Run frontend verification (test + typecheck + lint)
+	@./scripts/verify-frontend.sh
+
+ci-local: check-docker check-compose ## Full local CI cycle: dev up -> verify -> dev down
+	@./scripts/ci-local.sh
+
+seed-dev: check-docker check-compose ## Seed dev data (admin + E2E fixtures)
+	@./scripts/seed-dev-data.sh
+
+# =============================================================================
+# Testing Targets (2026: Isolated test stack via docker-compose.test.yml)
+# =============================================================================
+.PHONY: test test-unit test-frontend test-e2e test-integration test-coverage test-contract test-clean test-up test-down
+
+test-up: check-docker check-compose ## Start isolated test stack (db, redis, minio, backend)
+	@echo "$(COLOR_GREEN)→ Starting test stack...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d backend
+	@echo "$(COLOR_GREEN)✓ Test stack ready$(COLOR_RESET)"
+
+test-down: check-docker check-compose ## Stop isolated test stack and remove volumes
+	@echo "$(COLOR_YELLOW)→ Stopping test stack...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
+	@echo "$(COLOR_GREEN)✓ Test stack stopped$(COLOR_RESET)"
+
+test: check-docker check-compose ## Run all backend tests in isolated test stack
+	@echo "$(COLOR_GREEN)→ Running tests in isolated test stack...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		-e TEST_RETENTION_DAYS=$(TEST_RETENTION_DAYS) \
 		backend-test
 
 test-unit: check-docker check-compose ## Run unit tests only
 	@echo "$(COLOR_GREEN)→ Running unit tests...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test pytest tests/ -m "not integration" -v --color=yes
 
-test-frontend: check-docker check-compose ## Run frontend tests (Vitest)
+test-frontend: check-docker check-compose ## Run frontend unit tests (Vitest)
 	@echo "$(COLOR_GREEN)→ Running frontend tests...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		frontend-test npx vitest run --coverage
 
-test-e2e: check-docker check-compose ## Run E2E tests with Playwright
-	@echo "$(COLOR_GREEN)→ Running Playwright E2E tests...$(COLOR_RESET)"
-	mkdir -p frontend/playwright-report frontend/e2e-results
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+test-e2e: check-docker check-compose ## Run E2E tests with Playwright (self-contained: starts stack, seeds DB, runs tests, tears down)
+	@echo "$(COLOR_GREEN)→ Running Playwright E2E tests (self-contained)...$(COLOR_RESET)"
+	@mkdir -p frontend/playwright-report frontend/e2e-results
+	@# 1. Start test stack (backend + db + redis + minio)
+	@echo "$(COLOR_BLUE)  [1/4] Starting test stack...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d backend
+	@# 2. Apply migrations
+	@echo "$(COLOR_BLUE)  [2/4] Applying migrations...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) exec -T backend alembic upgrade head
+	@# 3. Seed E2E fixture data
+	@echo "$(COLOR_BLUE)  [3/4] Seeding E2E fixture data...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) exec -T backend python -m scripts.seed_e2e --reset
+	@# 4. Run Playwright
+	@echo "$(COLOR_BLUE)  [4/4] Running Playwright...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		frontend-test npx playwright test --reporter=html
+	@# Cleanup: stop test stack
+	@echo "$(COLOR_YELLOW)→ Cleaning up test stack...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
+	@echo "$(COLOR_GREEN)✓ E2E tests complete$(COLOR_RESET)"
 
-lint-frontend: check-docker check-compose ## Run frontend linters (ESLint + TSC)
-	@echo "$(COLOR_GREEN)→ Running frontend linters...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
-		frontend-test npx eslint . --max-warnings 0
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
-		frontend-test npx tsc --noEmit
-
-test-integration: check-docker check-compose ## Run integration tests only (requires DB)
+test-integration: check-docker check-compose ## Run integration tests only (requires test stack)
 	@echo "$(COLOR_GREEN)→ Running integration tests...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d backend
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test pytest tests/ -m "integration" -v --color=yes
 
 test-coverage: check-docker check-compose ## Run tests + generate HTML coverage report
 	@echo "$(COLOR_GREEN)→ Running tests with coverage...$(COLOR_RESET)"
-	mkdir -p /tmp/coverage backend/htmlcov
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
-		-v /tmp/coverage:/tmp/coverage \
+	@mkdir -p backend/htmlcov
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		-v $(CURDIR)/backend/htmlcov:/app/htmlcov \
-		-e COVERAGE_FILE=/tmp/coverage/.coverage \
 		backend-test pytest --cov=app --cov-report=html --cov-report=term-missing -v --color=yes
 	@echo ""
 	@echo "$(COLOR_GREEN)✓ Coverage report: backend/htmlcov/index.html$(COLOR_RESET)"
 	@echo "$(COLOR_BLUE)  Open in browser to view details$(COLOR_RESET)"
 
 test-contract: check-docker check-compose ## Run contract testing with Schemathesis
-	@echo "$(COLOR_GREEN)→ Running contract tests against running backend...$(COLOR_RESET)"
-	@# First ensure backend is running
-	@if ! curl -s http://localhost:8000/health &>/dev/null; then \
-		echo "$(COLOR_YELLOW)Backend not running. Starting temporarily...$(COLOR_RESET)"; \
-		$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev up -d backend; \
+	@echo "$(COLOR_GREEN)→ Running contract tests against test backend...$(COLOR_RESET)"
+	@# Start test stack if backend not running
+	@if ! $(DOCKER_COMPOSE) -f $(TEST_COMPOSE) ps backend | grep -q "running"; then \
+		echo "$(COLOR_YELLOW)  Backend not running. Starting test stack...$(COLOR_RESET)"; \
+		$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d backend; \
 		sleep 10; \
 	fi
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test schemathesis run http://backend:8000/openapi.json \
 		--checks all --endpoint /api/v1/auth --endpoint /api/v1/properties --endpoint /api/v1/rooms \
 		--endpoint /api/v1/meter-readings --endpoint /api/v1/invoices --endpoint /api/v1/tenants \
@@ -241,40 +316,46 @@ test-contract: check-docker check-compose ## Run contract testing with Schemathe
 
 test-clean: check-docker check-compose ## Clean test artifacts and volumes
 	@echo "$(COLOR_YELLOW)→ Cleaning test artifacts...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test down -v
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
 	rm -rf backend/htmlcov backend/test-reports backend/.pytest_cache backend/.mypy_cache
+
+lint-frontend: check-docker check-compose ## Run frontend linters (ESLint + TSC)
+	@echo "$(COLOR_GREEN)→ Running frontend linters...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
+		frontend-test npx eslint . --max-warnings 0
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
+		frontend-test npx tsc --noEmit
 
 # =============================================================================
 # Quality Targets (2026: Fast feedback, auto-fix where possible)
 # =============================================================================
-.PHONY: lint lint-fix typecheck security
+.PHONY: lint lint-frontend lint-fix typecheck security
 
 lint: check-docker check-compose ## Run linters (ruff, mypy, bandit)
 	@echo "$(COLOR_GREEN)→ Running linters...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
-
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test ruff check app --output-format=full --no-cache
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test mypy app --pretty
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test bandit -r app -f json -o /app/test-reports/bandit-report.json || true
 
 lint-fix: check-docker check-compose ## Run linters with auto-fix where possible
 	@echo "$(COLOR_GREEN)→ Running linters with auto-fix...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test ruff check backend/app --fix --output-format=full
 	@echo "$(COLOR_GREEN)✓ Auto-fix complete. Review changes before committing.$(COLOR_RESET)"
 
 typecheck: check-docker check-compose ## Run mypy type checking
 	@echo "$(COLOR_GREEN)→ Running type checking...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
-		backend-test mypy backend/app --pretty --show-error-codes
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
+		backend-test mypy app --pretty --show-error-codes
 
 security: check-docker check-compose ## Run security scans (bandit, safety)
 	@echo "$(COLOR_GREEN)→ Running security scans...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test bandit -r app -ll -ii
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test safety check --output bare || true
 	@echo "$(COLOR_GREEN)✓ Security scan complete. Check backend/test-reports/ for reports.$(COLOR_RESET)"
 
@@ -368,13 +449,13 @@ prod-validate: check-docker check-compose ## Validate production environment
 
 load-test: check-docker check-compose ## Run load testing with Locust
 	@echo "$(COLOR_GREEN)→ Running load tests with Locust...$(COLOR_RESET)"
-	@# Start DB + Redis if not running
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test up -d db redis
+	@# Start test stack (db + redis only)
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d db redis
 	@sleep 3
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test run --rm \
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		backend-test locust -f /app/tests/load/locustfile.py --headless -u 50 -r 10 -t 10s --csv /tmp/locust_results
 	@echo "$(COLOR_GREEN)✓ Load test results: /tmp/locust_results*.csv$(COLOR_RESET)"
-	@$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile test down -v
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
 
 backup: check-docker check-compose ## Backup database to MinIO
 	@echo "$(COLOR_GREEN)→ Running database backup...$(COLOR_RESET)"
@@ -400,7 +481,8 @@ release-dry-run: check-docker check-compose ## Dry-run release (validate without
 
 clean: test-clean ## Clean all build artifacts and volumes
 	@echo "$(COLOR_YELLOW)→ Cleaning all artifacts...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) down -v --rmi all
+	$(DOCKER_COMPOSE) -f $(COMPOSE_FILE) --project-name $(PROJECT_NAME) --profile dev down -v --rmi all
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v --rmi all 2>/dev/null || true
 	rm -rf backend/__pycache__ backend/app/__pycache__ backend/app/*/__pycache__
 	rm -rf backend/app/*/*/__pycache__ backend/.pytest_cache backend/.mypy_cache
 	rm -rf backend/htmlcov backend/test-reports

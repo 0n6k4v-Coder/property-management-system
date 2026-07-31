@@ -8,11 +8,10 @@ import asyncio
 
 from sqlalchemy import text
 
-from app.shared.database import Base, engine
-
 # Import ALL model modules to register them with Base.metadata
 from app.modules.auth.models import User  # noqa: F401
 from app.shared.audit import AuditLog  # noqa: F401
+from app.shared.database import Base, engine
 
 
 async def create_tables() -> None:

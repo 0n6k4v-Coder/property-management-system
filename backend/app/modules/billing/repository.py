@@ -8,11 +8,10 @@ References:
 """
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -24,8 +23,6 @@ from app.modules.billing.models import (
     Payment,
     UtilityRate,
 )
-from app.modules.billing.constants import LineItemType
-from sqlalchemy import select
 
 
 class BillingRepository:
@@ -71,7 +68,7 @@ class BillingRepository:
 
     async def get_meter_reading_history(
         self, room_id: uuid.UUID, limit: int = 12
-    ) -> List[MeterReading]:
+    ) -> list[MeterReading]:
         """Get meter reading history for a room, limited to most recent readings."""
         stmt = (
             select(MeterReading)
@@ -90,6 +87,18 @@ class BillingRepository:
             .order_by(MeterReading.created_at.desc())
             .limit(1)
         )
+        result = await self.db.execute(stmt)
+        return result.scalars().first()
+
+    async def get_room_property_id(self, room_id: uuid.UUID) -> uuid.UUID | None:
+        """Resolve a room's ``property_id`` (used for property-scope checks).
+
+        Returns ``None`` if the room does not exist. Imported lazily to avoid
+        a circular import with the property module at load time.
+        """
+        from app.modules.property.models import Room
+
+        stmt = select(Room.property_id).where(Room.id == room_id)
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
@@ -171,9 +180,21 @@ class BillingRepository:
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
+    async def get_invoice_property_id(self, invoice_id: uuid.UUID) -> uuid.UUID | None:
+        """Resolve an invoice's ``property_id`` (used for property-scope checks).
+
+        Returns ``None`` if the invoice does not exist. The ``property_id``
+        column is a plain ``Column`` on the model, so the returned value is
+        the resolved ``UUID`` (or ``None``).
+        """
+        stmt = select(Invoice.property_id).where(Invoice.id == invoice_id)
+        result = await self.db.execute(stmt)
+        value = result.scalars().first()
+        return uuid.UUID(str(value)) if value is not None else None
+
     async def get_invoices_for_month(
         self, property_id: uuid.UUID, billing_month: int, billing_year: int
-    ) -> List[Invoice]:
+    ) -> list[Invoice]:
         """Get all invoices for a property/month combination."""
         stmt = select(Invoice).where(
             Invoice.property_id == property_id,
@@ -195,7 +216,7 @@ class BillingRepository:
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
-    async def get_overdue_invoices(self) -> List[Invoice]:
+    async def get_overdue_invoices(self) -> list[Invoice]:
         """Get all overdue invoices (past due date, not paid, not cancelled)."""
         stmt = select(Invoice).where(
             Invoice.due_date < date.today(),
@@ -204,14 +225,73 @@ class BillingRepository:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def list_invoices(self, property_id: Optional[uuid.UUID] = None) -> List[Invoice]:
-        """List invoices, optionally filtered by property, newest due date first."""
-        stmt = select(Invoice).options(selectinload(Invoice.line_items))
-        if property_id is not None:
-            stmt = stmt.where(Invoice.property_id == property_id)
-        stmt = stmt.order_by(Invoice.due_date.desc())
+    async def list_invoices(
+        self, property_id: uuid.UUID | None = None
+    ) -> list[Invoice]:
+        """List invoices, optionally filtered by property, newest due date first.
+
+        Deprecated alias kept for callers that still pass a single property id
+        (e.g. ``GET /invoices?property_id=``). New scope-filtered list code
+        should use ``list_invoices_paginated``.
+        """
+        invoices, _ = await self.list_invoices_paginated(
+            property_ids=[property_id] if property_id is not None else None,
+            page=1,
+            limit=10_000,
+        )
+        return invoices
+
+    async def list_invoices_paginated(
+        self,
+        property_ids: list[uuid.UUID] | None = None,
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[Invoice], int]:
+        """List invoices scoped to ``property_ids``, newest due date first.
+
+        ``property_ids`` is the caller's allowed property set:
+        - ``None`` → no scope restriction (global owner/admin);
+        - ``[]``   → no allowed properties → return nothing;
+        - a list   → only invoices whose ``property_id`` is in the list.
+
+        Returns ``(invoices, total)`` where ``total`` is the count before
+        pagination, so the router can build the pagination ``meta`` block.
+        """
+        base = select(Invoice).options(selectinload(Invoice.line_items))
+        if property_ids is not None:
+            base = base.where(Invoice.property_id.in_(property_ids))
+
+        count_stmt = select(func.count()).select_from(base.subquery())
+        total = int((await self.db.execute(count_stmt)).scalar_one())
+
+        offset = (page - 1) * limit
+        stmt = (
+            base.order_by(Invoice.due_date.desc())
+            .offset(offset)
+            .limit(limit)
+        )
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        return list(result.scalars().all()), total
+
+    async def save_idempotency(
+        self, key: str, request_hash: str, response_body: str, expires_at: datetime
+    ) -> None:
+        """Persist an idempotency result (anti-pattern #1 fix, billing POSTs).
+
+        Mirrors ``UserRepository.save_idempotency`` — both write to the
+        shared ``idempotency_keys`` table. Kept here so billing idempotency
+        is self-contained rather than reaching across into the auth module.
+        """
+        from app.modules.auth.models import IdempotencyKey
+
+        record = IdempotencyKey(
+            key=key,
+            request_hash=request_hash,
+            response_body=response_body,
+            expires_at=expires_at,
+        )
+        self.db.add(record)
+        await self.db.flush()
 
     # ── Invoice Line Items ─────────────────────────────────────────────────
 
@@ -222,7 +302,7 @@ class BillingRepository:
         await self.db.refresh(line_item)
         return line_item
 
-    async def get_line_items(self, invoice_id: uuid.UUID) -> List[InvoiceLineItem]:
+    async def get_line_items(self, invoice_id: uuid.UUID) -> list[InvoiceLineItem]:
         """Get all line items for an invoice."""
         stmt = select(InvoiceLineItem).where(InvoiceLineItem.invoice_id == invoice_id)
         result = await self.db.execute(stmt)
@@ -270,9 +350,9 @@ class BillingRepository:
 
     async def create_invoices_batch(
         self,
-        invoices: List[Invoice],
-        line_items_by_invoice: dict[uuid.UUID, List[InvoiceLineItem]],
-    ) -> List[Invoice]:
+        invoices: list[Invoice],
+        line_items_by_invoice: dict[uuid.UUID, list[InvoiceLineItem]],
+    ) -> list[Invoice]:
         """Create multiple invoices with their line items in a single transaction."""
         for invoice in invoices:
             self.db.add(invoice)
