@@ -172,7 +172,7 @@ def create_app() -> FastAPI:
         # Unified error envelope (anti-pattern #3 fix): a 422 on any
         # endpoint returns the same ``{"error": {...}}`` shape as every
         # domain error instead of FastAPI's default ``{"detail": [...]}``.
-        def serialize_error(err: dict) -> dict:
+        def serialize_error(err: dict[str, Any]) -> dict[str, Any]:
             """Convert error dict to JSON-serializable format."""
             result = dict(err)
             if "ctx" in result:

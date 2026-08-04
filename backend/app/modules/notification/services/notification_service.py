@@ -14,6 +14,7 @@ References:
 import uuid
 from collections.abc import Sequence
 
+import structlog
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,6 +32,8 @@ from app.modules.notification.models import Notification
 from app.modules.notification.repository import NotificationRepository
 from app.shared.audit import log_audit
 from app.shared.exceptions import APIError
+
+logger = structlog.get_logger()
 
 
 class NotificationService:
@@ -100,33 +103,51 @@ class NotificationService:
             from app.workers.tasks.notification_tasks import send_email_notification_task
 
             recipient_email = await self._get_user_email(notif.user_id) if notif.user_id else None
-            send_email_notification_task.delay(
-                notification_id=str(notif.id),
-                user_id=str(sent_by),
-                recipient_email=recipient_email,
-                subject=subject,
-                body=body,
-            )
+            if recipient_email is not None:
+                send_email_notification_task.delay(
+                    notification_id=str(notif.id),
+                    user_id=str(sent_by),
+                    recipient_email=recipient_email,
+                    subject=subject,
+                    body=body,
+                )
+            else:
+                logger.warning(
+                    "Skip email notification %s: user %s has no email",
+                    notif.id, notif.user_id,
+                )
         elif channel == NotificationChannel.LINE:
             from app.workers.tasks.notification_tasks import send_line_notification_task
 
             recipient_line_id = await self._get_user_line_id(notif.user_id) if notif.user_id else None
-            send_line_notification_task.delay(
-                notification_id=str(notif.id),
-                user_id=str(sent_by),
-                recipient_line_id=recipient_line_id,
-                message=body,
-            )
+            if recipient_line_id is not None:
+                send_line_notification_task.delay(
+                    notification_id=str(notif.id),
+                    user_id=str(sent_by),
+                    recipient_line_id=recipient_line_id,
+                    message=body,
+                )
+            else:
+                logger.warning(
+                    "Skip LINE notification %s: user %s has no LINE ID",
+                    notif.id, notif.user_id,
+                )
         else:  # IN_APP or SMS
             from app.workers.tasks.notification_tasks import send_in_app_notification_task
 
-            send_in_app_notification_task.delay(
-                notification_id=str(notif.id),
-                user_id=str(sent_by),
-                recipient_user_id=str(notif.user_id) if notif.user_id else None,
-                title=subject,
-                body=body,
-            )
+            if notif.user_id is not None:
+                send_in_app_notification_task.delay(
+                    notification_id=str(notif.id),
+                    user_id=str(sent_by),
+                    recipient_user_id=str(notif.user_id),
+                    title=subject,
+                    _body=body,
+                )
+            else:
+                logger.warning(
+                    "Skip in-app notification %s: no recipient user",
+                    notif.id,
+                )
 
     async def _get_user_email(self, user_id: uuid.UUID) -> str | None:
         """Get user email from users table."""

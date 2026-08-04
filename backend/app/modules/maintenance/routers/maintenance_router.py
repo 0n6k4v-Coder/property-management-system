@@ -13,7 +13,7 @@ Implements the Target Design from docs/API.md fixing anti-patterns #5, #1, #20:
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, Header, Query, Response, status
+from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.constants import AUTH_005
@@ -31,7 +31,6 @@ from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
     get_current_user,
-    require_property_scope,
     user_has_property_scope,
 )
 from app.shared.exceptions import APIError
@@ -89,8 +88,8 @@ async def _check_scope(
 )
 async def create_maintenance_request(
     body: CreateMaintenanceRequest,
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     db: AsyncSession = GET_DB,
-    current_user: Annotated[CurrentUser, GET_CURRENT_USER] = ...,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> MaintenanceCreateResponse:
     """Create a new maintenance request (BR-08).

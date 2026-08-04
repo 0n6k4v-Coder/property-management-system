@@ -6,6 +6,10 @@ Contains:
 - Meter reminder scheduler
 - SLA monitoring scheduler
 """
+from typing import Any
+
+from celery.schedules import crontab
+
 from app.workers.schedulers.contract_expiry_scheduler import (
     contract_expiry_scheduler,
     register_contract_expiry_jobs,
@@ -23,9 +27,8 @@ from app.workers.schedulers.sla_monitoring_scheduler import (
     sla_monitoring_scheduler,
 )
 
-from celery.schedules import crontab
 
-def get_celery_beat_schedule() -> dict:
+def get_celery_beat_schedule() -> dict[str, Any]:
     """Return Celery Beat schedule configuration dict."""
     return {
         "send-overdue-reminders": {

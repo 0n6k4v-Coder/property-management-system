@@ -98,8 +98,7 @@ def get_worker_metrics() -> bytes:
     -------
     bytes: Prometheus exposition format metrics
     """
-    from typing import cast
-    return cast(bytes, generate_latest(worker_registry))
+    return generate_latest(worker_registry)
 
 
 def record_task_start(_task_name: str, _queue: str) -> float:
