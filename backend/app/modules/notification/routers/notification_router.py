@@ -88,7 +88,7 @@ async def _check_scope(
 )
 async def send_test_notification(
     response: Response,
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     body: SendNotificationRequest,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = get_db_dep,
@@ -103,7 +103,7 @@ async def send_test_notification(
     Caching (#20): ``Cache-Control: private, no-store``.
     """
     # Additional scope check using helper (belt-and-suspenders)
-    await _check_scope(current_user, db, body.property_id)
+    await _check_scope(_current_user, db, body.property_id)
 
     # Idempotency check
     if idempotency_key:
@@ -124,7 +124,7 @@ async def send_test_notification(
         channel=body.channel,
         subject=body.subject,
         body=body.body,
-        sent_by=uuid.UUID(current_user["user_id"]),
+        sent_by=uuid.UUID(_current_user["user_id"]),
         _idempotency_key=idempotency_key,
     )
 
@@ -203,7 +203,7 @@ async def get_notification_history(
 async def get_notification(
     response: Response,
     notif_id: uuid.UUID,
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: AsyncSession = get_db_dep,
 ) -> dict[str, Any]:
     """GET /api/v1/notifications/{notif_id}.
@@ -224,7 +224,7 @@ async def get_notification(
         )
 
     # Resolve-then-check: get property_id from notification, then check scope
-    await _check_scope(current_user, db, notif.property_id)
+    await _check_scope(_current_user, db, notif.property_id)
 
     return {"data": NotificationResponse.model_validate(notif), "meta": None}
 
@@ -238,7 +238,7 @@ async def get_notification(
 )
 async def resend_notification(
     response: Response,
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     notif_id: uuid.UUID,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = get_db_dep,
@@ -262,7 +262,7 @@ async def resend_notification(
         )
 
     # Resolve-then-check (mirror maintenance_router.py:190-192)
-    await _check_scope(current_user, db, notif.property_id)
+    await _check_scope(_current_user, db, notif.property_id)
 
     # Idempotency check
     if idempotency_key:
@@ -278,7 +278,7 @@ async def resend_notification(
     service = NotificationService(db)
     await service.resend(
         notif_id=notif_id,
-        resent_by=uuid.UUID(current_user["user_id"]),
+        resent_by=uuid.UUID(_current_user["user_id"]),
         _idempotency_key=idempotency_key,
     )
 

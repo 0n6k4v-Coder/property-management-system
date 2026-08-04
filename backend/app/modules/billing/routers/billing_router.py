@@ -55,6 +55,7 @@ from app.modules.billing.services import BillingService
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    get_current_user,
     require_property_scope,
     user_has_property_scope,
 )
@@ -207,7 +208,7 @@ async def get_meter_reading_history(
 async def generate_invoice(
     request: GenerateInvoiceRequest,
     _: Annotated[None, require_property_scope()],
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> InvoiceCreateResponse:
@@ -232,7 +233,7 @@ async def generate_invoice(
         property_id=request.property_id,
         billing_month=request.billing_month,
         billing_year=request.billing_year,
-        created_by=uuid.UUID(current_user["user_id"]),
+        created_by=uuid.UUID(_current_user["user_id"]),
     )
     response = InvoiceCreateResponse(
         data=InvoiceResponse.from_model(invoice)
@@ -259,7 +260,7 @@ async def generate_invoice(
 )
 async def list_invoices(
     response: Response,
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     property_id: uuid.UUID | None = QUERY_PROPERTY_ID,
     page: int = QUERY_PAGE,
     limit: int = QUERY_LIMIT_20,
@@ -281,10 +282,10 @@ async def list_invoices(
     service = BillingService(db)
     if property_id is not None:
         # Direct field: check the supplied property's scope directly.
-        await _check_scope(current_user, db, property_id)
+        await _check_scope(_current_user, db, property_id)
         allowed_property_ids: list[uuid.UUID] | None = [property_id]
     else:
-        allowed_property_ids = await service.get_current_user_property_ids(current_user)
+        allowed_property_ids = await service.get_current_user_property_ids(_current_user)
 
     invoices, total = await service.repo.list_invoices_paginated(
         property_ids=allowed_property_ids,
@@ -311,7 +312,7 @@ async def list_invoices(
 )
 async def get_invoice_detail(
     response: Response,
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     invoice_id: uuid.UUID,
     db: AsyncSession = GET_DB,
 ) -> InvoiceDetailWrapperResponse:
@@ -335,7 +336,7 @@ async def get_invoice_detail(
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    await _check_scope(current_user, db, invoice.property_id)
+    await _check_scope(_current_user, db, invoice.property_id)
 
     return InvoiceDetailWrapperResponse(
         data=InvoiceDetailResponse(
@@ -366,7 +367,7 @@ async def get_invoice_detail(
 )
 async def record_payment(
     request: RecordPaymentRequest,
-    current_user: CurrentUser,
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> PaymentCreateResponse:
@@ -383,7 +384,7 @@ async def record_payment(
     invoice_property_id: uuid.UUID | None = await repo.get_invoice_property_id(
         request.invoice_id
     )
-    await _check_scope(current_user, db, invoice_property_id)
+    await _check_scope(_current_user, db, invoice_property_id)
 
     if idempotency_key:
         cached = await check_idempotency(
@@ -400,7 +401,7 @@ async def record_payment(
         invoice_id=request.invoice_id,
         amount=request.amount,
         method=request.method.value,
-        recorded_by=uuid.UUID(current_user["user_id"]),
+        recorded_by=uuid.UUID(_current_user["user_id"]),
         reference_number=request.reference_number,
     )
     response = PaymentCreateResponse(

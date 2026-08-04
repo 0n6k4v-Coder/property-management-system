@@ -145,9 +145,9 @@ async def create_maintenance_request(
     summary="List pending maintenance requests by property",
 )
 async def list_pending_requests(
+    _current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     response: Response,
     property_id: uuid.UUID = QUERY_PROPERTY_ID,
-    current_user: CurrentUser = GET_CURRENT_USER,
     db: AsyncSession = GET_DB,
 ) -> MaintenanceListResponse:
     """Get pending maintenance requests for a property (fixes #5, #20).
@@ -158,7 +158,7 @@ async def list_pending_requests(
     are property-scoped and must not be shared/stored.
     """
     # Fixes #5: scope check after FastAPI parses query param
-    await _check_scope(current_user, db, property_id)
+    await _check_scope(_current_user, db, property_id)
     # Fixes #20: maintenance list must never be cached/shared.
     response.headers["Cache-Control"] = "private, no-store"
 
@@ -179,10 +179,10 @@ async def list_pending_requests(
     summary="Get a maintenance request by ID",
 )
 async def get_maintenance_request(
+    _current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     response: Response,
     request_id: uuid.UUID,
     db: AsyncSession = GET_DB,
-    current_user: CurrentUser = GET_CURRENT_USER,
 ) -> MaintenanceCreateResponse:
     """Get a single maintenance request by ID (fixes #5, #20).
 
@@ -195,7 +195,7 @@ async def get_maintenance_request(
 
     repo = MaintenanceRepository(db)
     prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
-    await _check_scope(current_user, db, prop_id)
+    await _check_scope(_current_user, db, prop_id)
 
     service = MaintenanceService(db)
     request = await service.get_request(request_id)
@@ -212,10 +212,10 @@ async def get_maintenance_request(
     description="Updates status per BR-09 workflow: pending → in_progress → resolved/cancelled.",
 )
 async def update_maintenance_status(
+    _current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     request_id: uuid.UUID,
     body: UpdateMaintenanceStatusRequest,
     db: AsyncSession = GET_DB,
-    current_user: CurrentUser = GET_CURRENT_USER,
 ) -> MaintenanceCreateResponse:
     """Update the status of a maintenance request (fixes #5).
 
@@ -224,13 +224,13 @@ async def update_maintenance_status(
     """
     repo = MaintenanceRepository(db)
     prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
-    await _check_scope(current_user, db, prop_id)
+    await _check_scope(_current_user, db, prop_id)
 
     service = MaintenanceService(db)
     request = await service.update_status(
         request_id=request_id,
         new_status=body.status,
-        changed_by=uuid.UUID(current_user["user_id"]),
+        changed_by=uuid.UUID(_current_user["user_id"]),
     )
     return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
 
@@ -244,10 +244,10 @@ async def update_maintenance_status(
     summary="Assign a maintenance request to a user",
 )
 async def assign_maintenance_request(
+    _current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     request_id: uuid.UUID,
     body: AssignMaintenanceRequest,
     db: AsyncSession = GET_DB,
-    current_user: CurrentUser = GET_CURRENT_USER,
 ) -> MaintenanceCreateResponse:
     """Assign a maintenance request to a user (fixes #5).
 
@@ -256,13 +256,13 @@ async def assign_maintenance_request(
     """
     repo = MaintenanceRepository(db)
     prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
-    await _check_scope(current_user, db, prop_id)
+    await _check_scope(_current_user, db, prop_id)
 
     service = MaintenanceService(db)
     request = await service.assign_to(
         request_id=request_id,
         assigned_to=body.assigned_to,
-        assigned_by=uuid.UUID(current_user["user_id"]),
+        assigned_by=uuid.UUID(_current_user["user_id"]),
     )
     return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
 
