@@ -141,11 +141,19 @@ def require_property_scope(
             _: Annotated[None, require_property_scope(query_param="property_id")],
         ): ...
     """
+    # Capture values at definition time via default args (more reliable than closure)
+    _path_param = path_param
+    _query_param = query_param
 
     async def _enforce(
         current_user: Annotated[dict[str, Any], Depends(get_current_user)],
         request: Request,
         db: AsyncSession = GET_DB,
+        # Default args capture the values at function definition time.
+        # Use keyword-only parameters (after *) so FastAPI doesn't treat them as request params.
+        *,
+        path_param: str | None = _path_param,
+        query_param: str | None = _query_param,
     ) -> None:
         import uuid as _uuid
 
@@ -154,8 +162,20 @@ def require_property_scope(
         # Resolve the property_id from the configured source.
         try:
             if path_param is not None:
+                if not hasattr(request, 'path_params'):
+                    raise APIError(
+                        code="AUTH-005",
+                        message=AUTH_005,
+                        status_code=status.HTTP_403_FORBIDDEN,
+                    )
                 raw = request.path_params[path_param]
             elif query_param is not None:
+                if not hasattr(request, 'query_params'):
+                    raise APIError(
+                        code="AUTH-005",
+                        message=AUTH_005,
+                        status_code=status.HTTP_403_FORBIDDEN,
+                    )
                 raw = request.query_params[query_param]
             else:
                 body = await request.json()

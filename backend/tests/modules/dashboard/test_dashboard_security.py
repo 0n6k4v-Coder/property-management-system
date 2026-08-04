@@ -217,7 +217,7 @@ class TestPropertyScopeEnforcement:
                 # For "has_scope" case, we pass _=None (dependency succeeded)
                 await endpoint_fn(
                     response=response,
-                    current_user={},
+                    _current_user={},
                     db=AsyncMock(),
                     _=None,  # require_property_scope dependency
                     **endpoint_kwargs)
@@ -297,7 +297,7 @@ class TestRevenueDateValidation:
             with pytest.raises(APIError) as exc:
                 await dashboard_router.get_revenue_report(
                                 response=_FakeResponse(),
-                                current_user={},
+                                _current_user={},
                                 db=AsyncMock(),
                                 property_id=uuid.uuid4(),
                                 start_date=date(2026, 2, 1),
@@ -319,7 +319,7 @@ class TestRevenueDateValidation:
             with pytest.raises(APIError) as exc:
                 await dashboard_router.get_revenue_report(
                     response=_FakeResponse(),
-                    current_user={},
+                    _current_user={},
                     db=AsyncMock(),
                     property_id=uuid.uuid4(),
                     start_date=date(2020, 1, 1),
@@ -341,7 +341,7 @@ class TestRevenueDateValidation:
 
             await dashboard_router.get_revenue_report(
                 response=_FakeResponse(),
-                current_user={},
+                _current_user={},
                 db=AsyncMock(),
                 property_id=uuid.uuid4(),
                 start_date=date(2026, 1, 1),
@@ -422,7 +422,7 @@ class TestRevenueDateValidation:
             with pytest.raises(APIError) as exc:
                 await dashboard_router.get_revenue_report(
                                 response=_FakeResponse(),
-                                current_user={},
+                                _current_user={},
                                 db=AsyncMock(),
                                 property_id=uuid.uuid4(),
                                 start_date=date(2026, 2, 1),
@@ -444,7 +444,7 @@ class TestRevenueDateValidation:
             with pytest.raises(APIError) as exc:
                 await dashboard_router.get_revenue_report(
                     response=_FakeResponse(),
-                    current_user={},
+                    _current_user={},
                     db=AsyncMock(),
                     property_id=uuid.uuid4(),
                     start_date=date(2020, 1, 1),
@@ -466,7 +466,7 @@ class TestRevenueDateValidation:
 
             await dashboard_router.get_revenue_report(
                 response=_FakeResponse(),
-                current_user={},
+                _current_user={},
                 db=AsyncMock(),
                 property_id=uuid.uuid4(),
                 start_date=date(2026, 1, 1),

@@ -63,7 +63,7 @@ async def create_tenant(
     payload: CreateTenantRequest,
     _: Annotated[None, require_property_scope()],
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> TenantCreateResponse:
     """Register a new tenant with encrypted ID card.
@@ -81,7 +81,7 @@ async def create_tenant(
     from app.modules.auth.repository import UserRepository
 
     service = TenantService(db)
-    user_id: str = current_user["user_id"]
+    user_id = _current_user["user_id"]
 
     if idempotency_key:
         cached = await check_idempotency(
@@ -135,7 +135,7 @@ async def create_tenant(
 )
 async def list_tenants(
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
     page: int = QUERY_PAGE,
     limit: int = QUERY_LIMIT_20,
     property_id: _uuid_module.UUID | None = QUERY_PROPERTY_ID_OPTIONAL,
@@ -148,7 +148,7 @@ async def list_tenants(
     from app.modules.auth.repository import UserRepository
 
     service = TenantService(db)
-    user_id = _uuid_module.UUID(current_user["user_id"])
+    user_id = _uuid_module.UUID(_current_user["user_id"])
     user = await UserRepository(db).get_by_id(user_id)
     is_global = user is not None and user.email in (
         e.strip().lower() for e in __import__("app.config").config.get_settings().ADMIN_EMAILS.split(",") if e.strip()
@@ -187,7 +187,7 @@ async def search_tenants(
     page: int = QUERY_PAGE,
     limit: int = QUERY_LIMIT_20,
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
 ) -> dict[str, Any]:
     """Search for tenants by name, phone, or email within a property.
 

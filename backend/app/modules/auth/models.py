@@ -57,7 +57,7 @@ class UserPropertyScope(Base):
         default=PropertyRole.staff,
     )
 
-    user: Mapped["User"] = relationship("User", back_populates="property_scopes")
+    user: Mapped[User] = relationship("User", back_populates="property_scopes")
     property: Mapped[Property] = relationship("Property", back_populates="users")
 
     def __repr__(self) -> str:

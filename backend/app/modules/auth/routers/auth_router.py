@@ -30,7 +30,7 @@ from app.modules.auth.schemas import (
 from app.modules.auth.services.auth_service import AuthService
 from app.modules.auth.services.invite_service import InviteService
 from app.shared import get_db
-from app.shared.deps import CurrentUser, GET_CURRENT_USER, get_current_user, require_property_scope
+from app.shared.deps import CurrentUser, get_current_user
 from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["auth"])

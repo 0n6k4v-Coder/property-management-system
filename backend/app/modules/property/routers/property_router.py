@@ -62,7 +62,7 @@ QUERY_LIMIT_20 = Query(20, ge=1, le=100, description="Items per page")
 async def get_property(
     property_id: uuid.UUID,
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
 ) -> PropertyDetailResponse:
     """Retrieve a single property by its UUID.
 
@@ -91,7 +91,7 @@ async def get_property(
 )
 async def list_properties(
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
     page: int = QUERY_PAGE,
     limit: int = QUERY_LIMIT_20,
 ) -> PropertyListResponse:
@@ -102,8 +102,8 @@ async def list_properties(
     are paginated via ``page``/``limit`` (anti-pattern #13).
     """
     service = PropertyService(db)
-    is_global = is_global_scope(current_user)
-    user_id_str = current_user.get("user_id")
+    is_global = is_global_scope(_current_user)
+    user_id_str = _current_user.get("user_id")
     user_id = uuid.UUID(str(user_id_str)) if user_id_str else None
 
     properties, total = await service.list_properties_paginated(
@@ -133,7 +133,7 @@ async def list_properties(
 async def create_property(
     payload: CreatePropertyRequest,
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> PropertyCreateResponse:
     """Create a new property.
@@ -145,7 +145,7 @@ async def create_property(
     from app.modules.auth.repository import UserRepository
 
     service = PropertyService(db)
-    user_id = uuid.UUID(str(current_user["user_id"]))
+    user_id = uuid.UUID(str(_current_user["user_id"]))
 
     if idempotency_key:
         cached = await check_idempotency(
@@ -192,7 +192,7 @@ async def get_property_rooms(
     property_id: uuid.UUID,
     _: Annotated[None, require_property_scope("property_id")],
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
     page: int = QUERY_PAGE,
     limit: int = QUERY_LIMIT_20,
 ) -> PropertyWithRoomsResponse:
@@ -235,7 +235,7 @@ async def update_room_status(
     payload: UpdateRoomStatusRequest,
     _: Annotated[None, require_property_scope("property_id")],
     db: AsyncSession = GET_DB,
-    current_user: dict[str, Any] = GET_CURRENT_USER,  # noqa: ARG001
+    _current_user: dict[str, Any] = GET_CURRENT_USER,
 ) -> dict[str, Any]:
     """Update a room's current status (available/occupied/maintenance).
 
@@ -244,7 +244,7 @@ async def update_room_status(
     Audit log is recorded automatically by the service.
     """
     service = PropertyService(db)
-    user_id = uuid.UUID(str(current_user["user_id"]))
+    user_id = uuid.UUID(str(_current_user["user_id"]))
 
     room = await service.update_room_status(
         room_id=room_id,

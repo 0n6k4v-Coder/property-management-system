@@ -16,7 +16,7 @@ import uuid
 from datetime import date
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Body, Depends, Header, Response, status
+from fastapi import APIRouter, Depends, Header, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.auth.constants import AUTH_005
@@ -34,10 +34,8 @@ from app.modules.contract.schemas import (
 from app.modules.contract.services.contract_service import ContractService
 from app.shared.database import get_db
 from app.shared.deps import (
-    CurrentUser,
     GET_CURRENT_USER,
-    get_current_user,
-    require_property_scope,
+    CurrentUser,
     user_has_property_scope,
 )
 from app.shared.exceptions import APIError

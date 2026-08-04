@@ -28,6 +28,7 @@ from app.modules.dashboard.services.dashboard_service import DashboardService
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    get_current_user,
     require_property_scope,
 )
 
@@ -48,10 +49,10 @@ END_DATE_QUERY = Query(None, description="End date (YYYY-MM-DD)")
     description="Returns occupancy, revenue, overdue, and maintenance counts for a property.",
 )
 async def get_dashboard_summary(
-    response: Response,
-    current_user: CurrentUser,  # noqa: ARG001
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[AsyncSession, GET_DB],
     _: Annotated[None, require_property_scope(query_param="property_id")],
+    response: Response,
     property_id: uuid.UUID = PROPERTY_QUERY,
 ) -> DashboardSummaryWrapper:
     """GET /api/v1/dashboard/summary — fixes #5, #20."""
@@ -70,10 +71,10 @@ async def get_dashboard_summary(
     description="Monthly revenue aggregation for a date range.",
 )
 async def get_revenue_report(
-    response: Response,
-    current_user: CurrentUser,  # noqa: ARG001
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[AsyncSession, GET_DB],
     _: Annotated[None, require_property_scope(query_param="property_id")],
+    response: Response,
     property_id: uuid.UUID = PROPERTY_QUERY,
     start_date: date | None = START_DATE_QUERY,
     end_date: date | None = END_DATE_QUERY,
@@ -100,10 +101,10 @@ async def get_revenue_report(
     description="Returns current occupancy rate and room counts.",
 )
 async def get_occupancy(
-    response: Response,
-    current_user: CurrentUser,  # noqa: ARG001
+    _current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: Annotated[AsyncSession, GET_DB],
     _: Annotated[None, require_property_scope(query_param="property_id")],
+    response: Response,
     property_id: uuid.UUID = PROPERTY_QUERY,
 ) -> OccupancyWrapper:
     """GET /api/v1/dashboard/occupancy — fixes #5, #11, #20."""
