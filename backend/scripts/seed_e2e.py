@@ -394,6 +394,33 @@ async def seed_e2e() -> None:
             await session.flush()
             print("✅ Created utility rate for Sunset Tower (property-level)")
 
+        # ── Idempotent room status sync ───────────────────────────────────
+        # Always sync room status with active contracts to prevent DB state
+        # pollution from repeated seed runs without --reset. Only affects
+        # fixture rooms in Sunset Tower (property_id = PROPERTY_SUNSET_ID).
+        from sqlalchemy import select
+
+        # Get all active contracts for Sunset Tower
+        active_contracts = await session.execute(
+            select(Contract).where(
+                Contract.property_id == PROPERTY_SUNSET_ID,
+                Contract.status == ContractStatus.ACTIVE,
+            )
+        )
+        active_contract_room_ids = {c.room_id for c in active_contracts.scalars().all()}
+
+        # Get all fixture rooms for Sunset Tower
+        fixture_rooms = await session.execute(
+            select(Room).where(Room.property_id == PROPERTY_SUNSET_ID)
+        )
+        for room in fixture_rooms.scalars().all():
+            expected_status = (
+                RoomStatus.OCCUPIED if room.id in active_contract_room_ids else RoomStatus.AVAILABLE
+            )
+            if room.status != expected_status:
+                room.status = expected_status
+                print(f"🔄 Synced room {room.room_number} status → {expected_status.value}")
+
         await session.commit()
         print("\n🎉 E2E fixture data seeded successfully.")
         print(f"   Property (Sunset Tower):    {PROPERTY_SUNSET_ID}")
