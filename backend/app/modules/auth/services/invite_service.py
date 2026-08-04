@@ -174,7 +174,7 @@ class InviteService:
             )
 
         invite_email = payload.get("invite_email")
-        property_id = payload.get("property_id")  # noqa: F841 — used in audit/future scope assignment
+        _property_id = payload.get("property_id")
 
         if not invite_email:
             raise APIError(

@@ -45,7 +45,7 @@ engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=300, queue="maintenance")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=2, default_retry_delay=300, queue="maintenance")
 async def check_sla_breaches_task(self: CeleryTask, property_id: str | None = None) -> dict[str, Any]:
     """Check for SLA breaches in maintenance requests.
 
@@ -151,7 +151,7 @@ async def _handle_sla_breach(
     )
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=600, queue="notifications")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=2, default_retry_delay=600, queue="notifications")
 async def send_overdue_alerts_task(self: CeleryTask) -> dict[str, Any]:
     """Send overdue payment reminders to tenants.
 
@@ -256,7 +256,7 @@ async def _send_overdue_alert(
     )
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")
 async def check_contract_expiry_task(self: CeleryTask) -> dict[str, Any]:
     """Check for contracts expiring in 90, 60, 30 days and send notifications.
 
@@ -364,7 +364,7 @@ async def _send_contract_expiry_notification(
     )
 
 
-@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=1, default_retry_delay=3600, queue="maintenance")
 async def cleanup_expired_sessions_task(self: CeleryTask) -> dict[str, Any]:
     """Clean up expired sessions and tokens.
 

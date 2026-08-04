@@ -7,12 +7,12 @@ import {
   useCallback,
   useEffect,
   useId,
-  useRef,
   type ReactNode,
 } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/AuthContext';
 import { useSidebar } from '@/shared/hooks/useSidebar';
+import { Dialog } from '@/shared/components/Dialog';
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -320,62 +320,6 @@ function SidebarContent({ expanded, onToggle, onNavigate }: SidebarContentProps)
   );
 }
 
-// ── Focus Trap ──────────────────────────────────────────────────────
-// Trap Tab/Shift+Tab within the mobile drawer while open.
-
-/**
- * useFocusTrap — restricts keyboard focus to elements within a container ref.
- * Activated when `active` is true. Restores focus to the previously focused
- * element on cleanup. Elements are discovered via querySelectorAll on focusable selectors.
- */
-function useFocusTrap(active: boolean) {
-  const containerRef = useRef<HTMLDialogElement>(null);
-
-  useEffect(() => {
-    /* eslint-disable react-doctor/no-event-handler -- focus trap requires imperative DOM focus management */
-    if (!active || !containerRef.current) return;
-    const container = containerRef.current;
-
-    const focusableSelector =
-      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-
-    // Move focus into the container on activation.
-    const firstFocusable = container.querySelector<HTMLElement>(focusableSelector);
-    if (firstFocusable) firstFocusable.focus();
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const focusables = Array.from(
-        container.querySelectorAll<HTMLElement>(focusableSelector),
-      );
-      if (focusables.length === 0) return;
-      const first = focusables[0]!;
-      const last = focusables[focusables.length - 1]!;
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('keydown', handleKeyDown);
-      if (previouslyFocused) previouslyFocused.focus();
-    };
-  }, [active]);
-
-  return containerRef;
-}
-
 // ── Mobile Drawer (overlay) ─────────────────────────────────────────
 
 function MobileDrawer({
@@ -385,22 +329,8 @@ function MobileDrawer({
   open: boolean;
   onClose: () => void;
 }) {
-  const drawerRef = useFocusTrap(open);
   const drawerLabelId = useId();
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-
-  // Close on Escape key — native <dialog> fires 'cancel' event on Escape.
-  useEffect(() => {
-    if (!open) return;
-    const onCancel = (e: Event) => {
-      e.preventDefault();
-      onCloseRef.current();
-    };
-    const dialog = drawerRef.current;
-    dialog?.addEventListener('cancel', onCancel);
-    return () => dialog?.removeEventListener('cancel', onCancel);
-  }, [open]); // eslint-disable-line react-doctor/exhaustive-deps -- drawerRef is a stable ref
+  const handleClose = useCallback(() => onClose(), [onClose]);
 
   // Prevent body scroll while drawer open.
   useEffect(() => {
@@ -412,44 +342,17 @@ function MobileDrawer({
     };
   }, [open]);
 
-  // Swipe-to-close (left swipe).
-  const touchStartX = useRef(0);
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0]?.clientX ?? 0;
-  }, []);
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    const endX = e.changedTouches[0]?.clientX ?? 0;
-    if (touchStartX.current - endX > 60) onCloseRef.current();
-  }, []);
-
-  // Show/hide via the native <dialog> API.
-  useEffect(() => {
-    /* eslint-disable react-doctor/no-pass-data-to-parent, react-doctor/no-event-handler -- native dialog showModal/close is imperative */
-    const dialog = drawerRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-    } else if (!open && dialog.open) {
-      dialog.close();
-    }
-  }, [open, drawerRef]);
-
-  const handleClose = useCallback(() => onCloseRef.current(), []);
-
   return (
-    <dialog
-      ref={drawerRef}
-      aria-labelledby={drawerLabelId}
-      className="m-0 h-full w-60 max-h-full max-w-full animate-[slide-in-left_200ms_ease-out] border-0 bg-transparent p-0 shadow-xl md:hidden backdrop:bg-black/50"
-      onTouchStart={onTouchStart}
-      onTouchEnd={onTouchEnd}
+    <Dialog
+      open={open}
       onClose={handleClose}
+      className="m-0 h-full w-60 max-h-full max-w-full animate-[slide-in-left_200ms_ease-out] border-0 bg-transparent p-0 shadow-xl md:hidden backdrop:bg-black/50"
     >
       <span id={drawerLabelId} className="sr-only">
         Navigation menu
       </span>
       <SidebarContent expanded onToggle={handleClose} onNavigate={handleClose} />
-    </dialog>
+    </Dialog>
   );
 }
 

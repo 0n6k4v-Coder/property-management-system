@@ -26,7 +26,7 @@ engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="billing")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="billing")
 async def generate_bulk_invoices_task(
     self: CeleryTask, property_id: str, billing_month: int, billing_year: int, user_id: str
 ) -> dict[str, Any]:
@@ -85,8 +85,8 @@ async def generate_bulk_invoices_task(
             raise self.retry(exc=exc, countdown=120 * (2**self.request.retries)) from exc
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=120, queue="billing")  # type: ignore[untyped-decorator]
-async def generate_invoice_pdf_task(self: CeleryTask, invoice_id: str, user_id: str) -> dict[str, Any]:  # noqa: ARG001
+@shared_task(bind=True, max_retries=3, default_retry_delay=120, queue="billing")
+async def generate_invoice_pdf_task(_self: CeleryTask, invoice_id: str, user_id: str) -> dict[str, Any]:
     """Generate PDF for a specific invoice.
 
     Parameters
@@ -160,7 +160,7 @@ async def _generate_invoice_pdf(invoice_id: str, user_id: str) -> dict[str, Any]
             raise exc
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")
 async def send_invoice_email_task(self: CeleryTask, invoice_id: str, recipient_email: str, user_id: str) -> dict[str, Any]:
     """Send invoice via email to tenant.
 

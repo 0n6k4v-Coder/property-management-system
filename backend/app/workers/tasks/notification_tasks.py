@@ -33,7 +33,7 @@ engine = create_async_engine(settings.DATABASE_URL, pool_pre_ping=True)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=30, queue="notifications")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=3, default_retry_delay=30, queue="notifications")
 async def send_line_notification_task(
     self: CeleryTask,
     notification_id: str,
@@ -123,7 +123,7 @@ async def send_line_notification_task(
             raise self.retry(exc=exc, countdown=30 * (2**self.request.retries)) from exc
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=3, default_retry_delay=60, queue="notifications")
 async def send_email_notification_task(
     self: CeleryTask,
     notification_id: str,
@@ -218,7 +218,7 @@ async def send_email_notification_task(
             raise self.retry(exc=exc, countdown=60 * (2**self.request.retries)) from exc
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=10, queue="notifications")  # type: ignore[untyped-decorator]
+@shared_task(bind=True, max_retries=2, default_retry_delay=10, queue="notifications")
 async def send_in_app_notification_task(
     self: CeleryTask,
     notification_id: str,

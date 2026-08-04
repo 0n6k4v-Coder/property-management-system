@@ -2,8 +2,6 @@
 // API type definitions matching Backend v1.0.0 modules.
 // Run `npx openapi-typescript http://localhost:8000/openapi.json -o src/types/api.d.ts` to auto-generate.
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 declare namespace API {
   // ── Common ───────────────────────────────────────────────
 

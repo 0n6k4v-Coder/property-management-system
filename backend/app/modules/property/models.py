@@ -25,15 +25,12 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-# Imported so the relationship string "UserPropertyScope" resolves at
-# mapper-configuration time (registered on Base.metadata via auth.models).
-from app.modules.auth.models import UserPropertyScope  # noqa: F401
-from app.modules.property.constants import RoomStatus, RoomType
-from app.shared.database import Base
-
 if TYPE_CHECKING:
+    from app.modules.auth.models import UserPropertyScope
     from app.modules.billing.models import Invoice, MeterReading
     from app.modules.maintenance.models import MaintenanceRequest
+from app.modules.property.constants import RoomStatus, RoomType
+from app.shared.database import Base
 
 
 class Property(Base):
