@@ -2,15 +2,16 @@
 // Reports page with filters, charts, and export.
 // SCR-REPORTS: Dynamic chart loading, filter sidebar, export controls.
 
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { useRevenueReport, useOverdueReport } from './api';
-import { RevenueChart } from './components/RevenueChart';
-import { OverdueChart } from './components/OverdueChart';
 import { exportRevenueToCsv } from './utils/export';
 import { Button } from '@/shared/ui/Button';
 import { Card, CardHeader } from '@/shared/ui/Card';
 import { Input } from '@/shared/ui/Input';
 import { CardSkeleton } from '@/shared/ui/CardSkeleton';
+
+const RevenueChart = lazy(() => import('./components/RevenueChart').then(m => ({ default: m.RevenueChart })));
+const OverdueChart = lazy(() => import('./components/OverdueChart').then(m => ({ default: m.OverdueChart })));
 
 export default function ReportsPage() {
   const today = new Date();
@@ -67,7 +68,9 @@ export default function ReportsPage() {
         {revLoading ? (
           <CardSkeleton />
         ) : revenue && revenue.length > 0 ? (
-          <RevenueChart data={revenue} />
+          <Suspense fallback={<CardSkeleton />}>
+            <RevenueChart data={revenue} />
+          </Suspense>
         ) : (
           <p className="text-center text-surface-400 text-sm py-12">No revenue data available</p>
         )}
@@ -76,7 +79,9 @@ export default function ReportsPage() {
       {/* Overdue Summary */}
       <Card>
         <CardHeader title="Overdue Summary" subtitle="Current overdue invoice status" />
-        <OverdueChart data={overdue ?? []} />
+        <Suspense fallback={<CardSkeleton />}>
+          <OverdueChart data={overdue ?? []} />
+        </Suspense>
       </Card>
     </div>
   );
