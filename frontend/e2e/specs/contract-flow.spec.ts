@@ -53,7 +53,7 @@
 //       assert-absence test on `/contracts/:id`. Documented as F-41.
 //
 import { test, expect, type APIRequestContext } from '@playwright/test';
-import { login } from '../utils/test-helpers';
+import { login, navigateTo } from '../utils/test-helpers';
 import { captureAllStates, type CapturedStates } from '../utils/state-capture';
 import { SEEDED } from '../fixtures/seeded-ids';
 
@@ -93,8 +93,7 @@ test.describe('Contract Management Flow', () => {
 
   test('should display active contracts list', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts');
-    await expect(page.locator('h1').first()).toContainText(/contracts/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts', /contracts/i);
 
     await expect(page.getByText('8,000')).toBeVisible();
 
@@ -106,8 +105,7 @@ test.describe('Contract Management Flow', () => {
 
   test('should navigate to contract detail and show real contract data', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts');
-    await expect(page.locator('h1').first()).toContainText(/contracts/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts', /contracts/i);
 
     await page.getByRole('link', { name: new RegExp(`View contract ${SEEDED.contractRoom102Id.slice(0, 8)}`, 'i') }).click();
     await expect(page).toHaveURL(new RegExp(`/contracts/${SEEDED.contractRoom102Id}`));
@@ -126,8 +124,7 @@ test.describe('Contract Management Flow', () => {
     const contractId = await createThrowawayContract(request);
 
     await login(page);
-    await page.goto(`/contracts/${contractId}`);
-    await expect(page.getByRole('button', { name: 'Terminate' })).toBeVisible({ timeout: 30000 });
+    await navigateTo(page, `/contracts/${contractId}`, /contract/i);
 
     await page.getByRole('button', { name: 'Terminate' }).click();
     await expect(page.getByRole('dialog', { name: 'Terminate Contract' })).toBeVisible();
@@ -147,9 +144,7 @@ test.describe('Contract Management Flow', () => {
 
   test('should navigate to new contract form', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts');
-    await expect(page.locator('h1').first()).toContainText(/contracts/i, { timeout: 30000 });
-
+    await navigateTo(page, '/contracts', /contracts/i);
     await page.getByRole('link', { name: 'New Contract' }).click();
     await expect(page).toHaveURL(/\/contracts\/new/);
 
@@ -161,8 +156,7 @@ test.describe('Contract Management Flow', () => {
   // ── CONT-02: Create contract (real UI fill, room 103 — available, no BR-01 clash) ──
   test('CONT-02 should create a contract via the form', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts/new');
-    await expect(page.locator('h1').first()).toContainText(/new contract/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts/new', /new contract/i);
 
     await page.locator('#property-select').selectOption({ label: 'Sunset Tower' });
     await page.locator('#room-select').selectOption({ value: SEEDED.room103Id }, { timeout: 30000 });
@@ -188,8 +182,7 @@ test.describe('Contract Management Flow', () => {
   // ── CONT-03: Filter by status — NOT IMPLEMENTED (list has only a Property filter) ──
   test('CONT-03 should assert status filter is not implemented', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts');
-    await expect(page.locator('h1').first()).toContainText(/contracts/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts', /contracts/i);
 
     await expect(page.getByRole('combobox', { name: /status/i })).toHaveCount(0);
     await expect(page.getByLabel(/status/i)).toHaveCount(0);
@@ -236,8 +229,7 @@ test.describe('Contract Management Flow', () => {
     const contractId = await createThrowawayOnRoom(request, SEEDED.room104Id);
 
     await login(page);
-    await page.goto(`/contracts/${contractId}`);
-    await expect(page.getByRole('button', { name: 'Terminate' })).toBeVisible({ timeout: 30000 });
+    await navigateTo(page, `/contracts/${contractId}`, /contract/i);
 
     await page.getByRole('button', { name: 'Terminate' }).click();
     await expect(page.getByRole('dialog', { name: 'Terminate Contract' })).toBeVisible();
@@ -266,8 +258,7 @@ test.describe('Contract Management Flow', () => {
   // ── CONT-06: Contract PDF — NOT IMPLEMENTED (no PDF/print button anywhere) ──
   test('CONT-06 should assert no contract PDF feature exists', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts');
-    await expect(page.locator('h1').first()).toContainText(/contracts/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts', /contracts/i);
 
     await expect(page.getByRole('link', { name: /pdf/i }).or(page.getByRole('button', { name: /pdf|print/i }))).toHaveCount(0);
 
@@ -279,8 +270,7 @@ test.describe('Contract Management Flow', () => {
   // ── CONT-08: Contract history UI — NOT IMPLEMENTED (useLeaseHistory hook is dead code) ──
   test('CONT-08 should assert no contract-history UI on the detail page', async ({ page }) => {
     await login(page);
-    await page.goto(`/contracts/${SEEDED.contractRoom102Id}`);
-    await expect(page.locator('h1').first()).toContainText(/contract/i, { timeout: 30000 });
+    await navigateTo(page, `/contracts/${SEEDED.contractRoom102Id}`, /contract/i);
 
     await expect(page.getByText(/lease history|contract history/i)).toHaveCount(0);
 

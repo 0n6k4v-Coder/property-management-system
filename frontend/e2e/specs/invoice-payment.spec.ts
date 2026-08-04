@@ -89,7 +89,7 @@
 //       test and remove the skip-rationale.
 
 import { test, expect } from '@playwright/test';
-import { login } from '../utils/test-helpers';
+import { login, navigateTo } from '../utils/test-helpers';
 import { captureAllStates, type CapturedStates } from '../utils/state-capture';
 import { SEEDED, SEEDED_DATA } from '../fixtures/seeded-ids';
 
@@ -102,8 +102,7 @@ test.describe('Invoice Payment Flow', () => {
 
   test('should display invoice list with correct data', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     await expect(page.getByText(SEEDED_DATA.invoice.number)).toBeVisible();
     await expect(page.getByText(/8,500/).first()).toBeVisible();
@@ -116,8 +115,7 @@ test.describe('Invoice Payment Flow', () => {
 
   test('should navigate to invoice detail and show real invoice data', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     await page.getByRole('link', { name: new RegExp(`View invoice ${SEEDED_DATA.invoice.number}`, 'i') }).click();
     await expect(page).toHaveURL(new RegExp(`/invoices/${SEEDED.invoice20260001Id}`));
@@ -137,8 +135,7 @@ test.describe('Invoice Payment Flow', () => {
   // formatted label + the status-derived Tailwind class from statusStyles.
   test('INV-02 should render a color-coded status badge matching the seeded invoice status', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     const row = page.locator('tr', { has: page.getByText(SEEDED_DATA.invoice.number) });
     const badge = row.locator('span', { hasText: /^issued$/i });
@@ -159,18 +156,17 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-06: Print/Download PDF (assert absence) + CSV/TXT export (real) ─
   test('INV-06 should export invoices as CSV/TXT and have no PDF/print control', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     // Real implemented feature: CSV export triggers a real browser download.
     const csvDownload = page.waitForEvent('download');
-    await page.getByRole('button', { name: /export csv/i }).click();
+    await page.getByRole('button', { name: /Export CSV/i }).click();
     const csv = await csvDownload;
     expect(csv.suggestedFilename()).toMatch(/invoices-.*\.csv/);
 
     // Real implemented feature: TXT export triggers a real browser download.
     const txtDownload = page.waitForEvent('download');
-    await page.getByRole('button', { name: /export txt/i }).click();
+    await page.getByRole('button', { name: /Export TXT/i }).click();
     const txt = await txtDownload;
     expect(txt.suggestedFilename()).toMatch(/invoices-.*\.txt/);
 
@@ -191,8 +187,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-07: Overdue highlighting (partial) ─────────────────────────────
   test('INV-07 should render remaining balance in red when > 0 and have no overdue-specific section', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     // Remaining-balance cell turns red (text-red-600) whenever remaining > 0.
     // In clean seeded state remaining = total = 8500, so the cell is red.
@@ -214,8 +209,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-08: Bulk actions (assert absence) ──────────────────────────────
   test('INV-08 should have no bulk-selection UI on the invoice list', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     // No row-selection checkboxes, no bulk toolbar / select-all / bulk-export.
     await expect(page.locator('input[type="checkbox"]')).toHaveCount(0);
@@ -229,8 +223,7 @@ test.describe('Invoice Payment Flow', () => {
 
   test('should record a payment and update the remaining balance', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await page.getByRole('button', { name: 'Record Payment' }).click();
     await expect(page.getByRole('dialog', { name: 'Record Payment' })).toBeVisible();
@@ -250,8 +243,7 @@ test.describe('Invoice Payment Flow', () => {
 
   test('should validate that payment amount must be positive', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await page.getByRole('button', { name: 'Record Payment' }).click();
     await expect(page.getByRole('dialog', { name: 'Record Payment' })).toBeVisible();
@@ -270,8 +262,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-03: Create invoice (assert absence of real property selector) ──
   test('INV-03 should open the Generate Invoice modal with only month/year and no property selector', async ({ page }) => {
     await login(page);
-    await page.goto('/invoices');
-    await expect(page.locator('h1').first()).toContainText(/invoices/i, { timeout: 30000 });
+    await navigateTo(page, '/invoices', /invoices/i);
 
     await page.getByRole('button', { name: /generate invoice/i }).click();
     const dialog = page.getByRole('dialog', { name: 'Generate Invoice' });
@@ -300,8 +291,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-04: Send invoice (assert absence) ──────────────────────────────
   test('INV-04 should have no send/email invoice control', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await expect(page.getByRole('button', { name: /send|email|mail/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /send|email|mail/i })).toHaveCount(0);
@@ -315,8 +305,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-DET-03: Refund payment (assert absence) ────────────────────────
   test('INV-DET-03 should have no refund-payment control', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await expect(page.getByRole('button', { name: /refund/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /refund/i })).toHaveCount(0);
@@ -330,8 +319,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-DET-04: Void invoice (assert absence) ──────────────────────────
   test('INV-DET-04 should have no void-invoice control', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await expect(page.getByRole('button', { name: /void/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /void/i })).toHaveCount(0);
@@ -345,8 +333,7 @@ test.describe('Invoice Payment Flow', () => {
   // ── INV-DET-05: Resend invoice (assert absence) ────────────────────────
   test('INV-DET-05 should have no resend-invoice control', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await expect(page.getByRole('button', { name: /resend|re-send/i })).toHaveCount(0);
     await expect(page.getByRole('link', { name: /resend|re-send/i })).toHaveCount(0);
@@ -372,8 +359,7 @@ test.describe('Invoice Payment Flow', () => {
   // in every state, so asserting the static card here is sufficient and stable.
   test('INV-DET-06 should render only the static payment-history placeholder (no payment rows)', async ({ page }) => {
     await login(page);
-    await page.goto(`/invoices/${SEEDED.invoice20260001Id}`);
-    await expect(page.locator('h1').first()).toContainText(SEEDED_DATA.invoice.number, { timeout: 30000 });
+    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     // The card always shows the static placeholder text.
     const placeholder = page.getByText(/no payments recorded yet/i);

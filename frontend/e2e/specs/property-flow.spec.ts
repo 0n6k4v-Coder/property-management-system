@@ -26,7 +26,7 @@
 //     with a clear reason rather than faked.
 
 import { test, expect, type Page } from '@playwright/test';
-import { login } from '../utils/test-helpers';
+import { login, navigateTo } from '../utils/test-helpers';
 import { captureAllStates, type CapturedStates } from '../utils/state-capture';
 import { SEEDED, SEEDED_DATA } from '../fixtures/seeded-ids';
 
@@ -59,8 +59,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-01: List all properties → shows all property cards', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     await expect(page.getByRole('button', { name: /Sunset Tower/i })).toBeVisible();
     await expect(page.getByRole('button', { name: /Riverside Apartments/i })).toBeVisible();
@@ -75,8 +74,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-02: Create property → modal opens, submits, and closes', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     await page.getByRole('button', { name: /\+ Create Property/i }).click();
     await expect(page.getByText('Create New Property').first()).toBeVisible();
@@ -99,8 +97,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-03: Search by name → NOT IMPLEMENTED in component', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     // PropertyListPage.tsx has no search input of any kind.
     await expect(page.getByPlaceholder(/search/i)).toHaveCount(0);
@@ -109,8 +106,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-04: Filter by status → NOT IMPLEMENTED in component', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     // No filter dropdown/select exists on this page.
     await expect(page.getByRole('combobox', { name: /status/i })).toHaveCount(0);
@@ -118,8 +114,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-05: Sort by name/created → NOT IMPLEMENTED in component', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     // No sort control exists on this page.
     await expect(page.getByRole('button', { name: /sort/i })).toHaveCount(0);
@@ -127,8 +122,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-06: Pagination → NOT IMPLEMENTED in component', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     // No pagination controls (Next/Prev, page size) exist on this page.
     await expect(page.getByRole('button', { name: /next|prev/i })).toHaveCount(0);
@@ -136,8 +130,7 @@ test.describe('Property List (/property)', () => {
 
   test('PROP-07: Delete property → NOT IMPLEMENTED in component', async ({ page }) => {
     await login(page);
-    await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await navigateTo(page, '/property', /Property Management/i);
 
     // No delete button exists anywhere in the property card or list.
     await expect(page.getByRole('button', { name: /delete/i })).toHaveCount(0);

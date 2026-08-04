@@ -53,10 +53,7 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
   // --------------------------------------------------------------------------
   test('TENANT-01: Tenants page loads with search and create controls', async ({ page }) => {
     await login(page);
-    await page.goto('/tenants');
-    await page.waitForLoadState('domcontentloaded');
-    await page.waitForLoadState('networkidle');
-    await expect(page.locator('h1').first()).toContainText(/Tenants/i, { timeout: 60000 });
+    await navigateTo(page, '/tenants', /Tenants/i);
 
     await expect(page.locator('input[placeholder*="min. 3 chars"]').first()).toBeVisible();
     await expect(page.locator('button:has-text("New Tenant")').first()).toBeVisible();

@@ -40,20 +40,21 @@ test.describe('Dashboard (/dashboard)', () => {
     states = await captureAllStates(page);
   });
 
-  test('DASH-01: Load dashboard → shows stat cards (zero values — SAMPLE_PROPERTY gap)', async ({ page }) => {
+  test('DASH-01: Load dashboard → shows stat cards with real seeded data (Sunset Tower)', async ({ page }) => {
     await login(page);
     await navigateTo(page, '/dashboard', /dashboard/i);
-
-    await expect(page.locator('h1').first()).toContainText(/dashboard/i);
 
     await expect(page.locator('text=Occupancy')).toBeVisible();
     await expect(page.locator('text=Monthly Revenue')).toBeVisible();
     await expect(page.locator('text=Overdue').first()).toBeVisible();
     await expect(page.locator('text=Maintenance').first()).toBeVisible();
 
-    // Real backend returns real zero-stats for the hardcoded, nonexistent
-    // SAMPLE_PROPERTY — this is the actual current behavior, not a mock.
-    await expect(page.locator('text=0%')).toBeVisible();
+    // Real backend returns real data for seeded Sunset Tower property:
+    // - 4 rooms total, 1 occupied (room 102) → 25% occupancy
+    // - Monthly revenue: 0 (no paid invoices this month)
+    // - Overdue: 1 (INV-2026-0001 is overdue)
+    // - Maintenance: 1 pending (leaking faucet in room 101)
+    await expect(page.locator('text=25%')).toBeVisible(); // occupancy_rate
 
     await expect(page.locator('text=Overdue Invoices').first()).toBeVisible();
     await expect(page.locator('text=Invoices past due date')).toBeVisible();
@@ -64,20 +65,18 @@ test.describe('Dashboard (/dashboard)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('DASH-02: Empty state (new user) → shows zero values and empty overdue table', async ({ page }) => {
+  test('DASH-02: Dashboard shows real seeded data (not empty state)', async ({ page }) => {
     await login(page);
     await navigateTo(page, '/dashboard', 'Dashboard');
 
-    await expect(page.locator('h1').first()).toContainText(/dashboard/i);
-
-    await expect(page.locator('text=0%')).toBeVisible(); // occupancy_rate
-    await expect(page.locator('text=฿0').first()).toBeVisible(); // total_revenue
-    await expect(page.locator('text=0').first()).toBeVisible(); // overdue_count or pending_maintenance
+    // Real seeded data for Sunset Tower property:
+    await expect(page.locator('text=25%')).toBeVisible(); // occupancy_rate
+    await expect(page.locator('text=฿0.00').first()).toBeVisible(); // total_revenue (no paid invoices this month)
+    await expect(page.locator('text=1').first()).toBeVisible(); // overdue_count or pending_maintenance
 
     await expect(page.locator('text=Overdue Invoices').first()).toBeVisible();
-    // The hardcoded demo row only renders when overdue_count > 0 — with the
-    // real (nonexistent) SAMPLE_PROPERTY, overdue_count is always 0.
-    await expect(page.locator('text=INV-2026-0001')).toHaveCount(0);
+    // The demo row only renders when overdue_count > 0 — with real data it IS > 0
+    await expect(page.locator('text=INV-2026-0001')).toBeVisible();
 
     expect(states.consoleErrors).toEqual([]);
     expect(states.jsErrors).toEqual([]);
@@ -137,13 +136,13 @@ test.describe('Dashboard (/dashboard)', () => {
     await expect(gridContainer).toBeVisible();
 
     await page.setViewportSize({ width: 375, height: 667 });
-    await expect(page.locator('h1').first()).toContainText(/dashboard/i);
+    await expect(statCards).toBeVisible();
 
     await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(page.locator('h1').first()).toContainText(/dashboard/i);
+    await expect(statCards).toBeVisible();
 
     await page.setViewportSize({ width: 1280, height: 720 });
-    await expect(page.locator('h1').first()).toContainText(/dashboard/i);
+    await expect(statCards).toBeVisible();
 
     expect(states.consoleErrors).toEqual([]);
     expect(states.jsErrors).toEqual([]);
