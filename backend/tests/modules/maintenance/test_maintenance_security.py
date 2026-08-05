@@ -125,6 +125,12 @@ class _FakeRequest:
 class TestAuthenticationRequired:
     """All 5 endpoints must reject an unauthenticated caller with 401/422."""
 
+    @pytest.fixture(autouse=True)
+    def remove_auth_override(self, app) -> None:
+        """Remove default auth override for unauthenticated tests."""
+        from app.shared.deps import get_current_user
+        app.dependency_overrides.pop(get_current_user, None)
+
     async def test_post_create_requires_auth(self, async_client) -> None:
         r = await async_client.post("/api/v1/maintenance/", json={"room_id": str(uuid.uuid4()),
             "property_id": str(uuid.uuid4()), "title": "Test",
