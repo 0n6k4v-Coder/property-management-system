@@ -140,6 +140,12 @@ class _FakeContract:
 class TestAuthenticationRequired:
     """All 7 endpoints must reject an unauthenticated caller with 401/422."""
 
+    @pytest.fixture(autouse=True)
+    def remove_auth_override(self, app) -> None:
+        """Remove default auth override for unauthenticated tests."""
+        from app.shared.deps import get_current_user
+        app.dependency_overrides.pop(get_current_user, None)
+
     async def test_list_active_requires_auth(self, async_client) -> None:
         r = await async_client.get("/api/v1/contracts/active")
         # Returns 200 with empty list if no scope - check for 401/422/403
@@ -429,7 +435,6 @@ class TestIdempotencyHeader:
 
 
 # ── #20: Cache-Control on GETs (redundant with TestCacheControl) ─────
-
 
 # ── #3: unified error envelope via APIError ──────────────────────────
 
