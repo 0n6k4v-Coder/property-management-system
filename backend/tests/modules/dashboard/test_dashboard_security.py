@@ -135,6 +135,12 @@ def _make_stub_service(**overrides: Any) -> type:
 class TestAuthenticationRequired:
     """All 3 endpoints must reject an unauthenticated caller with 401/422."""
 
+    @pytest.fixture(autouse=True)
+    def remove_auth_override(self, app) -> None:
+        """Remove default auth override for unauthenticated tests."""
+        from app.shared.deps import get_current_user
+        app.dependency_overrides.pop(get_current_user, None)
+
     async def test_summary_requires_auth(self, async_client) -> None:
         r = await async_client.get(f"/api/v1/dashboard/summary?property_id={uuid.uuid4()}")
         assert r.status_code in (status.HTTP_401_UNAUTHORIZED, status.HTTP_422_UNPROCESSABLE_CONTENT, status.HTTP_403_FORBIDDEN)
