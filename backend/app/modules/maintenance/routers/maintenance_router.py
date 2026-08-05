@@ -264,3 +264,4 @@ async def assign_maintenance_request(
         assigned_by=uuid.UUID(current_user["user_id"]),
     )
     return MaintenanceCreateResponse(data=MaintenanceResponse.model_validate(request))
+
