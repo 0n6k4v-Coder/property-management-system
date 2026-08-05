@@ -109,10 +109,16 @@ class _StubRepo:
 # ── #5: authentication required on every endpoint (no auth → 401/422) ────
 
 
-@pytest.mark.unit
-@pytest.mark.asyncio
+@ pytest.mark.unit
+@ pytest.mark.asyncio
 class TestAuthenticationRequired:
     """All 6 endpoints must reject an unauthenticated caller with 401/422."""
+
+    @pytest.fixture(autouse=True)
+    def remove_auth_override(self, app) -> None:
+        """Remove default auth override for unauthenticated tests."""
+        from app.shared.deps import get_current_user
+        app.dependency_overrides.pop(get_current_user, None)
 
     async def test_history_requires_auth(self, async_client) -> None:
         r = await async_client.get(f"/api/v1/billing/meter-readings/{uuid.uuid4()}/history")
