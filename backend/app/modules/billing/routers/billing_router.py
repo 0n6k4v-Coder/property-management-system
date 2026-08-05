@@ -4,7 +4,7 @@ Implements the "Proposed Redesign — Billing Module" target design from
 ``docs/API.md`` fixing API anti-patterns #5, #4, #3, #13, #1, #11, #12,
 #19, #20:
 
-- #5  authorization: every *** requires ``get_current_user``; the 4
+- #5  authorization: every endpoint requires ``get_current_user``; the 4
       "resolve-then-check" endpoints (history, invoice detail, payments,
       invoice list) resolve the entity's ``property_id`` and verify scope
       via ``user_has_property_scope`` (raising ``403 AUTH-005``), while the
