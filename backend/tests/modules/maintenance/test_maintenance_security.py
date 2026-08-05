@@ -24,7 +24,6 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import status
 
-from app.main import app
 from app.modules.auth.constants import AUTH_005
 from app.modules.maintenance.constants import MaintenanceStatus, Priority
 from app.modules.maintenance.routers import maintenance_router
@@ -33,10 +32,6 @@ from app.modules.maintenance.schemas import (
     UpdateMaintenanceStatusRequest,
 )
 from app.shared.exceptions import APIError
-
-# Import httpx for async testing (replaces TestClient)
-import httpx
-from httpx import ASGITransport
 
 # ── Shared stubs (no DB) ──────────────────────────────────────────────
 

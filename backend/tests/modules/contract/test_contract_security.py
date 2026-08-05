@@ -27,7 +27,6 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import status
 
-from app.main import app
 from app.modules.auth.constants import AUTH_005
 from app.modules.contract.constants import (
     ContractStatus,
@@ -42,10 +41,6 @@ from app.modules.contract.schemas import (
     TerminateContractRequest,
 )
 from app.shared.exceptions import APIError
-
-# Import httpx for async testing (replaces TestClient)
-import httpx
-from httpx import ASGITransport
 
 # ── Shared stubs (no DB) ──────────────────────────────────────────────
 

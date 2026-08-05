@@ -25,19 +25,13 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import status
 
-from app.main import app
 from app.modules.auth.constants import AUTH_005
 from app.modules.notification.constants import NotificationChannel, NotificationStatus
 from app.modules.notification.routers import notification_router
 from app.modules.notification.schemas import (
-    NotificationQueuedResponse,
     SendNotificationRequest,
 )
 from app.shared.exceptions import APIError
-
-# Import httpx for async testing (replaces TestClient)
-import httpx
-from httpx import ASGITransport
 
 # ── Shared stubs (no DB) ──────────────────────────────────────────────
 
