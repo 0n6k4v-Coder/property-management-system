@@ -243,10 +243,13 @@ test-down: check-docker check-compose ## Stop isolated test stack and remove vol
 	@echo "$(COLOR_GREEN)✓ Test stack stopped$(COLOR_RESET)"
 
 test: check-docker check-compose ## Run all backend tests in isolated test stack
+	@echo "$(COLOR_GREEN)→ Cleaning up coverage files inside container...$(COLOR_RESET)"
+	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
+		backend-test sh -c "rm -f /app/coverage.xml /app/.coverage && rm -rf /app/htmlcov || true"
 	@echo "$(COLOR_GREEN)→ Running tests in isolated test stack...$(COLOR_RESET)"
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		-e TEST_RETENTION_DAYS=$(TEST_RETENTION_DAYS) \
-		backend-test
+		backend-test pytest tests/ -v --cov=app --cov-report=xml:/tmp/coverage.xml --cov-report=html:/tmp/htmlcov --cov-report=term-missing
 
 test-unit: check-docker check-compose ## Run unit tests only
 	@echo "$(COLOR_GREEN)→ Running unit tests...$(COLOR_RESET)"

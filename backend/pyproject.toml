@@ -28,6 +28,7 @@ filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",
 ]
+addopts = "--cov-report=xml:/tmp/coverage.xml --cov-report=html:/tmp/htmlcov --cov-report=term-missing"
 
 [tool.coverage.run]
 source = ["app"]
