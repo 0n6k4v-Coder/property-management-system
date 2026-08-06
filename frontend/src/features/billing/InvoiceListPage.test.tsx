@@ -1,7 +1,7 @@
 // File: src/features/billing/InvoiceListPage.test.tsx
 // Integration tests for InvoiceListPage — RTL + MSW.
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
@@ -37,6 +37,12 @@ describe('InvoiceListPage', () => {
 
   it('shows empty state when no invoices', async () => {
     renderPage();
+
+    // Wait for skeleton loader (animate-pulse) to disappear
+    await waitFor(() => {
+      expect(screen.queryByText(/animate-pulse/i)).not.toBeInTheDocument();
+    }, { timeout: 5000 });
+
     expect(await screen.findByText(/No invoices found/i)).toBeInTheDocument();
   });
 

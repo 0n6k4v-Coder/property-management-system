@@ -1,7 +1,7 @@
 // File: src/features/tenant/TenantListPage.test.tsx
 // Integration tests for TenantListPage — RTL + MSW.
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
@@ -73,6 +73,11 @@ describe('TenantListPage', () => {
 
     const user = userEvent.setup();
     renderPage();
+
+    // Wait for skeleton loader (animate-pulse) to disappear
+    await waitFor(() => {
+      expect(screen.queryByText(/animate-pulse/i)).not.toBeInTheDocument();
+    }, { timeout: 5000 });
 
     const input = screen.getByLabelText('Search tenants');
     await user.type(input, 'John');

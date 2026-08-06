@@ -1,7 +1,7 @@
 // File: src/features/billing/InvoiceDetailPage.test.tsx
 // Integration tests for InvoiceDetailPage — RTL + MSW.
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
@@ -35,6 +35,12 @@ afterAll(() => server.close());
 describe('InvoiceDetailPage', () => {
   it('shows invoice number', async () => {
     renderPage();
+
+    // Wait for skeleton loader (animate-pulse) to disappear
+    await waitFor(() => {
+      expect(screen.queryByText(/animate-pulse/i)).not.toBeInTheDocument();
+    }, { timeout: 5000 });
+
     const items = await screen.findAllByText('INV-2026-0001');
     expect(items.length).toBeGreaterThanOrEqual(1);
   });
