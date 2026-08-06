@@ -19,22 +19,47 @@ with open(router_file, 'r') as f:
     content = f.read()
 
 issues = []
-# หา async def functions ที่มี current_user parameter
-pattern = r'async def (\w+)\([^)]*(_?current_user)[^)]*\)'
+# หา async def functions ที่มี current_user parameter (parameter name รวม underscore)
+# ใช้ regex ที่เจาะจง parameter name มากขึ้น: capture parameter ก่อน colon
+pattern = r'async def (\w+)\([^)]*?(_?current_user)\s*:'
 for match in re.finditer(pattern, content):
     func_name = match.group(1)
     param_name = match.group(2)
     has_underscore = param_name.startswith('_')
     
-    # หา function body (ประมาณ 2000 chars หลัง signature)
+    # หา function body จริง (หลังจาก signature จบที่ '):' หรือ ') ->')
     func_start = match.end()
-    func_body = content[func_start:func_start + 2000]
+    # ข้าม signature ที่เหลือ จนกว่าจะเจอ '):' หรือ ') ->' แล้วขึ้นบรรทัดใหม่
+    return_type_pos = content.find(') ->', func_start)
+    final_paren_pos = content.find('):', func_start)
     
-    # ตรวจสอบว่าใช้ current_user ใน body
-    uses_current_user = 'current_user[' in func_body or 'current_user.' in func_body or 'current_user,' in func_body
+    if return_type_pos != -1 and (final_paren_pos == -1 or return_type_pos < final_paren_pos):
+        sig_end = return_type_pos + 2  # after ') ->'
+    elif final_paren_pos != -1:
+        sig_end = final_paren_pos + 1  # after '):'
+    else:
+        sig_end = func_start
+    
+    # หาบรรทัดใหม่ถัดไปหลัง signature
+    body_start = content.find('\n', sig_end)
+    if body_start != -1:
+        func_body = content[body_start:body_start + 2000]
+    else:
+        func_body = content[sig_end:sig_end + 2000]
+    
+    # ตรวจสอบว่าใช้ current_user ใน body (parameter name จริงที่ใช้ใน body)
+    # ใช้ word boundary เพื่อไม่ให้จับคู่ substring เช่น 'logs' ใน 'current_user'
+    actual_param = param_name.lstrip('_')
+    # Pattern: variable name ต้องมี word boundary (ไม่ใช่ส่วนของคำอื่น)
+    # เช็ค: 'current_user[' 'current_user.' 'current_user,' 'current_user)' ' current_user ' 
+    # และไม่ให้ match 'logs' หรือ 'current_users' เป็นต้น
+    uses_current_user = bool(re.search(
+        rf'(?<![a-zA-Z0-9_]){re.escape(actual_param)}(?![a-zA-Z0-9_])', 
+        func_body
+    ))
     
     if uses_current_user and has_underscore:
-        issues.append(f'{func_name}: Uses current_user but has underscore prefix')
+        issues.append(f'{func_name}: Uses {actual_param} but has underscore prefix')
     elif not uses_current_user and not has_underscore:
         issues.append(f'{func_name}: Unused but no underscore prefix')
 
