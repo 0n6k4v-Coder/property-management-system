@@ -295,9 +295,10 @@ function PaymentModal({
               aria-label="Payment method"
             >
               <option value="cash">Cash</option>
-              <option value="transfer">Bank Transfer</option>
-              <option value="qr">QR PromptPay</option>
-              <option value="credit">Credit Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+              <option value="promptpay">QR PromptPay</option>
+              <option value="qr_code">QR Code</option>
+              <option value="credit_card">Credit Card</option>
             </select>
             {errors.method && (
               <p className="text-sm text-red-600" role="alert">{errors.method.message}</p>
