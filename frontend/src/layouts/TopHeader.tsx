@@ -3,6 +3,7 @@
 // SDD SCR-APP-SHELL §3 — Top Header Bar.
 // Receives onToggleSidebar (wired by MainLayout) — does NOT use useSidebar directly.
 
+import { useEffect, useRef, useState, useId } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/shared/auth/AuthContext';
 
@@ -155,6 +156,125 @@ function MenuIcon({ className = 'size-6' }: IconProps) {
   );
 }
 
+/** Log out (door + arrow) icon — 24×24 stroke matching Heroicons outline. */
+function LogOutIcon({ className = 'size-5' }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17.25 16L21 12m0 0l-3.75-4M21 12H3"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.75 15.75A5.25 5.25 0 1 0 15.75 8.25a5.25 5.25 0 0 0 0 7.5z"
+      />
+    </svg>
+  );
+}
+
+// ── Dropdown Sub-component ────────────────────────────────────────────
+
+/**
+ * UserMenuDropdown — avatar button with a popover dropdown containing logout.
+ *
+ * @param expanded - whether the dropdown is open.
+ * @param setExpanded - toggle setter.
+ * @param anchorId - ID for the anchor button (menu-button).
+ * @param menuId - ID for the menu (aria-controls target).
+ */
+function UserMenuDropdown({
+  expanded,
+  setExpanded,
+  anchorId,
+  menuId,
+}: {
+  expanded: boolean;
+  setExpanded: (v: boolean) => void;
+  anchorId: string;
+  menuId: string;
+}) {
+  const { user, logout } = useAuth();
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Click-outside: close menu when clicking outside the dropdown.
+  useEffect(() => {
+    if (!expanded) return;
+    function handlePointerDown(e: PointerEvent) {
+      const target = e.target as Node | null;
+      if (menuRef.current && !menuRef.current.contains(target)) {
+        setExpanded(false);
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [expanded, setExpanded]);
+
+  const userName = user?.full_name ?? 'User';
+  const initials = userName
+    .split(' ')
+    .flatMap((part) => (part[0] ? [part[0]] : []))
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  return (
+    <div className="relative inline-block text-left">
+      <button
+        type="button"
+        id={anchorId}
+        aria-haspopup="menu"
+        aria-expanded={expanded}
+        aria-controls={menuId}
+        onClick={() => setExpanded(!expanded)}
+        className="inline-flex size-9 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 ring-1 ring-primary-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+      >
+        {initials || '?'}
+      </button>
+
+      {expanded && (
+        <div
+          ref={menuRef}
+          id={menuId}
+          role="menu"
+          aria-orientation="vertical"
+          className="absolute right-0 mt-2 w-40 origin-top-right rounded-md bg-white shadow-lg ring-1 ring-black/5 focus:outline-none z-50"
+        >
+          <div className="py-1">
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setExpanded(false);
+                logout();
+              }}
+              className="flex w-full items-center gap-2 px-4 py-2 text-sm text-surface-700 hover:bg-surface-100 hover:text-surface-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+            >
+              <LogOutIcon className="size-4" />
+              <span>Log out</span>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────────────
 
 /**
@@ -175,13 +295,10 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
   const pageTitle = getBreadcrumbTitle(pathname);
   const cta = getCtaForRoute(pathname);
 
-  // Initials for avatar fallback
-  const initials = userName
-    .split(' ')
-    .flatMap((part) => (part[0] ? [part[0]] : []))
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
+  // ── User menu dropdown state ──
+  const [menuOpen, setMenuOpen] = useState(true);
+  const avatarButtonId = useId();
+  const avatarMenuId = useId();
 
   return (
     <header className="shrink-0 z-30 border-b border-surface-200 bg-white">
@@ -197,7 +314,7 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
           </nav>
         </div>
 
-        {/* Right: Search + Primary CTA */}
+        {/* Right: Search + Primary CTA + User Menu */}
         <div className="flex items-center gap-2 lg:gap-3">
           <button
             type="button"
@@ -218,6 +335,14 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
               <span className="lg:hidden">{cta.label.replace('+ ', '')}</span>
             </button>
           )}
+
+          {/* User menu dropdown (desktop) */}
+          <UserMenuDropdown
+            expanded={menuOpen}
+            setExpanded={setMenuOpen}
+            anchorId={avatarButtonId}
+            menuId={avatarMenuId}
+          />
         </div>
       </div>
 
@@ -252,14 +377,13 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
             </button>
           )}
 
-          {/* Avatar */}
-          <button
-            type="button"
-            className="inline-flex size-9 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 ring-1 ring-primary-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-            aria-label="User menu"
-          >
-            {initials || '?'}
-          </button>
+          {/* Avatar menu dropdown (mobile) */}
+          <UserMenuDropdown
+            expanded={menuOpen}
+            setExpanded={setMenuOpen}
+            anchorId={avatarButtonId}
+            menuId={avatarMenuId}
+          />
         </div>
       </div>
     </header>
