@@ -306,9 +306,9 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
       <div className="hidden h-20 items-center justify-between px-4 sm:flex sm:px-6 lg:px-8">
         {/* Left: Greeting + Breadcrumb */}
         <div className="min-w-0">
-          <h1 className="truncate text-xl font-semibold text-surface-900 lg:text-2xl">
+          <h2 className="truncate text-xl font-semibold text-surface-900 lg:text-2xl">
             Welcome back, {firstName}!
-          </h1>
+          </h2>
           <nav aria-label="Breadcrumb" className="mt-0.5">
             <span className="text-sm text-surface-500">{pageTitle}</span>
           </nav>
@@ -360,9 +360,9 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
         </button>
 
         {/* Center-left: Page title */}
-        <h1 className="flex-1 truncate pl-2 text-base font-semibold text-surface-900">
+        <h2 className="flex-1 truncate pl-2 text-base font-semibold text-surface-900">
           {pageTitle}
-        </h1>
+        </h2>
 
         {/* Right: CTA icon-only + Avatar */}
         <div className="flex items-center gap-1.5">
