@@ -23,6 +23,8 @@ else
     RED= GREEN= YELLOW= BLUE= BOLD= RESET=
 fi
 
+TEST_COMPOSE="docker-compose.test.yml"
+
 echo "${BLUE}🧹 Cleaning test artifacts...${RESET}"
 
 # --- 1. Clean inside containers (avoids permission issues) ------------------
