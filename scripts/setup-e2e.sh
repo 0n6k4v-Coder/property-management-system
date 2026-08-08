@@ -72,10 +72,15 @@ echo "${YELLOW}→ [3/5] Resetting database...${RESET}"
 docker compose -f "${TEST_COMPOSE}" exec -T backend python -c "
 import asyncio
 import asyncpg
-from app.config import settings
+import re
+from app.config import get_settings
+
+settings = get_settings()
+# asyncpg uses 'postgresql://' not 'postgresql+asyncpg://'
+db_url = re.sub(r'^postgresql\+asyncpg://', 'postgresql://', settings.DATABASE_URL)
 
 async def reset():
-    conn = await asyncpg.connect(settings.DATABASE_URL)
+    conn = await asyncpg.connect(db_url)
     await conn.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
     await conn.close()
     print('  Database schema reset successfully.')
