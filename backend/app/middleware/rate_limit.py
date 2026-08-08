@@ -41,7 +41,16 @@ class LoginRateLimiter:
     """Sliding-window limiter keyed by client IP for login attempts."""
 
     def __init__(self, max_requests: int = LOGIN_MAX_REQUESTS, window_seconds: int = LOGIN_WINDOW_SECONDS) -> None:
-        self.max_requests = max_requests
+        # In test mode, disable rate limiting entirely so E2E tests that
+        # share a single container IP don't hit 429 (auth-flow spec makes
+        # 19 login calls in 1 minute — exceeds the 10/min production limit).
+        from app.config import get_settings
+
+        settings = get_settings()
+        if settings.ENVIRONMENT == "test":
+            self.max_requests = 999_999  # Effectively disabled in tests
+        else:
+            self.max_requests = max_requests
         self.window_seconds = window_seconds
         self._buckets: dict[str, list[float]] = defaultdict(list)
 

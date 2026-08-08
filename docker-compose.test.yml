@@ -50,6 +50,7 @@ services:
       - SECRET_KEY=test-secret-key-for-testing-only-not-for-prod
       - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
       - DEBUG=true
+      - ENVIRONMENT=test
       - APP_DOMAIN=http://backend:8000
       - DB_POOL_SIZE=5
       - DB_MAX_OVERFLOW=10
@@ -106,6 +107,7 @@ services:
       - SECRET_KEY=test-secret-key-for-testing-only-not-for-prod
       - ID_CARD_ENCRYPTION_KEY=txjtJSgQUueeioIEaLzpfazdlgwX8Gon4rMMK-CdpHE=
       - DEBUG=true
+      - ENVIRONMENT=test
       - PYTEST_ADDOPTS=--color=yes
       - COVERAGE_FILE=/tmp/coverage/.coverage
     volumes:

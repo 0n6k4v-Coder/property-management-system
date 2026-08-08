@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Property Management System"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
+    ENVIRONMENT: str = "development"  # "test" disables rate limiting (E2E tests)
     APP_DOMAIN: str = "http://localhost:3000"
 
     # ── Database (PostgreSQL via asyncpg) ──────────────────────────────

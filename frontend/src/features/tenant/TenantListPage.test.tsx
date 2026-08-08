@@ -12,7 +12,12 @@ import { http, HttpResponse } from 'msw';
 import TenantListPage from './TenantListPage';
 
 function renderPage() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+      mutations: { retry: false },
+    },
+  });
   return render(
     <MemoryRouter initialEntries={['/tenants']}>
       <QueryClientProvider client={qc}>

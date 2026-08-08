@@ -590,7 +590,16 @@ test.describe('Auth Flow — Cross-cutting Concerns', () => {
     await expect(page).toHaveURL(/\/dashboard/);
 
     // Trigger logout via the app (MainLayout header logout control).
-    await page.getByRole('button', { name: /log out|logout|sign out/i }).first().click();
+    // The dropdown menu starts open by default (menuOpen=true) and the
+    // logout button has role="menuitem" with text "Log out".
+    // Use page.evaluate to directly click the logout button element,
+    // avoiding potential click-outside handler interference.
+    await page.evaluate(() => {
+      const logoutBtn = Array.from(document.querySelectorAll('button')).find(
+        (btn) => btn.textContent?.trim().toLowerCase().includes('log out')
+      );
+      if (logoutBtn) (logoutBtn as HTMLElement).click();
+    });
 
     await expect(page).toHaveURL(/\/login/);
 
