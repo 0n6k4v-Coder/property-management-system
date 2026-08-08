@@ -19,6 +19,17 @@
 
 ---
 
+## 📚 Additional Documentation
+
+| File | Purpose |
+|------|---------|
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing guidelines, branch strategy, PR process |
+| [`docs/README.md`](docs/README.md) | Documentation index and entry point |
+| [`docs/reports/`](docs/reports/) | Quality gate reports |
+| [`docs/DECISIONS/`](docs/DECISIONS/) | Architecture Decision Records (ADRs) |
+
+---
+
 ## 📁 Project Structure
 
 ```
