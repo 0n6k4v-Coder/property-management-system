@@ -264,23 +264,21 @@ test-frontend: check-docker check-compose ## Run frontend unit tests (Vitest)
 test-e2e: check-docker check-compose ## Run E2E tests with Playwright (self-contained: starts stack, seeds DB, runs tests, tears down)
 	@echo "$(COLOR_GREEN)→ Running Playwright E2E tests (self-contained)...$(COLOR_RESET)"
 	@mkdir -p frontend/playwright-report frontend/e2e-results
-	@# 1. Start test stack (backend + db + redis + minio)
-	@echo "$(COLOR_BLUE)  [1/4] Starting test stack...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
-	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) up -d backend
-	@# 2. Apply migrations
-	@echo "$(COLOR_BLUE)  [2/4] Applying migrations...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) exec -T backend alembic upgrade head
-	@# 3. Seed E2E fixture data
-	@echo "$(COLOR_BLUE)  [3/4] Seeding E2E fixture data...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) exec -T backend python -m scripts.seed_e2e --reset
-	@# 4. Run Playwright
-	@echo "$(COLOR_BLUE)  [4/4] Running Playwright...$(COLOR_RESET)"
+	@# 1. Start test stack + wait healthy + reset DB + migrate + seed (via setup script)
+	@echo "$(COLOR_BLUE)  [1/5] Setting up E2E environment...$(COLOR_RESET)"
+	@./scripts/setup-e2e.sh
+	@# 2. Run Playwright
+	@echo "$(COLOR_BLUE)  [2/5] Running Playwright...$(COLOR_RESET)"
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		frontend-test npx playwright test --reporter=html
-	@# Cleanup: stop test stack
-	@echo "$(COLOR_YELLOW)→ Cleaning up test stack...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
+	@# 3. Cleanup: stop test stack
+	@echo "$(COLOR_YELLOW)  [3/5] Cleaning up test stack...$(COLOR_RESET)"
+	@$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
+	@# 4. Clean test artifacts (handles root-owned files from Docker)
+	@echo "$(COLOR_BLUE)  [4/5] Cleaning test artifacts...$(COLOR_RESET)"
+	@./scripts/clean-test-artifacts.sh
+	@# 5. Done
+	@echo "$(COLOR_BLUE)  [5/5] Done.$(COLOR_RESET)"
 	@echo "$(COLOR_GREEN)✓ E2E tests complete$(COLOR_RESET)"
 
 test-integration: check-docker check-compose ## Run integration tests only (requires test stack)
