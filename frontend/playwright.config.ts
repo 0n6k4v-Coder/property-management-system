@@ -17,7 +17,8 @@ export default defineConfig({
   fullyParallel: CI,
   forbidOnly: CI,
   retries: 2,
-  workers: CI ? 1 : undefined,
+  workers: 2,
+  timeout: 120_000, // 2 minutes per test — extended for full-suite E2E
   reporter: [['list']],
 
   use: {
