@@ -1,6 +1,6 @@
 #!/bin/bash
 # check-test-fixtures.sh - ตรวจสอบว่า security tests มี auth override cleanup
-set -e
+set -euo pipefail
 
 cd backend
 

@@ -925,6 +925,55 @@ bash scripts/release.sh
 
 ---
 
+## 🔒 Script Quality Standards
+
+All scripts in `scripts/` MUST follow these standards:
+
+### 1. Strict Mode
+Every script MUST start with:
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+```
+
+- `-e` -> Exit on error
+- `-u` -> Exit on undefined variable
+- `-o pipefail` -> Exit if any command in a pipeline fails
+
+### 2. Pipe Error Handling Pattern
+**DO NOT** use:
+```bash
+COUNT=$(grep "pattern" . | wc -l || echo 0)  # Creates "0\n0"
+COUNT=$(grep "pattern" . || true | wc -l)     # 'true' runs before wc
+```
+
+**DO** use:
+```bash
+COUNT=$(grep "pattern" . | wc -l) || COUNT=0  # Correct fallback
+```
+
+### 3. No Hardcoded Paths
+- Use relative paths (e.g., `./scripts/`, `../frontend/`)
+- Use environment variables when needed
+- Never use `/home/username/...`
+
+### 4. Verified Scripts (with strict mode)
+| Script | Strict Mode | Status |
+|--------|-------------|--------|
+| check-code-patterns.sh | ✅ | Fixed (2026-08-08) |
+| check-github-sync.sh | ✅ | Fixed (2026-08-08) |
+| check-suppression.sh | ✅ | Fixed (2026-08-08) |
+| check-test-fixtures.sh | ✅ | Fixed (2026-08-08) |
+| setup-e2e.sh | ✅ | Verified |
+| clean-test-artifacts.sh | ✅ | Verified |
+| phase-cleanup.sh | ✅ | Verified |
+| run-quality-gates.sh | ✅ | Verified |
+| run-e2e-subset.sh | ✅ | Verified |
+| fix-permissions.sh | ✅ | Verified |
+| *(all other scripts)* | ✅ | Verified |
+
+---
+
 ## 📚 Related Documentation
 
 - `AGENTS.md` — AI agent workflows and rules (SSOT for rules)

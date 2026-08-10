@@ -1,11 +1,11 @@
 #!/bin/bash
 # check-github-sync.sh - ตรวจสอบว่า local และ remote sync กัน
-set -e
+set -euo pipefail
 
 echo "🔍 Checking GitHub sync..."
 
 # 1. ตรวจสอบ unpushed commits
-UNPUSHED=$(git log origin/master..HEAD --oneline 2>/dev/null | wc -l)
+UNPUSHED=$(git log origin/master..HEAD --oneline 2>/dev/null | wc -l) || UNPUSHED=0
 
 if [ "$UNPUSHED" -gt 0 ]; then
     echo "❌ Found $UNPUSHED unpushed commits:"

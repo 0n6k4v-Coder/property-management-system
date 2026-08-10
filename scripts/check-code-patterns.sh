@@ -1,16 +1,16 @@
 #!/bin/bash
 # check-code-patterns.sh - ตรวจสอบ current_user parameter naming
-set -e
+set -euo pipefail
 
 cd backend
 
 echo "🔍 Checking code patterns..."
 
 ISSUES=0
-for router_file in $(find app/modules -name "*_router.py" 2>/dev/null); do
+for router_file in $(find app/modules -name "*_router.py" 2>/dev/null || echo ""); do
     # หา functions ที่มี current_user parameter
     # ตรวจสอบว่า parameter ที่ใช้จริงไม่มี underscore prefix
-    python3 - "$router_file" << 'EOF'
+    if ! python3 - "$router_file" << 'EOF'; then
 import re
 import sys
 
@@ -68,10 +68,8 @@ if issues:
         print(f'❌ {router_file}:{issue}')
     sys.exit(1)
 EOF
-    
-    if [ $? -ne 0 ]; then
-        ISSUES=$((ISSUES + 1))
-    fi
+    ISSUES=$((ISSUES + 1))
+fi
 done
 
 if [ "$ISSUES" -gt 0 ]; then
