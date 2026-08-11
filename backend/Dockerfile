@@ -53,6 +53,9 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 # Stage 4: Testing — Linting, testing & contract validation
 # =============================================================================
 FROM development AS testing
+# Create non-root user (uid 1001) for running tests — prevents root-owned files on host
+RUN groupadd -g 1001 appuser && useradd -r -g appuser -u 1001 -d /app -s /sbin/nologin appuser
+
 # Install test & QA tools (แยกจาก production เพื่อลด image size)
 RUN pip install --no-cache-dir \
     pytest pytest-asyncio pytest-cov pytest-benchmark \
@@ -60,6 +63,8 @@ RUN pip install --no-cache-dir \
     ruff mypy bandit safety \
     apscheduler prometheus-client
 RUN pip install --no-cache-dir locust
+
+USER appuser
 
 CMD ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml"]
 

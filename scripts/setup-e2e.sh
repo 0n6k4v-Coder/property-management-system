@@ -68,25 +68,15 @@ fi
 # --- 3. Force clean DB state (handles tmpfs issues) -------------------------
 echo "${YELLOW}→ [3/5] Resetting database...${RESET}"
 # The test DB uses tmpfs which is wiped on container restart, but if the
-# container is still running, we need to drop+recreate the schema manually.
-docker compose -f "${TEST_COMPOSE}" exec -T backend python -c "
-import asyncio
-import asyncpg
-import re
-from app.config import get_settings
-
-settings = get_settings()
-# asyncpg uses 'postgresql://' not 'postgresql+asyncpg://'
-db_url = re.sub(r'^postgresql\+asyncpg://', 'postgresql://', settings.DATABASE_URL)
-
-async def reset():
-    conn = await asyncpg.connect(db_url)
-    await conn.execute('DROP SCHEMA public CASCADE; CREATE SCHEMA public;')
-    await conn.close()
-    print('  Database schema reset successfully.')
-
-asyncio.run(reset())
-" 2>&1
+# container is still running, we need to drop+recreate the database manually
+# to eliminate stale connections and dirty state between runs.
+docker compose -f "${TEST_COMPOSE}" exec -T db \
+  psql -U postgres -c "
+    SELECT pg_terminate_backend(pid) FROM pg_stat_activity
+    WHERE datname = 'pms_test' AND pid <> pg_backend_pid();
+    DROP DATABASE IF EXISTS pms_test;
+    CREATE DATABASE pms_test;
+  " 2>/dev/null || echo "DB reset skipped (may not exist yet)"
 
 # --- 4. Apply migrations ----------------------------------------------------
 echo "${YELLOW}→ [4/5] Applying migrations...${RESET}"

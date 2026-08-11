@@ -263,15 +263,13 @@ test-frontend: check-docker check-compose ## Run frontend unit tests (Vitest)
 
 test-e2e: check-docker check-compose ## Run E2E tests with Playwright (self-contained: starts stack, seeds DB, runs tests, tears down)
 	@echo "$(COLOR_GREEN)→ Running Playwright E2E tests (self-contained)...$(COLOR_RESET)"
-	@mkdir -p frontend/playwright-report frontend/e2e-results
 	@# 1. Start test stack + wait healthy + reset DB + migrate + seed (via setup script)
 	@echo "$(COLOR_BLUE)  [1/5] Setting up E2E environment...$(COLOR_RESET)"
 	@./scripts/setup-e2e.sh
-	@# 2. Run Playwright
+	@# 2. Run Playwright (capture exit code so cleanup always runs)
 	@echo "$(COLOR_BLUE)  [2/5] Running Playwright...$(COLOR_RESET)"
-	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
-		frontend-test npx playwright test --reporter=html
-	@# 3. Cleanup: stop test stack
+	@$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm frontend-test npx playwright test --reporter=html || PLAYWRIGHT_EXIT=$$?
+	@# 3. Cleanup: stop test stack (always, even if tests failed)
 	@echo "$(COLOR_YELLOW)  [3/5] Cleaning up test stack...$(COLOR_RESET)"
 	@$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) down -v
 	@# 4. Clean test artifacts (handles root-owned files from Docker)
@@ -279,7 +277,12 @@ test-e2e: check-docker check-compose ## Run E2E tests with Playwright (self-cont
 	@./scripts/clean-test-artifacts.sh
 	@# 5. Done
 	@echo "$(COLOR_BLUE)  [5/5] Done.$(COLOR_RESET)"
-	@echo "$(COLOR_GREEN)✓ E2E tests complete$(COLOR_RESET)"
+	@if [ -n "$${PLAYWRIGHT_EXIT:-}" ] && [ "$$PLAYWRIGHT_EXIT" -ne 0 ]; then \
+		echo "$(COLOR_RED)✗ E2E tests failed (exit code $$PLAYWRIGHT_EXIT)$(COLOR_RESET)"; \
+		exit 1; \
+	else \
+		echo "$(COLOR_GREEN)✓ E2E tests complete$(COLOR_RESET)"; \
+	fi
 
 test-integration: check-docker check-compose ## Run integration tests only (requires test stack)
 	@echo "$(COLOR_GREEN)→ Running integration tests...$(COLOR_RESET)"

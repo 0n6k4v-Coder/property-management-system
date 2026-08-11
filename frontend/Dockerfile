@@ -26,16 +26,21 @@ RUN apk add --no-cache \
     dbus \
     gcompat
 
-# Install Playwright Chromium browser binary (use regular chromium, not headless_shell for musl compatibility)
+# Install Playwright Chromium browser binary (must run as root)
 RUN npx playwright install chromium
 
-COPY tsconfig.json tsconfig.e2e.json vite.config.ts tailwind.config.js postcss.config.js index.html ./
-COPY eslint.config.js ./
-COPY public/ public/
-COPY src/ src/
-COPY e2e/ e2e/
-COPY lighthouserc.js ./
-COPY playwright.config.ts ./
+# Switch to the built-in 'node' user (uid 1000) from the base image
+# This matches the host user (uid 1000) so bind-mounted volumes are writable
+USER node
+
+# Copy application code as the node user so files match host ownership
+COPY --chown=node:node tsconfig.json tsconfig.e2e.json vite.config.ts tailwind.config.js postcss.config.js index.html ./
+COPY --chown=node:node eslint.config.js ./
+COPY --chown=node:node public/ public/
+COPY --chown=node:node src/ src/
+COPY --chown=node:node e2e/ e2e/
+COPY --chown=node:node lighthouserc.js ./
+COPY --chown=node:node playwright.config.ts ./
 
 EXPOSE 5173
 

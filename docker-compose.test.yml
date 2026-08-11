@@ -56,10 +56,12 @@ services:
       - DB_MAX_OVERFLOW=10
       - DB_POOL_TIMEOUT=30
       - DB_POOL_RECYCLE=1800
+    tmpfs:
+      - /app/.pytest_cache:mode=1777,uid=1000,gid=1000,size=50M
+      - /app/htmlcov:mode=1777,uid=1000,gid=1000,size=100M
+      - /tmp:mode=1777,uid=1000,gid=1000,size=100M
     volumes:
       - ./backend:/app:cached
-      - test-backend-pytest-cache:/app/.pytest_cache
-      - test-backend-coverage:/app/htmlcov
     depends_on:
       db:
         condition: service_healthy
@@ -76,6 +78,7 @@ services:
     restart: unless-stopped
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    user: "1000:1000"
     deploy:
       resources:
         limits:
@@ -112,9 +115,6 @@ services:
       - COVERAGE_FILE=/tmp/coverage/.coverage
     volumes:
       - ./backend:/app:cached
-      - test-backend-pytest-cache:/app/.pytest_cache
-      - test-backend-coverage:/app/htmlcov
-      - ./backend/test-reports:/app/test-reports
     depends_on:
       db:
         condition: service_healthy
@@ -125,6 +125,7 @@ services:
     restart: "no"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    user: "1000:1000"
     deploy:
       resources:
         limits:
@@ -141,6 +142,9 @@ services:
     tmpfs:
       - /app/.hypothesis:mode=1777,size=100M
       - /tmp/coverage:mode=1777,size=100M
+      - /app/.pytest_cache:mode=1777,size=50M
+      - /tmp:mode=1777,size=100M
+      - /app/test-reports:mode=1777,uid=1000,gid=1000,size=50M
     command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html"]
 
   # -------------------------------------------------------------------------
@@ -159,14 +163,6 @@ services:
     volumes:
       - ./frontend:/app:cached
       - test-frontend-node-modules:/app/node_modules
-      - test-frontend-coverage:/app/coverage
-      - ./frontend/playwright-report:/app/playwright-report
-      - ./frontend/e2e-results:/app/e2e-results
-      # tmpfs for test-results — trace:'on' can generate hundreds of MB
-      - type: tmpfs
-        target: /app/test-results
-        tmpfs:
-          size: 1G
     depends_on:
       backend:
         condition: service_healthy
@@ -174,7 +170,7 @@ services:
     cap_drop: [ALL]
     cap_add: [DAC_OVERRIDE]
     security_opt: [no-new-privileges:true]
-    user: "root"
+    user: "1000:1000"
     deploy:
       resources:
         limits:
@@ -188,6 +184,13 @@ services:
       options:
         max-size: "10m"
         max-file: "2"
+    # tmpfs for all test artifacts — eliminates EBUSY, ensures fresh state every run,
+    # and prevents root-owned files on the host (container runs as uid 1000)
+    tmpfs:
+      - /app/coverage:mode=1777,uid=1000,gid=1000,size=100M
+      - /app/test-results:mode=1777,uid=1000,gid=1000,size=200M
+      - /app/playwright-report:mode=1777,uid=1000,gid=1000,size=200M
+      - /tmp:mode=1777,uid=1000,gid=1000,size=50M
     # Default: unit tests (vitest). Override for E2E:
     #   docker compose -f docker-compose.test.yml run --rm frontend-test npx playwright test
     command: ["npx", "vitest", "run", "--coverage"]
@@ -315,13 +318,7 @@ services:
 # Volumes — Test-isolated (separate from dev volumes)
 # =============================================================================
 volumes:
-  test-backend-pytest-cache:
-    driver: local
-  test-backend-coverage:
-    driver: local
   test-frontend-node-modules:
-    driver: local
-  test-frontend-coverage:
     driver: local
   test-redis-data:
     driver: local
