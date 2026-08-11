@@ -64,8 +64,8 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await login(page);
     await page.goto('/settings');
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
-    await expect(page.getByRole('button', { name: 'Audit Logs' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'System Config' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Audit Logs' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'System Config' })).toBeVisible();
 
     expect(states.consoleErrors).toEqual([]);
     expect(states.jsErrors).toEqual([]);
@@ -257,7 +257,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await page.goto('/settings');
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
-    await page.getByRole('button', { name: 'System Config' }).click();
+    await page.getByRole('tab', { name: 'System Config' }).click();
 
     await expect(page.locator('th', { hasText: 'Key' })).toBeVisible({ timeout: 20000 });
     await expect(page.locator('th', { hasText: 'Value' })).toBeVisible();
@@ -285,7 +285,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await page.goto('/settings');
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
-    await page.getByRole('button', { name: 'System Config' }).click();
+    await page.getByRole('tab', { name: 'System Config' }).click();
     await expect(page.locator('th', { hasText: 'Key' })).toBeVisible({ timeout: 20000 });
 
     const row = page.locator('tr', { hasText: 'APP_NAME' });
@@ -306,8 +306,8 @@ test.describe('Settings (System Settings — admin config page)', () => {
 
     // Re-open the tab to force a fresh GET /admin/config — the value must NOT
     // have persisted server-side; APP_NAME shows its original value again.
-    await page.getByRole('button', { name: 'Audit Logs' }).click();
-    await page.getByRole('button', { name: 'System Config' }).click();
+    await page.getByRole('tab', { name: 'Audit Logs' }).click();
+    await page.getByRole('tab', { name: 'System Config' }).click();
     await expect(page.getByText('ZZZ_TEST_VALUE_123')).toHaveCount(0, { timeout: 15000 });
     await expect(page.locator('tr', { hasText: 'APP_NAME' })).toBeVisible();
 
