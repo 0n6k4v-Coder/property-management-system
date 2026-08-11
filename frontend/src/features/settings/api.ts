@@ -36,7 +36,7 @@ export function useSystemConfig() {
   return useQuery({
     queryKey: adminKeys.systemConfig,
     queryFn: async () => {
-      const res = await apiFetch<API.SystemConfigListResponse>('/admin/config');
+      const res = await apiFetch<API.SystemConfigListResponse>('/admin/system-config');
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
       return res as API.SystemConfigListResponse;
     },
@@ -49,7 +49,7 @@ export function useUpdateSystemConfig() {
   return useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
       const res = await apiFetch<API.SuccessResponse<API.SystemConfigResponse>>(
-        `/admin/config/${key}`,
+        `/admin/system-config/${key}`,
         { method: 'PATCH', body: JSON.stringify({ value }) },
       );
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
