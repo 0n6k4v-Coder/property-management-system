@@ -25,7 +25,7 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     trace: 'on',
     screenshot: 'only-on-failure',
-    video: 'off',
+    video: 'retain-on-failure',
     actionTimeout: 10_000,
     navigationTimeout: 15_000,
   },

@@ -209,7 +209,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     // Wait for the default Audit Logs API response (no property_id, "All properties")
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/v1/admin/audit-logs') && response.status() === 200,
+        response.url().includes('/admin/audit-logs') && response.status() === 200,
       { timeout: 10000 },
     );
 
@@ -249,7 +249,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     // Wait for the filtered Audit Logs API response before asserting on table
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/v1/admin/audit-logs') && response.status() === 200,
+        response.url().includes('/admin/audit-logs') && response.status() === 200,
       { timeout: 10000 },
     );
 
@@ -276,7 +276,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     // Wait for the System Config API response before asserting on config rows
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/v1/admin/config') && response.status() === 200,
+        response.url().includes('/admin/system-config') && response.status() === 200,
       { timeout: 10000 },
     );
 
@@ -311,7 +311,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     // Wait for the System Config API response before asserting on config rows
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/api/v1/admin/config') && response.status() === 200,
+        response.url().includes('/admin/system-config') && response.status() === 200,
       { timeout: 10000 },
     );
 
