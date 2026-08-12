@@ -102,6 +102,19 @@ services:
       - dev
 
   # -------------------------------------------------------------------------
+  # Frontend Init — Fix node_modules volume ownership (matches docker-compose.test.yml pattern)
+  # -------------------------------------------------------------------------
+  frontend-init:
+    image: busybox
+    user: root
+    volumes:
+      - frontend-node-modules:/app/node_modules
+    command: sh -c "chown -R 1000:1000 /app/node_modules 2>/dev/null; echo 'node_modules permissions fixed'"
+    restart: "no"
+    profiles:
+      - dev
+
+  # -------------------------------------------------------------------------
   # Frontend Service — Vite dev server with hot-reload
   # -------------------------------------------------------------------------
   frontend:
@@ -110,7 +123,7 @@ services:
       dockerfile: Dockerfile
       target: development
     ports:
-      - "${FRONTEND_PORT:-5173}:5173"  # Vite dev server
+      - "${FRONTEND_PORT:-5173}:5173"
     environment:
       - VITE_API_URL=/api/v1
       - NODE_ENV=development
@@ -119,9 +132,12 @@ services:
       - ./frontend:/app:cached
       - frontend-node-modules:/app/node_modules
     depends_on:
+      frontend-init:
+        condition: service_completed_successfully
       backend:
         condition: service_started
     restart: "no"
+    user: "1000:1000"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
     deploy:
