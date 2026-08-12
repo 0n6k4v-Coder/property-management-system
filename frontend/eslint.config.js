@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint';
 import reactDoctor from 'eslint-plugin-react-doctor';
 
 export default tseslint.config(
-  { ignores: ['dist/', 'node_modules/', 'coverage/', 'public/', '*.config.*', 'src/types/api.d.ts', 'playwright-report/', 'test-results/', 'e2e-results/'] },
+  { ignores: ['dist/', 'node_modules/', 'coverage/', 'public/', '*.config.*', 'src/types/api.d.ts', 'playwright-report/', 'test-results/', 'e2e-results/', 'lighthouserc.js'] },
 
   js.configs.recommended,
   ...tseslint.configs.recommended,
