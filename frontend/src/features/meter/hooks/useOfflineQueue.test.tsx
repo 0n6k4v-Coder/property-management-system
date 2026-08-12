@@ -4,7 +4,6 @@
 import { renderHook, act } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { server } from '@/mocks/server';
-import { http, HttpResponse } from 'msw';
 
 // Mock idb-queue and sync modules
 const mockGetPendingCount = vi.fn();

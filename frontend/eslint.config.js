@@ -44,4 +44,16 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'error',
     },
   },
+
+  // Unit/integration test files — react-doctor rules designed for production
+  // components don't apply to test files that legitimately use mocks and
+  // multiple components. Per ESLint flat config official docs, override here.
+  {
+    files: ['**/*.test.tsx', '**/*.test.ts', '**/*.spec.tsx', '**/*.spec.ts'],
+    rules: {
+      'react-doctor/only-export-components': 'off',
+      'react-doctor/no-multi-comp': 'off',
+      'react-doctor/jsx-pascal-case': 'off',
+    },
+  },
 );

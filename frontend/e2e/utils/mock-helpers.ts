@@ -19,7 +19,6 @@ export async function mockAuthApis(page: Page): Promise<void> {
     if (route.request().method() !== 'POST') {
       return route.continue();
     }
-    const postData = route.request().postData();
     // Allow test-specific overrides to handle different scenarios
     await route.fulfill({
       status: 200,

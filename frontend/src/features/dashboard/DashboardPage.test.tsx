@@ -2,8 +2,7 @@
 // Integration tests for DashboardPage — RTL + MSW.
 // Tests: stat cards, overdue table, error state, loading states.
 
-import { render, screen, waitFor } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { AuthProvider } from '@/shared/auth/AuthContext';

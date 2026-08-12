@@ -61,7 +61,7 @@ async function loginForApi(request: APIRequestContext): Promise<string> {
   const res = await request.post('/api/v1/auth/login', {
     data: { email: 'admin@example.com', password: 'Admin123!' },
   });
-  const body = await res.json();
+  const body = (await res.json()) as { data: { access_token: string } };
   return body.data.access_token;
 }
 
@@ -79,7 +79,7 @@ async function createThrowawayContract(request: APIRequestContext): Promise<stri
       deposit_amount: 10000,
     },
   });
-  const body = await res.json();
+  const body = (await res.json()) as { data: { id: string } };
   if (!res.ok()) throw new Error(`Failed to create throwaway contract: ${JSON.stringify(body)}`);
   return body.data.id;
 }
@@ -220,7 +220,7 @@ test.describe('Contract Management Flow', () => {
         deposit_amount: 10000,
       },
     });
-    const body = await res.json();
+    const body = (await res.json()) as { data: { id: string } };
     if (!res.ok()) throw new Error(`Failed to create throwaway contract: ${JSON.stringify(body)}`);
     return body.data.id;
   }

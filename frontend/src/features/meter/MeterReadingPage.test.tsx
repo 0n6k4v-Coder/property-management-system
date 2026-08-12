@@ -9,7 +9,6 @@ import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { AuthProvider } from '@/shared/auth/AuthContext';
 import { ToastProvider } from '@/shared/ui/Toast';
 import { server } from '@/mocks/server';
-import { http, HttpResponse } from 'msw';
 import MeterReadingPage from './MeterReadingPage';
 
 function renderPage() {

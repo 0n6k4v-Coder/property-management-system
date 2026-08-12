@@ -37,7 +37,7 @@
 //     is the same class of issue already tracked for dashboard.spec.ts and
 //     the search tests above.
 
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { login, navigateTo, fillField, clickButton, expectValidationError } from '../utils/test-helpers';
 import { captureAllStates, type CapturedStates } from '../utils/state-capture';
 

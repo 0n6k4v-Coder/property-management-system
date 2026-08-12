@@ -40,14 +40,14 @@ async function mintInviteToken(request: APIRequestContext, email: string): Promi
   const loginRes = await request.post('/api/v1/auth/login', {
     data: { email: SEEDED_USERS.admin.email, password: SEEDED_USERS.admin.password },
   });
-  const loginBody = await loginRes.json();
+  const loginBody = await loginRes.json() as { data: { access_token: string } };
   const accessToken: string = loginBody.data.access_token;
 
   const inviteRes = await request.post('/api/v1/auth/invite', {
     headers: { Authorization: `Bearer ${accessToken}` },
     data: { email, property_id: SEEDED.propertySunsetId },
   });
-  const inviteBody = await inviteRes.json();
+  const inviteBody = await inviteRes.json() as { data: { invite_link: string } };
   const inviteLink: string = inviteBody.data.invite_link;
   const token = new URL(inviteLink).searchParams.get('token');
   if (!token) throw new Error(`Could not parse invite token from link: ${inviteLink}`);
@@ -517,8 +517,10 @@ test.describe('Auth Flow — Cross-cutting Concerns', () => {
   test('Should store both access_token and refresh_token in sessionStorage', async ({ page }) => {
     await login(page);
 
-    const accessToken = await page.evaluate(() => sessionStorage.getItem('pms_access_token'));
-    const refreshToken = await page.evaluate(() => sessionStorage.getItem('pms_refresh_token'));
+    const [accessToken, refreshToken] = await Promise.all([
+      page.evaluate(() => sessionStorage.getItem('pms_access_token')),
+      page.evaluate(() => sessionStorage.getItem('pms_refresh_token')),
+    ]);
 
     expect(accessToken).not.toBeNull();
     expect(accessToken!.length).toBeGreaterThan(0);
