@@ -69,7 +69,7 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
     css: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['**/e2e/**', '**/node_modules/**', '**/dist/**'],
+    exclude: ['**/e2e/**', '**/node_modules/**', '**/dist/**', '**/src/test/templates/**'],
     testTimeout: 60000,
     coverage: {
       provider: 'v8',
