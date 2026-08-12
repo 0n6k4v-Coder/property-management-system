@@ -16,6 +16,7 @@ RUN npm ci
 FROM deps AS development
 
 # Install Playwright system dependencies for Alpine Linux
+# ffmpeg: needed by Playwright for video: 'retain-on-failure'
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -24,16 +25,12 @@ RUN apk add --no-cache \
     ttf-freefont \
     font-noto-cjk \
     dbus \
-    gcompat
+    gcompat \
+    ffmpeg
 
-# Install Playwright Chromium browser binary (must run as root)
-RUN npx playwright install chromium
-
-# Ensure node_modules is owned by the node user (uid 1000) — the named volume
-# in docker-compose.test.yml (test-frontend-node-modules) is initialized from
-# this image layer, so chown here propagates to the volume's initial state.
-# Without this, Vite optimizer cannot create .vite/ cache directories.
-RUN chown -R 1000:1000 /app/node_modules
+# Install Playwright browser binaries (must run as root — before USER node switch)
+# Does NOT use --with-deps (Alpine uses apk, not apt — --with-deps fails here)
+RUN npx playwright install chromium ffmpeg
 
 # Switch to the built-in 'node' user (uid 1000) from the base image
 # This matches the host user (uid 1000) so bind-mounted volumes are writable
