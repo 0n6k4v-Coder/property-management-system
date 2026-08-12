@@ -176,8 +176,6 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
     await navigateTo(page, '/tenants', /Tenants/i);
 
     await fillField(page, 'Search by name, phone, or email (min. 3 chars)', 'ab');
-    await page.waitForTimeout(500);
-
     await expect(page.locator('text=Type at least 3 characters to search').first()).toBeVisible();
 
     expect(states.consoleErrors).toEqual([]);
@@ -196,7 +194,13 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
     await navigateTo(page, '/tenants', /Tenants/i);
 
     await fillField(page, 'Search by name, phone, or email (min. 3 chars)', 'nonexistentname');
-    await page.waitForTimeout(500);
+
+    // Wait for the debounced search API call to complete (300ms debounce + network)
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/tenants/search') && response.status() === 200,
+      { timeout: 10000 },
+    );
 
     await expect(page.locator('text=No tenants found matching "nonexistentname"').first()).toBeVisible();
 

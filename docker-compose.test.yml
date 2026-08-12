@@ -184,13 +184,6 @@ services:
       options:
         max-size: "10m"
         max-file: "2"
-    # tmpfs for all test artifacts — eliminates EBUSY, ensures fresh state every run,
-    # and prevents root-owned files on the host (container runs as uid 1000)
-    tmpfs:
-      - /app/coverage:mode=1777,uid=1000,gid=1000,size=100M
-      - /app/test-results:mode=1777,uid=1000,gid=1000,size=200M
-      - /app/playwright-report:mode=1777,uid=1000,gid=1000,size=200M
-      - /tmp:mode=1777,uid=1000,gid=1000,size=50M
     # Default: unit tests (vitest). Override for E2E:
     #   docker compose -f docker-compose.test.yml run --rm frontend-test npx playwright test
     command: ["npx", "vitest", "run", "--coverage"]

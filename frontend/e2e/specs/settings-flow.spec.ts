@@ -206,6 +206,13 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await page.goto('/settings');
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
+    // Wait for the default Audit Logs API response (no property_id, "All properties")
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/admin/audit-logs') && response.status() === 200,
+      { timeout: 10000 },
+    );
+
     // Default tab is Audit Logs. Either the table header (rows exist) or the
     // explicit empty-state must appear — but NOT a 422-driven silent blank.
     await expect(
@@ -239,6 +246,13 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await select.selectOption({ value: SEEDED.propertySunsetId }, { timeout: 20000 });
     await expect(select).toHaveValue(SEEDED.propertySunsetId);
 
+    // Wait for the filtered Audit Logs API response before asserting on table
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/admin/audit-logs') && response.status() === 200,
+      { timeout: 10000 },
+    );
+
     // After filtering, the tab must still render a valid state (table or empty),
     // not a 422 / crash.
     await expect(
@@ -258,6 +272,13 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
     await page.getByRole('tab', { name: 'System Config' }).click();
+
+    // Wait for the System Config API response before asserting on config rows
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/admin/config') && response.status() === 200,
+      { timeout: 10000 },
+    );
 
     await expect(page.locator('th', { hasText: 'Key' })).toBeVisible({ timeout: 20000 });
     await expect(page.locator('th', { hasText: 'Value' })).toBeVisible();
@@ -286,6 +307,14 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
     await page.getByRole('tab', { name: 'System Config' }).click();
+
+    // Wait for the System Config API response before asserting on config rows
+    await page.waitForResponse(
+      (response) =>
+        response.url().includes('/api/v1/admin/config') && response.status() === 200,
+      { timeout: 10000 },
+    );
+
     await expect(page.locator('th', { hasText: 'Key' })).toBeVisible({ timeout: 20000 });
 
     const row = page.locator('tr', { hasText: 'APP_NAME' });
