@@ -30,7 +30,13 @@ export default defineConfig({
     navigationTimeout: 15_000,
   },
 
-  expect: { timeout: 10_000 },
+  expect: {
+    timeout: 10_000,
+    toHaveScreenshot: {
+      maxDiffPixelRatio: 0.01,  // 1% tolerance — reduces false positives from font/subpixel differences
+      threshold: 0.2,           // color threshold for pixel similarity
+    },
+  },
 
   webServer: {
     command: 'npm run dev',
