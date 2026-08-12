@@ -30,7 +30,10 @@ RUN apk add --no-cache \
 
 # Install Playwright browser binaries (must run as root — before USER node switch)
 # Does NOT use --with-deps (Alpine uses apk, not apt — --with-deps fails here)
+# Set HOME to the node user's home so downloads go to the correct location
+ENV HOME=/home/node
 RUN npx playwright install chromium ffmpeg
+ENV HOME=/root
 
 # Switch to the built-in 'node' user (uid 1000) from the base image
 # This matches the host user (uid 1000) so bind-mounted volumes are writable
