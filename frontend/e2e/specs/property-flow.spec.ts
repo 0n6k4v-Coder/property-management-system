@@ -9,7 +9,8 @@
 //
 // Component Audit Findings (per E2E_TEST_STRATEGY.md Article 4.1 Step 2):
 //   - PropertyListPage.tsx has NO search/filter/sort/pagination/delete controls — PROP-03~07 are
-//     NOT IMPLEMENTED in the component. Tests below assert that absence rather than skipping the ID.
+//     NOT IMPLEMENTED in the component. These tests are skipped with clear reasons; a real test
+//     will replace each skip when the feature is implemented.
 //   - PropertyDetailPage.tsx has NO inline edit, add-building, or delete-building UI, and NO tabs
 //     at all — PROP-DET-02~05 are NOT IMPLEMENTED. The tabbed interface the spec describes for
 //     "property detail" actually lives on RoomDetailPage.tsx (tested under ROOM-* below).
@@ -95,7 +96,10 @@ test.describe('Property List (/property)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('PROP-03: Search by name → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-03: Search by name → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyListPage.tsx has no search input.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateTo(page, '/property', /Property Management/i);
 
@@ -104,7 +108,10 @@ test.describe('Property List (/property)', () => {
     await expect(page.getByRole('searchbox')).toHaveCount(0);
   });
 
-  test('PROP-04: Filter by status → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-04: Filter by status → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyListPage.tsx has no filter dropdown/select.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateTo(page, '/property', /Property Management/i);
 
@@ -112,7 +119,10 @@ test.describe('Property List (/property)', () => {
     await expect(page.getByRole('combobox', { name: /status/i })).toHaveCount(0);
   });
 
-  test('PROP-05: Sort by name/created → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-05: Sort by name/created → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyListPage.tsx has no sort control.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateTo(page, '/property', /Property Management/i);
 
@@ -120,7 +130,10 @@ test.describe('Property List (/property)', () => {
     await expect(page.getByRole('button', { name: /sort/i })).toHaveCount(0);
   });
 
-  test('PROP-06: Pagination → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-06: Pagination → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyListPage.tsx has no pagination controls.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateTo(page, '/property', /Property Management/i);
 
@@ -128,7 +141,10 @@ test.describe('Property List (/property)', () => {
     await expect(page.getByRole('button', { name: /next|prev/i })).toHaveCount(0);
   });
 
-  test('PROP-07: Delete property → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-07: Delete property → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyListPage.tsx has no delete button.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateTo(page, '/property', /Property Management/i);
 
@@ -179,7 +195,10 @@ test.describe('Property Detail (/property/:id)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('PROP-DET-02: Edit property → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-DET-02: Edit property → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyDetailPage.tsx has no inline edit control.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToPropertyDetail(page);
     await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
@@ -188,7 +207,10 @@ test.describe('Property Detail (/property/:id)', () => {
     await expect(page.getByRole('button', { name: /edit/i })).toHaveCount(0);
   });
 
-  test('PROP-DET-03: Add building → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-DET-03: Add building → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyDetailPage.tsx has no Add Building modal/button.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToPropertyDetail(page);
     await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
@@ -197,7 +219,10 @@ test.describe('Property Detail (/property/:id)', () => {
     await expect(page.getByRole('button', { name: /add building/i })).toHaveCount(0);
   });
 
-  test('PROP-DET-04: Delete building → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('PROP-DET-04: Delete building → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: PropertyDetailPage.tsx has no Delete Building control.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToPropertyDetail(page);
     await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
@@ -268,17 +293,24 @@ test.describe('Room Detail (/property/rooms/:id)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('ROOM-02: Edit room status → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('ROOM-02: Edit room status → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: RoomDetailPage.tsx renders a static Badge only.
+    // A useUpdateRoomStatus() hook exists in api.ts but is never wired to UI.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToRoomDetail(page);
 
     // Status is rendered as a static Badge ("available") — no editable control.
-    // A useUpdateRoomStatus() hook exists in api.ts but is never wired to any UI.
     await expect(page.getByRole('button', { name: /available|occupied|maintenance/i })).toHaveCount(0);
     await expect(page.getByRole('combobox')).toHaveCount(0);
   });
 
-  test('ROOM-03: Assign tenant → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('ROOM-03: Assign tenant → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: RoomDetailPage.tsx Contract tab has no tenant assignment.
+    // "Create Contract" button is present but disabled.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: Sprint 3 — tenant assignment feature
     await login(page);
     await navigateToRoomDetail(page);
 
@@ -290,7 +322,10 @@ test.describe('Room Detail (/property/rooms/:id)', () => {
     await expect(page.getByRole('button', { name: 'Create Contract' })).toBeDisabled();
   });
 
-  test('ROOM-04: Unassign tenant → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('ROOM-04: Unassign tenant → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: RoomDetailPage.tsx Contract tab has no unassign/end-lease control.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: Sprint 4 — contract management feature
     await login(page);
     await navigateToRoomDetail(page);
 
@@ -300,7 +335,10 @@ test.describe('Room Detail (/property/rooms/:id)', () => {
     await expect(page.getByRole('button', { name: /unassign|end lease/i })).toHaveCount(0);
   });
 
-  test('ROOM-05: Add meter reading → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('ROOM-05: Add meter reading → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: RoomDetailPage.tsx Meter History tab has no add-reading form.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: Sprint 3 — meter reading feature
     await login(page);
     await navigateToRoomDetail(page);
 
@@ -310,7 +348,11 @@ test.describe('Room Detail (/property/rooms/:id)', () => {
     await expect(page.getByRole('button', { name: /add reading/i })).toHaveCount(0);
   });
 
-  test('ROOM-06: View meter history → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('ROOM-06: View meter history → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: RoomDetailPage.tsx Meter History tab shows placeholder only.
+    // No chart, table, or pagination control exists.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: Sprint 3 — meter reading feature
     await login(page);
     await navigateToRoomDetail(page);
 

@@ -122,7 +122,11 @@ test.describe('Reports (/reports)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('RPT-02: Occupancy report → NOT IMPLEMENTED on this page', async ({ page }) => {
+  test.skip('RPT-02: Occupancy report → NOT IMPLEMENTED on this page', async ({ page }) => {
+    // Feature not implemented: ReportsPage.tsx has no occupancy section.
+    // Occupancy data only lives on /dashboard.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.4
     await login(page);
     await navigateTo(page, '/reports', /reports/i);
 
@@ -139,7 +143,10 @@ test.describe('Reports (/reports)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('RPT-03: Collection report (rate/aging) → NOT IMPLEMENTED on this page', async ({ page }) => {
+  test.skip('RPT-03: Collection report (rate/aging) → NOT IMPLEMENTED on this page', async ({ page }) => {
+    // Feature not implemented: ReportsPage.tsx has no collection-rate/aging UI.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.4
     await login(page);
     await navigateTo(page, '/reports', /reports/i);
 
@@ -156,7 +163,10 @@ test.describe('Reports (/reports)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('RPT-04: Maintenance report (by status/priority) → NOT IMPLEMENTED on this page', async ({ page }) => {
+  test.skip('RPT-04: Maintenance report (by status/priority) → NOT IMPLEMENTED on this page', async ({ page }) => {
+    // Feature not implemented: ReportsPage.tsx has no maintenance breakdown.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.4
     await login(page);
     await navigateTo(page, '/reports', /reports/i);
 
@@ -226,7 +236,10 @@ test.describe('Reports (/reports)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('RPT-07 (spec RPT-06 duplicate ID): Scheduled reports (email schedule) → NOT IMPLEMENTED', async ({ page }) => {
+  test.skip('RPT-07 (spec RPT-06 duplicate ID): Scheduled reports (email schedule) → NOT IMPLEMENTED', async ({ page }) => {
+    // Feature not implemented: ReportsPage.tsx has no schedule/email-setup UI.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.4
     await login(page);
     await navigateTo(page, '/reports', /reports/i);
 

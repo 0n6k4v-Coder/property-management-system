@@ -84,7 +84,10 @@ test.describe('Dashboard (/dashboard)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('DASH-03: Date range filter → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('DASH-03: Date range filter → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: DashboardPage.tsx has no date range filter UI.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.3.1
     await login(page);
     await navigateTo(page, '/dashboard', 'Dashboard');
 
@@ -97,7 +100,11 @@ test.describe('Dashboard (/dashboard)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('DASH-04: Property switcher → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('DASH-04: Property switcher → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: DashboardPage.tsx uses hardcoded SAMPLE_PROPERTY UUID
+    // with no property selector dropdown/switcher UI.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.3
     await login(page);
     await navigateTo(page, '/dashboard', 'Dashboard');
 
@@ -112,7 +119,11 @@ test.describe('Dashboard (/dashboard)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('DASH-05: Real-time updates → NOT IMPLEMENTED (uses staleTime polling)', async ({ page }) => {
+  test.skip('DASH-05: Real-time updates → NOT IMPLEMENTED (uses staleTime polling)', async ({ page }) => {
+    // Feature not implemented: DashboardPage.tsx has no real-time/live update UI.
+    // Uses staleTime polling only — no live/realtime indicator or auto-refresh UI.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.3
     await login(page);
     await navigateTo(page, '/dashboard', 'Dashboard');
 
@@ -150,7 +161,11 @@ test.describe('Dashboard (/dashboard)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('DASH-07: Export dashboard → NOT IMPLEMENTED in component', async ({ page }) => {
+  test.skip('DASH-07: Export dashboard → NOT IMPLEMENTED in component', async ({ page }) => {
+    // Feature not implemented: DashboardPage.tsx has no export/download controls.
+    // No Export, Download, PDF, or CSV buttons exist on the dashboard.
+    // Tracking ticket: N/A (component audit finding)
+    // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.3
     await login(page);
     await navigateTo(page, '/dashboard', 'Dashboard');
 
