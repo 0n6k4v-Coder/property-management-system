@@ -33,7 +33,7 @@ import { SEEDED, SEEDED_DATA } from '../fixtures/seeded-ids';
 
 const ROOM_101_SHORT_ID = SEEDED.room101Id.slice(0, 8);
 
-async function navigateToPropertyDetail(page: Page, propertyId = SEEDED.propertySunsetId): Promise<void> {
+async function navigateToPropertyDetail(page: Page, propertyId: string = SEEDED.propertySunsetId): Promise<void> {
   await page.goto(`/property/${propertyId}`);
   await page.waitForLoadState('domcontentloaded');
   await page.waitForLoadState('networkidle');

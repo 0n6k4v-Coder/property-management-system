@@ -134,8 +134,12 @@ test.describe('Accessibility (A11y) Audit', () => {
     const isDark = await page.evaluate(() => {
       const bg = getComputedStyle(document.body).backgroundColor;
       const m = bg.match(/\d+/g);
-      if (!m) return false;
-      const [r, g, b] = m.map(Number);
+      if (!m || m.length < 3) return false;
+      // With noUncheckedIndexedAccess, array destructuring yields `number | undefined`.
+      // Use guarded indexed access to obtain defined values.
+      const r = Number(m[0]);
+      const g = Number(m[1]);
+      const b = Number(m[2]);
       const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
       return luminance < 128;
     });
