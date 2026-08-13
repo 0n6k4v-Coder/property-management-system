@@ -74,5 +74,23 @@ describe('statusToVariant', () => {
       expect(statusToVariant('Active')).toBe('success');
       expect(statusToVariant('OVERDUE')).toBe('warning');
     });
+
+    it('returns "default" for null', () => {
+      // null coerced to string "null" — falls through to default
+      expect(statusToVariant(null as unknown as string)).toBe('default');
+    });
+
+    it('returns "default" for undefined', () => {
+      expect(statusToVariant(undefined as unknown as string)).toBe('default');
+    });
+
+    it('returns "default" for numeric input', () => {
+      // String coercion turns 123 into "123" which is not a known status
+      expect(statusToVariant(123 as unknown as string)).toBe('default');
+    });
+
+    it('returns "default" for status with leading/trailing whitespace', () => {
+      expect(statusToVariant('  available  ')).toBe('default');
+    });
   });
 });
