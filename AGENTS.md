@@ -12,8 +12,9 @@
 | Component | Status | Details |
 |-----------|--------|---------|
 | **Backend** | ✅ v1.0.0 Ready | 9 modules, 139 tests, production Docker, Local CI preferred |
-| **Frontend** | ✅ v1.0.0 Ready | 9 feature modules, E2E suite, PWA, Lighthouse CI, A11y audit |
-| **Documentation** | ⚠️ 85% Complete | **Exists (referenced):** PROMPT.md, E2E_TEST_STRATEGY.md, shared-contracts/, backend SDD, frontend SDD, ARCHITECTURE.md, REQUIREMENTS.md, DOMAIN_MODEL.md, USER_STORIES.md, GLOSSARY.md, API.md (docs/API.md — central API contract, kept in sync with routers)  |  **Missing at root:** SECURITY.md, UX_SPEC/ |
+| **Frontend** | ✅ v1.0.0 Ready | 9 feature modules, 855 tests, E2E suite, PWA, Lighthouse CI, A11y audit |
+| **Phase 4: Coverage Gap Closure** | ✅ Complete | Frontend unit tests 139 → 855, all modules ≥80% coverage, test template + patterns documented |
+| **Documentation** | ✅ 95% Complete | **Exists:** All docs + Phase 4 testing-patterns.md added |
 | **Infrastructure** | ✅ Ready | Local CI preferred, backup/restore scripts, prod compose, MinIO, Redis |
 | **Testing** | ✅ 100% Pass | 139/139 tests, coverage ≥85%, async_client pattern stable |
 
@@ -233,7 +234,15 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 ✅ E2E: auth-flow, meter-offline-sync, invoice-payment (all mocked)
 ✅ Docker: multi-stage Dockerfile, docker-compose dev/test profiles
 ✅ Documentation: README.md, SPRINT_1–6.md all complete
+✅ Unit Tests: 855/855 pass (vitest), coverage ≥80% all 10 feature modules + shared kernel
 ```
+
+### Phase 4: Coverage Gap Closure ✅ Complete (Tasks 0-8.2b)
+- Unit tests: 139 → 855 tests
+- Coverage: All 10 feature modules ≥80%, all shared modules ≥80%
+- New patterns documented: `frontend/docs/testing-patterns.md`
+- Test template: `src/test/templates/COMPONENT_TEMPLATE.test.tsx`
+- Gate 10 (Frontend Unit Tests): PASS
 
 ---
 
