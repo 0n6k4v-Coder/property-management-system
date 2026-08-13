@@ -76,7 +76,7 @@ describe('COMPONENT', () => {
   });
 
   // ── Pattern: Loading/skeleton state test
-  // Uses waitFor to wait for skeleton (animate-pulse) to disappear ──────────
+  // Shows loading state then content after async fetch ────────────────────────
   it('shows skeleton while loading then renders content', async () => {
     // Optional: add slow handler to test loading state
     // server.use(
@@ -88,11 +88,7 @@ describe('COMPONENT', () => {
 
     renderPage();
 
-    // Wait for skeleton loader (animate-pulse) to disappear
-    await waitFor(() => {
-      expect(screen.queryByText(/animate-pulse/i)).not.toBeInTheDocument();
-    }, { timeout: 5000 });
-
+    // Wait for content to appear (skeleton disappears on load)
     expect(await screen.findByText('CONTENT')).toBeInTheDocument();
   });
 

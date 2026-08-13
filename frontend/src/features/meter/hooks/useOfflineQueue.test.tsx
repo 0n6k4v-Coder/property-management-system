@@ -1,7 +1,7 @@
 // File: src/features/meter/hooks/useOfflineQueue.test.tsx
 // Unit tests for useOfflineQueue hook — offline queue monitoring and sync trigger.
 
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { server } from '@/mocks/server';
 
@@ -38,12 +38,10 @@ describe('useOfflineQueue', () => {
     mockGetPendingCount.mockResolvedValue(0);
     const { result } = renderHookWithProviders();
 
-    // Wait for initial refreshCount
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    // Wait for initial refreshCount to settle
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(0);
     });
-
-    expect(result.current.pendingCount).toBe(0);
     expect(result.current.isSyncing).toBe(false);
   });
 
@@ -51,11 +49,9 @@ describe('useOfflineQueue', () => {
     mockGetPendingCount.mockResolvedValue(3);
     const { result } = renderHookWithProviders();
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(3);
     });
-
-    expect(result.current.pendingCount).toBe(3);
   });
 
   it('sets isSyncing=true during triggerSync, then false after', async () => {
@@ -64,8 +60,8 @@ describe('useOfflineQueue', () => {
 
     const { result } = renderHookWithProviders();
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(0);
     });
 
     await act(async () => {
@@ -83,39 +79,35 @@ describe('useOfflineQueue', () => {
 
     const { result } = renderHookWithProviders();
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(5);
     });
-
-    expect(result.current.pendingCount).toBe(5);
 
     await act(async () => {
       await result.current.triggerSync();
     });
 
-    expect(result.current.pendingCount).toBe(0);
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(0);
+    });
   });
 
   it('updates pendingCount on online event', async () => {
     mockGetPendingCount.mockResolvedValueOnce(0).mockResolvedValueOnce(2);
     const { result } = renderHookWithProviders();
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(0);
     });
-
-    expect(result.current.pendingCount).toBe(0);
 
     // Simulate going online
     act(() => {
       window.dispatchEvent(new Event('online'));
     });
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(2);
     });
-
-    expect(result.current.pendingCount).toBe(2);
   });
 
   it('does not crash when triggerBackgroundSync throws', async () => {
@@ -124,8 +116,8 @@ describe('useOfflineQueue', () => {
 
     const { result } = renderHookWithProviders();
 
-    await act(async () => {
-      await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => {
+      expect(result.current.pendingCount).toBe(0);
     });
 
     await act(async () => {
