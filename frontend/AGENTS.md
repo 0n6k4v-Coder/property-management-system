@@ -350,6 +350,66 @@ describe('InvoiceListPage', () => {
 
 **Coverage targets:** Components ≥80%, Hooks ≥85%, Utils ≥90%
 
+> ℹ️ **Note:** For isolated unit tests (pure logic, no API interaction), `vi.mock` is acceptable. For any component that interacts with the API, use the **MSW Integration Tests** pattern below (Recommended) — this aligns with Phase 4 implementation (all 855 tests use MSW for API-dependent tests).
+
+#### MSW Integration Tests (Recommended for API-dependent tests)
+
+```typescript
+// File: src/features/billing/InvoiceListPage.test.tsx
+import { describe, it, expect, beforeAll, afterEach, afterAll } from 'vitest';
+import { render, screen } from '@testing-library/react';
+
+import { server } from '@/mocks/server';
+import { http, HttpResponse } from 'msw';
+
+// MSW lifecycle hooks (identical across ALL test files)
+beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
+
+describe('InvoiceListPage', () => {
+  it('renders invoice list on success', async () => {
+    // Per-test handler override
+    server.use(
+      http.get('*/api/v1/invoices', () => {
+        return HttpResponse.json({
+          data: [{ id: '1', amount: 1000, status: 'paid' }],
+        });
+      }),
+    );
+
+    // Use renderPage() helper from testing-patterns.md
+    // Assert screen content
+    expect(await screen.findByText(/1,000/)).toBeInTheDocument();
+  });
+
+  it('handles API error', async () => {
+    server.use(
+      http.get('*/api/v1/invoices', () => {
+        return HttpResponse.json(
+          { error: { code: 'SYS-500', message: 'Internal error' } },
+          { status: 500 },
+        );
+      }),
+    );
+
+    // Use renderPage() helper from testing-patterns.md
+    expect(await screen.findByText(/error/i)).toBeInTheDocument();
+  });
+});
+```
+
+**When to use MSW:**
+- ✅ Component interacts with API
+- ✅ Need to test error states (401, 500, 429)
+- ✅ Integration tests (component + API + state)
+- ✅ Follows Phase 4 patterns (see `frontend/docs/testing-patterns.md`)
+
+**When to use vi.mock:**
+- ✅ Isolated unit tests (no API interaction)
+- ✅ Testing pure logic/utils
+- ✅ Mocking internal dependencies (not fetch)
+
 ### E2E Tests (Playwright) — **MANDATORY: State Verification Engine**
 
 Every test **MUST** verify ALL states simultaneously:
