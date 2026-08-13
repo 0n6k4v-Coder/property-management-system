@@ -85,3 +85,12 @@ export async function markAsFailed(id: number, error: string): Promise<void> {
   }
   await tx.done;
 }
+
+/** @internal — Test-only: closes cached DB connection + clears promise for test isolation */
+export async function _resetDb(): Promise<void> {
+  if (dbPromise) {
+    const db = await dbPromise;
+    db.close();
+  }
+  dbPromise = null;
+}
