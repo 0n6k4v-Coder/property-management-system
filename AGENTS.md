@@ -64,8 +64,8 @@ property-management-system/
 │   ├── Dockerfile                 # ✅ Multi-stage, non-root, 254MB
 │   └── scripts/                   # ✅ init-prod-db.sql, create_tables.py
 │
-├── frontend/                      # ✅ Frontend v1.0.0 (React 19 + Vite 8 + PWA, **JS + JSDoc, no TypeScript**)
-│   ├── src/                       # ✅ 9 feature modules + shared kernel (JS + JSDoc, jsconfig + checkJs, .js with JSX)
+├── frontend/                      # ✅ Frontend v1.0.0 (React 19 + Vite 8 + PWA, TypeScript 6.0+ Strict Mode)
+│   ├── src/                       # ✅ 9 feature modules + shared kernel (TypeScript 6.0+, tsconfig.json + strict mode, .tsx with JSX)
 │   ├── e2e/                       # ✅ Playwright E2E (3 flows + A11y)
 │   ├── docs/                      # ✅ SDD, screen specs, sprint plans
 │   └── public/                    # ✅ PWA manifest, icons, offline fallback
@@ -96,7 +96,7 @@ property-management-system/
    - `backend/docs/sprints/` → Sprint Plans (1–8)
    - `backend/docs/` → CODE_STYLE.md, OPERATIONS.md
    - `frontend/docs/` → Frontend Architecture, Integration, UX Specs
-3. **Code Location:** Python → `backend/app/`, **JS + JSDoc** → `frontend/src/` (no TypeScript, uses `jsconfig.json` + `checkJs`)
+3. **Code Location:** Python → `backend/app/`, **TypeScript** → `frontend/src/` (TypeScript 6.0+, uses `tsconfig.json` + `strict: true`)
 4. **Missing Files Reference:** หากเอกสารอ้างอิงไฟล์ที่ยังไม่มี → ให้สร้างไฟล์นั้นก่อนเริ่มงาน หรือแจ้ง Human เพื่อปรับเอกสาร
 
 ---
@@ -224,7 +224,7 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 ### Frontend ✅ v1.0.0 Complete
 ```
 ✅ 9 Modules: auth, billing, dashboard, meter, property, reports, tenant, contract, maintenance
-✅ Stack: React 19 + Vite 8 + **JS + JSDoc (NOT TypeScript), jsconfig + checkJs, .js with JSX**
+✅ Stack: React 19 + Vite 8 + **TypeScript 6.0+ Strict Mode, tsconfig.json, .tsx with JSX**
 ✅ Shared Kernel: fetchClient, AuthContext, PWA (SW + IDB queue + sync), UI components
 ✅ Routing: React Router v7 lazy-load + ProtectedRoute + GuestRoute
 ✅ Testing: Vitest (unit), Playwright (E2E 3 flows), axe-core (A11y 0 violations)

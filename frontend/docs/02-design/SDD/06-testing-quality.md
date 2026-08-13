@@ -119,7 +119,7 @@ jobs:
 ### 8.3 Test Pyramid & CI Pipeline
 | ระดับ | เครื่องมือ | ขอบเขต | Target Coverage |
 |------|----------|--------|----------------|
-| **Unit** | Vitest + React Testing Library | Hooks, Utils, Isolated Components | ≥80% |
+| **Unit** | Vitest + React Testing Library | Hooks, Utils, Isolated Components | ≥80% (lines, statements, functions), ≥75% (branches) |
 | **Integration** | MSW + Vitest | API flows, Form validation, State updates | ≥75% |
 | **E2E** | Playwright | Login → Meter → Dashboard, Offline Sync, Payment | 3 Critical Flows |
 | **A11y** | `axe-core` + `jest-axe` | Keyboard nav, Screen reader, Contrast | 0 violations |
@@ -148,7 +148,15 @@ jobs:
       - name: Unit + Integration tests
         run: vitest run --coverage
       - name: Coverage gate
-        run: npx check-coverage --lines 80 --branches 75 --functions 80
+        run: npx check-coverage --lines 80 --branches 75 --functions 80 --statements 75
+
+> 📋 **Coverage Thresholds (enforced by vite.config.ts):**
+> - Statements: 80%
+> - Branches: 75%
+> - Functions: 80%
+> - Lines: 80%
+>
+> Enforcement: Vitest จะ fail build ถ้า coverage ต่ำกว่า thresholds
       
       # Stage 3: Build + Bundle
       - name: Build + Bundle analysis

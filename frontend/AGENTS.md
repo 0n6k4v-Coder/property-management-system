@@ -328,7 +328,7 @@ if (token) headers.set('Authorization', `Bearer ${token}`);
 ### Unit Tests (Vitest + React Testing Library)
 
 ```javascript
-// File: src/features/billing/InvoiceListPage.test.jsx
+// File: src/features/billing/InvoiceListPage.test.tsx
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { InvoiceListPage } from './InvoiceListPage';
