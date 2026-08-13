@@ -831,7 +831,7 @@ const handlers = [
     });
   }),
 
-  http.get('*/api/v1/admin/config', () => {
+  http.get('*/api/v1/admin/system-config', () => {
     return HttpResponse.json({
       data: [
         { key: 'app.name', value: 'Property Management System', masked: false },
@@ -849,7 +849,7 @@ const handlers = [
     });
   }),
 
-  http.patch('*/api/v1/admin/config/:key', async ({ request, params }) => {
+  http.patch('*/api/v1/admin/system-config/:key', async ({ request, params }) => {
     const body = (await request.json()) as { value: string };
     return HttpResponse.json({
       data: {
