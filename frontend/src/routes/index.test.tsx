@@ -457,6 +457,48 @@ describe('token storage in route guards', () => {
 // ── AppRoutes route configuration tests ───────────────────────────────────────
 // Mocked feature modules prevent OOM from 14 lazy imports.
 
+// Helper: render AppRoutes with authenticated session
+function renderAppRoutes(
+  initialEntry: string[] = ['/'],
+  authenticated: boolean = true,
+) {
+  if (authenticated) {
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'user-1',
+            email: 'test@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+    );
+    setStoredTokens('fake-token');
+  } else {
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json(
+          { error: { code: 'AUTH-009', message: 'No token' } },
+          { status: 401 },
+        );
+      }),
+    );
+    clearStoredTokens();
+  }
+  return render(
+    <MemoryRouter initialEntries={initialEntry}>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <AuthProvider>
+          <AppRoutes />
+        </AuthProvider>
+      </QueryClientProvider>
+    </MemoryRouter>,
+  );
+}
+
 describe('AppRoutes', () => {
   afterEach(() => {
     clearStoredTokens();
@@ -467,264 +509,63 @@ describe('AppRoutes', () => {
   });
 
   it('redirects / to /dashboard (index route)', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json({
-          data: {
-            id: 'user-1',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        });
-      }),
-    );
-    setStoredTokens('fake-token');
-
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/'], true);
     await waitFor(() => {
       expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
     });
   });
 
   it('renders LoginPage at /login (GuestRoute)', async () => {
-    clearStoredTokens();
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json(
-          { error: { code: 'AUTH-009', message: 'No token' } },
-          { status: 401 },
-        );
-      }),
-    );
-
-    render(
-      <MemoryRouter initialEntries={['/login']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/login'], false);
     await waitFor(() => {
       expect(screen.getByTestId('page-login')).toBeInTheDocument();
     });
   });
 
   it('renders RegisterPage at /auth/register (GuestRoute)', async () => {
-    clearStoredTokens();
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json(
-          { error: { code: 'AUTH-009', message: 'No token' } },
-          { status: 401 },
-        );
-      }),
-    );
-
-    render(
-      <MemoryRouter initialEntries={['/auth/register']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/auth/register'], false);
     await waitFor(() => {
       expect(screen.getByTestId('page-register')).toBeInTheDocument();
     });
   });
 
   it('renders DashboardPage at /dashboard (ProtectedRoute)', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json({
-          data: {
-            id: 'user-1',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        });
-      }),
-    );
-    setStoredTokens('fake-token');
-
-    render(
-      <MemoryRouter initialEntries={['/dashboard']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/dashboard'], true);
     await waitFor(() => {
       expect(screen.getByTestId('page-dashboard')).toBeInTheDocument();
     });
   });
 
   it('renders SettingsPage at /settings (ProtectedRoute)', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json({
-          data: {
-            id: 'user-1',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        });
-      }),
-    );
-    setStoredTokens('fake-token');
-
-    render(
-      <MemoryRouter initialEntries={['/settings']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/settings'], true);
     await waitFor(() => {
       expect(screen.getByTestId('page-settings')).toBeInTheDocument();
     });
   });
 
   it('renders MaintenanceFormPage at /maintenance/new (ProtectedRoute)', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json({
-          data: {
-            id: 'user-1',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        });
-      }),
-    );
-    setStoredTokens('fake-token');
-
-    render(
-      <MemoryRouter initialEntries={['/maintenance/new']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/maintenance/new'], true);
     await waitFor(() => {
       expect(screen.getByTestId('page-maintenance-form')).toBeInTheDocument();
     });
   });
 
   it('renders ContractFormPage at /contracts/new (ProtectedRoute)', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json({
-          data: {
-            id: 'user-1',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        });
-      }),
-    );
-    setStoredTokens('fake-token');
-
-    render(
-      <MemoryRouter initialEntries={['/contracts/new']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/contracts/new'], true);
     await waitFor(() => {
       expect(screen.getByTestId('page-form')).toBeInTheDocument();
     });
   });
 
   it('renders InvoiceDetailPage at /invoices/123 (ProtectedRoute)', async () => {
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json({
-          data: {
-            id: 'user-1',
-            email: 'test@example.com',
-            full_name: 'Test User',
-            property_scopes: [],
-            is_active: true,
-          },
-        });
-      }),
-    );
-    setStoredTokens('fake-token');
-
-    render(
-      <MemoryRouter initialEntries={['/invoices/123']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/invoices/123'], true);
     await waitFor(() => {
       expect(screen.getByTestId('page-invoice-detail')).toBeInTheDocument();
     });
   });
 
   it('redirects unknown routes to /login (catch-all *)', async () => {
-    clearStoredTokens();
-    server.use(
-      http.get('*/api/v1/auth/me', () => {
-        return HttpResponse.json(
-          { error: { code: 'AUTH-009', message: 'No token' } },
-          { status: 401 },
-        );
-      }),
-    );
-
-    render(
-      <MemoryRouter initialEntries={['/unknown-route']}>
-        <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-          <AuthProvider>
-            <AppRoutes />
-          </AuthProvider>
-        </QueryClientProvider>
-      </MemoryRouter>,
-    );
-
+    renderAppRoutes(['/unknown-route'], false);
     await waitFor(() => {
       expect(screen.getByTestId('page-login')).toBeInTheDocument();
     });
@@ -758,5 +599,63 @@ describe('AppRoutes', () => {
     );
 
     expect(screen.getByText(/Loading/i)).toBeInTheDocument();
+  });
+
+  // ── Tests for remaining routes (coverage: lazy factory execution) ──────────
+
+  it('renders PropertyListPage at /property (ProtectedRoute)', async () => {
+    renderAppRoutes(['/property'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-property-list')).toBeInTheDocument();
+    });
+  });
+
+  it('renders PropertyDetailPage at /property/123 (ProtectedRoute)', async () => {
+    renderAppRoutes(['/property/123'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-property-detail')).toBeInTheDocument();
+    });
+  });
+
+  it('renders RoomDetailPage at /property/rooms/456 (ProtectedRoute)', async () => {
+    renderAppRoutes(['/property/rooms/456'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-room-detail')).toBeInTheDocument();
+    });
+  });
+
+  it('renders TenantListPage at /tenants (ProtectedRoute)', async () => {
+    renderAppRoutes(['/tenants'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-tenant-list')).toBeInTheDocument();
+    });
+  });
+
+  it('renders MeterReadingPage at /meter-reading (ProtectedRoute)', async () => {
+    renderAppRoutes(['/meter-reading'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-meter')).toBeInTheDocument();
+    });
+  });
+
+  it('renders ContractListPage at /contracts (ProtectedRoute)', async () => {
+    renderAppRoutes(['/contracts'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-contract-list')).toBeInTheDocument();
+    });
+  });
+
+  it('renders ContractDetailPage at /contracts/abc (ProtectedRoute)', async () => {
+    renderAppRoutes(['/contracts/abc'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-contract-detail')).toBeInTheDocument();
+    });
+  });
+
+  it('renders MaintenanceListPage at /maintenance (ProtectedRoute)', async () => {
+    renderAppRoutes(['/maintenance'], true);
+    await waitFor(() => {
+      expect(screen.getByTestId('page-maintenance-list')).toBeInTheDocument();
+    });
   });
 });
