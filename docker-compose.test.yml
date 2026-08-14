@@ -145,7 +145,7 @@ services:
       - /app/.pytest_cache:mode=1777,size=50M
       - /tmp:mode=1777,size=100M
       - /app/test-reports:mode=1777,uid=1000,gid=1000,size=50M
-    command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html"]
+    command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html:/tmp/coverage/htmlcov"]
 
   # -------------------------------------------------------------------------
   # Frontend Init — Fixes node_modules volume permissions before tests run

@@ -1,0 +1,19 @@
+[run]
+source = app
+branch = true
+parallel = true
+omit =
+    */tests/*
+    */migrations/*
+    */__pycache__/*
+
+[report]
+show_missing = true
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+
+[html]
+directory = /tmp/coverage/htmlcov

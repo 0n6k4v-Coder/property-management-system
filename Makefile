@@ -249,7 +249,7 @@ test: check-docker check-compose ## Run all backend tests in isolated test stack
 	@echo "$(COLOR_GREEN)→ Running tests in isolated test stack...$(COLOR_RESET)"
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
 		-e TEST_RETENTION_DAYS=$(TEST_RETENTION_DAYS) \
-		backend-test pytest tests/ -v --cov=app --cov-report=xml:/tmp/coverage.xml --cov-report=html:/tmp/htmlcov --cov-report=term-missing
+		backend-test pytest tests/ -v --cov=app --cov-report=xml:/tmp/coverage.xml --cov-report=html:/tmp/coverage/htmlcov --cov-report=term-missing
 
 test-unit: check-docker check-compose ## Run unit tests only
 	@echo "$(COLOR_GREEN)→ Running unit tests...$(COLOR_RESET)"
@@ -292,13 +292,11 @@ test-integration: check-docker check-compose ## Run integration tests only (requ
 
 test-coverage: check-docker check-compose ## Run tests + generate HTML coverage report
 	@echo "$(COLOR_GREEN)→ Running tests with coverage...$(COLOR_RESET)"
-	@mkdir -p backend/htmlcov
 	$(DOCKER_COMPOSE) -f $(TEST_COMPOSE) run --rm \
-		-v $(CURDIR)/backend/htmlcov:/app/htmlcov \
-		backend-test pytest --cov=app --cov-report=html --cov-report=term-missing -v --color=yes
+		-e COVERAGE_FILE=/tmp/coverage/.coverage \
+		backend-test pytest tests/ -v --cov=app --cov-report=term-missing --cov-report=html:/tmp/coverage/htmlcov
 	@echo ""
-	@echo "$(COLOR_GREEN)✓ Coverage report: backend/htmlcov/index.html$(COLOR_RESET)"
-	@echo "$(COLOR_BLUE)  Open in browser to view details$(COLOR_RESET)"
+	@echo "$(COLOR_GREEN)✓ Coverage report generated successfully in container tmpfs: /tmp/coverage/htmlcov$(COLOR_RESET)"
 
 test-contract: check-docker check-compose ## Run contract testing with Schemathesis
 	@echo "$(COLOR_GREEN)→ Running contract tests against test backend...$(COLOR_RESET)"

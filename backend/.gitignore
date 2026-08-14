@@ -33,6 +33,8 @@ env/
 # ── Testing artifacts ─────────────────────────────────────────────────
 .pytest_cache/
 htmlcov/
+coverage_html/
+/tmp/coverage/
 .coverage
 .coverage.*
 coverage.xml
