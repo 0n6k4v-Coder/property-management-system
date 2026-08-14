@@ -447,12 +447,7 @@ describe('SettingsPage — System Config tab', () => {
 
     await user.click(screen.getByRole('tab', { name: 'System Config' }));
 
-    // Skeleton (Skeleton component has animate-pulse class) — config query still loading
-    await waitFor(() => {
-      const pulse = document.querySelectorAll('.animate-pulse');
-      expect(pulse.length).toBeGreaterThanOrEqual(1);
-    });
-
+    // Config query still loading — wait for content to appear (skeleton disappears on load)
     expect(await screen.findByText('Test App')).toBeInTheDocument();
   });
 

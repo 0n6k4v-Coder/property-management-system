@@ -625,3 +625,340 @@ describe('AuthContext value', () => {
     expect(capturedValue?.error).toBeNull();
   });
 });
+
+// ── Error response with 200 OK (apiFetch returns { error } instead of throwing) ─
+// These tests cover lines 175-180 (login) and 210-215 (register) where
+// apiFetch returns a 200 response with { error: ... } body. In practice,
+// apiFetch throws on non-OK responses, but the AuthContext also handles
+// the case where the server returns 200 with an error payload.
+
+describe('login flow — 200 OK error response', () => {
+  it('sets LOGIN_FAILURE when login returns 200 with error and message', async () => {
+    setStoredTokens('dummy');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json(
+          { error: { code: 'AUTH-009', message: 'No token' } },
+          { status: 401 },
+        );
+      }),
+      http.post('*/api/v1/auth/login', () => {
+        // Server returns 200 OK with error body — does NOT throw
+        return HttpResponse.json(
+          { error: { code: 'SYS-500', message: 'Internal server error' } },
+        );
+      }),
+    );
+
+    renderWithAuth(<AuthConsumer />);
+
+    // Wait for auth to resolve, then click login
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('no');
+    });
+
+    const btn = await screen.findByText('Login');
+    await btn.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error').textContent).toBe('Internal server error');
+    });
+  });
+
+  it('sets LOGIN_FAILURE with fallback "Login failed" when error has no message', async () => {
+    setStoredTokens('dummy');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json(
+          { error: { code: 'AUTH-009', message: 'No token' } },
+          { status: 401 },
+        );
+      }),
+      http.post('*/api/v1/auth/login', () => {
+        // 200 OK with error body but NO message field
+        return HttpResponse.json(
+          { error: { code: 'AUTH-001' } },
+        );
+      }),
+    );
+
+    renderWithAuth(<AuthConsumer />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('loading').textContent).toBe('no');
+    });
+
+    const btn = await screen.findByText('Login');
+    await btn.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error').textContent).toBe('Login failed');
+    });
+  });
+});
+
+describe('register flow — 200 OK error response', () => {
+  it('sets LOGIN_FAILURE when register returns 200 with error and message', async () => {
+    setStoredTokens('dummy');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'user-1',
+            email: 'test@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+      http.post('*/api/v1/auth/register', () => {
+        // 200 OK with error body
+        return HttpResponse.json(
+          { error: { code: 'VAL-400', message: 'Invalid invite token' } },
+        );
+      }),
+    );
+
+    function RegisterInitiator() {
+      const auth = useAuth();
+      return (
+        <div>
+          <span data-testid="authenticated">{auth.isAuthenticated ? 'yes' : 'no'}</span>
+          <span data-testid="error">{auth.error ?? 'none'}</span>
+          <button
+            type="button"
+            onClick={async () => {
+              await auth.register({
+                invite_token: 'bad-token',
+                full_name: 'New User',
+                phone: '0812345678',
+                password: 'Password1',
+              });
+            }}
+          >
+            Register
+          </button>
+        </div>
+      );
+    }
+
+    renderWithAuth(<RegisterInitiator />, ['/auth/register']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('yes');
+    });
+
+    const btn = await screen.findByText('Register');
+    await btn.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error').textContent).toBe('Invalid invite token');
+    });
+  });
+
+  it('sets LOGIN_FAILURE with fallback "Registration failed" when error has no message', async () => {
+    setStoredTokens('dummy');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'user-1',
+            email: 'test@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+      http.post('*/api/v1/auth/register', () => {
+        // 200 OK with error body but NO message
+        return HttpResponse.json(
+          { error: { code: 'VAL-400' } },
+        );
+      }),
+    );
+
+    function RegisterInitiator() {
+      const auth = useAuth();
+      return (
+        <div>
+          <span data-testid="authenticated">{auth.isAuthenticated ? 'yes' : 'no'}</span>
+          <span data-testid="error">{auth.error ?? 'none'}</span>
+          <button
+            type="button"
+            onClick={async () => {
+              await auth.register({
+                invite_token: 'bad-token',
+                full_name: 'New User',
+                phone: '0812345678',
+                password: 'Password1',
+              });
+            }}
+          >
+            Register
+          </button>
+        </div>
+      );
+    }
+
+    renderWithAuth(<RegisterInitiator />, ['/auth/register']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('yes');
+    });
+
+    const btn = await screen.findByText('Register');
+    await btn.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('error').textContent).toBe('Registration failed');
+    });
+  });
+});
+
+// ── Register success path (LOADING_DONE dispatch) ─────────────────────────────
+
+describe('register flow — success path with LOADING_DONE', () => {
+  it('navigates to /login after successful registration', async () => {
+    setStoredTokens('dummy');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'user-1',
+            email: 'test@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+      http.post('*/api/v1/auth/register', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'new-user',
+            email: 'new@example.com',
+            full_name: 'New User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+    );
+
+    function RegisterInitiator() {
+      const auth = useAuth();
+      return (
+        <div>
+          <span data-testid="authenticated">{auth.isAuthenticated ? 'yes' : 'no'}</span>
+          <span data-testid="error">{auth.error ?? 'none'}</span>
+          <button
+            type="button"
+            onClick={async () => {
+              await auth.register({
+                invite_token: 'token-123',
+                full_name: 'New User',
+                phone: '0812345678',
+                password: 'Password1',
+              });
+            }}
+          >
+            Register
+          </button>
+        </div>
+      );
+    }
+
+    renderWithAuth(<RegisterInitiator />, ['/auth/register']);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('yes');
+    });
+
+    const btn = await screen.findByText('Register');
+    await btn.click();
+
+    // After successful registration (200 OK with data), no error should be set
+    // and the LOADING_DONE dispatch is reached (lines 213-217)
+    await waitFor(() => {
+      expect(screen.getByTestId('error').textContent).toBe('none');
+    });
+  });
+});
+
+// ── registerAuthCallbacks registration ───────────────────────────────────────
+
+describe('registerAuthCallbacks', () => {
+  it('registers auth callbacks on mount (logout + refreshToken)', async () => {
+    setStoredTokens('valid-token');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'user-1',
+            email: 'test@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+    );
+
+    renderWithAuth(<AuthConsumer />);
+
+    // The useEffect in AuthProvider calls registerAuthCallbacks(logout, refreshToken)
+    // We verify the auth context is fully functional
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('yes');
+    });
+
+    // Verify logout and refreshToken are available as functions
+    expect(screen.getByTestId('user').textContent).toBe('test@example.com');
+
+    // Trigger logout
+    const logoutBtn = await screen.findByText('Logout');
+    await logoutBtn.click();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('no');
+    });
+  });
+
+  it('refreshToken is callable after auth is established', async () => {
+    setStoredTokens('valid-token');
+    server.use(
+      http.get('*/api/v1/auth/me', () => {
+        return HttpResponse.json({
+          data: {
+            id: 'user-1',
+            email: 'test@example.com',
+            full_name: 'Test User',
+            property_scopes: [],
+            is_active: true,
+          },
+        });
+      }),
+      http.post('*/api/v1/auth/refresh', () => {
+        return HttpResponse.json({
+          data: { access_token: 'new-refresh-token' },
+        });
+      }),
+    );
+
+    renderWithAuth(<AuthConsumer />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('authenticated').textContent).toBe('yes');
+    });
+
+    // The refresh button should be available and callable
+    const refreshBtn = await screen.findByText('Refresh');
+    await refreshBtn.click();
+
+    await waitFor(() => {
+      expect(window.sessionStorage.getItem('pms_access_token')).toBe('new-refresh-token');
+    });
+  });
+});

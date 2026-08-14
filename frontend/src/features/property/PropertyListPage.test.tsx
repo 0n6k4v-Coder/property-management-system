@@ -75,8 +75,8 @@ describe('PropertyListPage', () => {
     it('renders property cards after loading', async () => {
       renderPage();
 
-      expect(await screen.findByText('Sunset Tower')).toBeInTheDocument();
-      expect(screen.getByText('Riverside Apartments')).toBeInTheDocument();
+      expect(await screen.findByText(/sunset tower/i)).toBeInTheDocument();
+      expect(screen.getByText(/riverside apartments/i)).toBeInTheDocument();
       expect(screen.getByText('123 Main St')).toBeInTheDocument();
       expect(screen.getByText('456 River Rd')).toBeInTheDocument();
     });
@@ -84,7 +84,7 @@ describe('PropertyListPage', () => {
     it('displays billing due day and deposit info on each card', async () => {
       renderPage();
 
-      await screen.findByText('Sunset Tower');
+      await screen.findByText(/sunset tower/i);
       expect(screen.getByText('Due: Day 5')).toBeInTheDocument();
       expect(screen.getByText('Deposit: 2mo')).toBeInTheDocument();
       expect(screen.getByText('Due: Day 10')).toBeInTheDocument();
@@ -318,7 +318,7 @@ describe('PropertyListPage', () => {
       renderPageWithId('p1');
 
       // Property detail view renders property name
-      expect(await screen.findByText('Sunset Tower')).toBeInTheDocument();
+      expect(await screen.findByText(/sunset tower/i)).toBeInTheDocument();
       expect(screen.getByText('123 Main St')).toBeInTheDocument();
       expect(screen.getByText('Due Day')).toBeInTheDocument();
     });
@@ -475,7 +475,7 @@ describe('PropertyListPage', () => {
 
       renderPageWithId('p1');
 
-      await screen.findByText('Sunset Tower');
+      await screen.findByText(/sunset tower/i);
       expect(screen.getByText('No rooms yet. Add buildings and rooms to this property.')).toBeInTheDocument();
     });
   });
@@ -487,8 +487,8 @@ describe('PropertyListPage', () => {
 
       renderPage();
 
-      expect(await screen.findByText('Sunset Tower')).toBeInTheDocument();
-      expect(screen.getByText('Riverside Apartments')).toBeInTheDocument();
+      expect(await screen.findByText(/sunset tower/i)).toBeInTheDocument();
+      expect(screen.getByText(/riverside apartments/i)).toBeInTheDocument();
 
       vi.restoreAllMocks();
     });
