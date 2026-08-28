@@ -57,6 +57,7 @@ async def get_dashboard_summary(
 ) -> DashboardSummaryWrapper:
     """GET /api/v1/dashboard/summary — fixes #5, #20."""
     # Fixes #20: financial-adjacent data must never be cached/shared.
+    _ = _current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = DashboardService(db)
@@ -81,6 +82,7 @@ async def get_revenue_report(
 ) -> RevenueReportResponse:
     """GET /api/v1/dashboard/revenue — fixes #5, #7, #13, #20."""
     # Fixes #20.
+    _ = _current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = DashboardService(db)
@@ -109,6 +111,7 @@ async def get_occupancy(
 ) -> OccupancyWrapper:
     """GET /api/v1/dashboard/occupancy — fixes #5, #11, #20."""
     # Fixes #20.
+    _ = _current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = DashboardService(db)

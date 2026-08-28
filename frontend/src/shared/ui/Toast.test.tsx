@@ -2,7 +2,7 @@
 // Unit tests for Toast.tsx — ToastProvider, useToast, ToastItem, type styles,
 // auto-dismiss, manual close, maxToasts limit, multiple toasts.
 
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, act } from '@testing-library/react';
 import { ToastProvider, useToast } from './Toast';
 
 // ── Test component that consumes useToast ─────────────────────────────────────

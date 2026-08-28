@@ -56,6 +56,7 @@ async def _check_scope(
     not found) is treated as "no scope" so the caller cannot read/guess
     non-existent resources across properties.
     """
+    _ = current_user.get("user_id")
     if property_id is None:
         raise APIError(
             code="AUTH-005",
@@ -167,6 +168,7 @@ async def list_active_contracts(
     Caching (#20): ``Cache-Control: private, no-store`` (financial data).
     """
     # Fixes #20: financial-adjacent list must never be cached/shared.
+    _ = current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = ContractService(db)

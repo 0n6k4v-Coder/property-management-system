@@ -82,6 +82,7 @@ async def _check_scope(
     not found) is treated as "no scope" so the caller cannot read/guess
     non-existent resources across properties.
     """
+    _ = current_user.get("user_id")
     if property_id is None:
         raise APIError(
             code="AUTH-005",
@@ -184,6 +185,7 @@ async def get_meter_reading_history(
     Caching (#20): ``Cache-Control: private, no-store``.
     """
     # Fixes #20: financial-adjacent history must never be cached/shared.
+    _ = current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     repo = BillingRepository(db)
@@ -277,6 +279,7 @@ async def list_invoices(
     Caching (#20): ``Cache-Control: private, no-store`` (financial data).
     """
     # Fixes #20.
+    _ = current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = BillingService(db)
@@ -325,6 +328,7 @@ async def get_invoice_detail(
     Caching (#20): ``Cache-Control: private, no-store``.
     """
     # Fixes #20.
+    _ = current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = BillingService(db)

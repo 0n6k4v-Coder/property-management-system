@@ -57,6 +57,7 @@ async def _check_scope(
     not found) is treated as "no scope" so the caller cannot read/guess
     non-existent resources across properties.
     """
+    _ = current_user.get("user_id")
     if property_id is None:
         raise APIError(
             code="AUTH-005",
@@ -157,6 +158,7 @@ async def list_pending_requests(
     are property-scoped and must not be shared/stored.
     """
     # Fixes #5: scope check after FastAPI parses query param
+    _ = current_user.get("user_id")
     await _check_scope(current_user, db, property_id)
     # Fixes #20: maintenance list must never be cached/shared.
     response.headers["Cache-Control"] = "private, no-store"

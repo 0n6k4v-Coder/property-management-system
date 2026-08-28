@@ -2,7 +2,7 @@
 // Unit tests for billing API hooks — invoice detail, list, generate, and payment.
 
 import { renderHook, waitFor } from '@testing-library/react';
-import { QueryClientProvider, QueryClient, useQueryClient } from '@tanstack/react-query';
+import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
 import { server } from '@/mocks/server';
 import { http, HttpResponse } from 'msw';
 import { useInvoiceDetail, useInvoices, useGenerateInvoice, useRecordPayment, invoiceKeys } from './api';

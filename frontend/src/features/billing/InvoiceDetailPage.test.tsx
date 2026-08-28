@@ -67,16 +67,6 @@ async function waitForInvoiceLoad() {
   }, { timeout: 5000 });
 }
 
-// Helper: open payment modal
-async function openPaymentModal() {
-  const user = userEvent.setup();
-  const buttons = await screen.findAllByRole('button', { name: 'Record Payment' });
-  // The first match is the button in the CardHeader that opens the modal
-  await user.click(buttons[0]!);
-  // Wait for modal to open — "Already Paid" only appears in modal
-  await screen.findByText('Already Paid');
-}
-
 describe('InvoiceDetailPage', () => {
   describe('loading state', () => {
     it('shows skeleton while loading', async () => {

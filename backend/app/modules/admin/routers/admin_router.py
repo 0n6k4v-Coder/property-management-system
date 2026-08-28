@@ -45,6 +45,7 @@ async def get_audit_logs(
 
     Returns paginated audit logs with optional property/action filters.
     """
+    _ = _current_user.get("user_id")
     service = AdminService(db)
     logs, total = await service.get_audit_logs(
         property_id=property_id,
@@ -74,6 +75,7 @@ async def get_system_config(
 
     Returns system configuration (secrets masked).
     """
+    _ = _current_user.get("user_id")
     service = AdminService(db)
     configs = await service.get_system_config()
     response.headers["Cache-Control"] = "private, no-store"

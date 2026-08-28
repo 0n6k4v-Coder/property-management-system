@@ -63,6 +63,7 @@ async def _check_scope(
     (entity not found) is treated as "no scope" so the caller cannot
     read/guess non-existent resources across properties.
     """
+    _ = current_user.get("user_id")
     if property_id is None:
         raise APIError(
             code="AUTH-005",
@@ -214,6 +215,7 @@ async def get_notification(
     Caching (#20): ``Cache-Control: private, no-store``.
     """
     # Fixes #20.
+    _ = current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     repo = NotificationRepository(db)
