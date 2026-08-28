@@ -188,7 +188,16 @@ export default function ContractFormPage() {
                 type="text"
                 list="tenant-options"
                 value={state.tenantSearch}
-                onChange={(e) => dispatch({ type: 'SET_TENANT_SEARCH', payload: e.target.value })}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  dispatch({ type: 'SET_TENANT_SEARCH', payload: val });
+                  const match = tenantResults?.data.find(
+                    (t) => t.full_name.toLowerCase() === val.toLowerCase() || t.id === val
+                  );
+                  if (match) {
+                    dispatch({ type: 'SET_TENANT', payload: match.id });
+                  }
+                }}
                 placeholder="Type at least 3 characters…"
                 className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500"
                 aria-autocomplete="list"
@@ -199,17 +208,23 @@ export default function ContractFormPage() {
                 Type at least 3 characters to search
               </p>
               {tenantResults && tenantResults.data.length > 0 && (
-                <datalist id="tenant-options">
+                <div className="mt-2 space-y-1 rounded-lg border border-surface-200 bg-surface-50 p-2">
+                  <p className="text-xs font-medium text-surface-500">Select matching tenant:</p>
                   {tenantResults.data.map((t) => (
-                    <option
+                    <button
                       key={t.id}
-                      value={t.full_name}
-                      data-tenant-id={t.id}
+                      type="button"
+                      onClick={() => {
+                        dispatch({ type: 'SET_TENANT', payload: t.id });
+                        dispatch({ type: 'SET_TENANT_SEARCH', payload: t.full_name });
+                      }}
+                      className="flex w-full items-center justify-between rounded-md bg-white px-3 py-1.5 text-left text-sm text-surface-800 hover:bg-primary-50 hover:text-primary-700 border border-surface-200"
                     >
-                      {t.full_name} - {t.phone}
-                    </option>
+                      <span className="font-medium">{t.full_name}</span>
+                      <span className="text-xs text-surface-500">{t.phone}</span>
+                    </button>
                   ))}
-                </datalist>
+                </div>
               )}
               {state.tenantId && (
                 <p className="mt-1 text-xs text-green-600">Selected tenant ID: {state.tenantId.slice(0, 8)}</p>

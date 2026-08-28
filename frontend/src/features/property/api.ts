@@ -35,11 +35,14 @@ export function usePropertyWithRooms(propertyId: string | null) {
   return useQuery({
     queryKey: propertyKeys.detail(propertyId ?? ''),
     queryFn: async () => {
-      // Backend returns {property: ..., rooms: [...]} directly (no data wrapper)
-      const res = await apiFetch<API.PropertyWithRoomsResponse>(
-        `/properties/${propertyId}/rooms`,
-      );
+      // Backend returns { data: { property: ..., rooms: [...] }, meta: ... } envelope
+      const res = await apiFetch<
+        API.SuccessResponse<API.PropertyWithRoomsResponse> | API.PropertyWithRoomsResponse
+      >(`/properties/${propertyId}/rooms`);
       if ('error' in res) throw new Error((res as API.ErrorResponse).error.message);
+      if ('data' in res && res.data && typeof res.data === 'object' && 'property' in res.data) {
+        return res.data as API.PropertyWithRoomsResponse;
+      }
       return res as API.PropertyWithRoomsResponse;
     },
     enabled: !!propertyId,

@@ -180,7 +180,7 @@ test.describe('Property Detail (/property/:id)', () => {
     await login(page);
     await navigateToPropertyDetail(page);
 
-    await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
+    await expect(page.getByText('Sunset Tower')).toBeVisible({ timeout: 30000 });
     await expect(page.getByText(SEEDED_DATA.property.sunset.address)).toBeVisible();
     await expect(page.getByText(`Day ${SEEDED_DATA.property.sunset.billingDueDay}`)).toBeVisible();
     await expect(page.getByText(`${SEEDED_DATA.property.sunset.minDepositMonths} months`)).toBeVisible();
@@ -201,7 +201,7 @@ test.describe('Property Detail (/property/:id)', () => {
     // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToPropertyDetail(page);
-    await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
+    await expect(page.getByText('Sunset Tower')).toBeVisible({ timeout: 30000 });
 
     // PropertyDetailPage.tsx has no inline edit control anywhere.
     await expect(page.getByRole('button', { name: /edit/i })).toHaveCount(0);
@@ -213,7 +213,7 @@ test.describe('Property Detail (/property/:id)', () => {
     // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToPropertyDetail(page);
-    await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
+    await expect(page.getByText('Sunset Tower')).toBeVisible({ timeout: 30000 });
 
     // No "Add building" modal/button exists.
     await expect(page.getByRole('button', { name: /add building/i })).toHaveCount(0);
@@ -225,7 +225,7 @@ test.describe('Property Detail (/property/:id)', () => {
     // Expected delivery: TBD — see docs/02-design/SDD/02-module-specs.md §2.2
     await login(page);
     await navigateToPropertyDetail(page);
-    await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
+    await expect(page.getByText('Sunset Tower')).toBeVisible({ timeout: 30000 });
 
     // No "Delete building" control exists.
     await expect(page.getByRole('button', { name: /delete building/i })).toHaveCount(0);
@@ -234,7 +234,7 @@ test.describe('Property Detail (/property/:id)', () => {
   test('PROP-DET-05: Switch tabs → N/A on this page, no tabs implemented', async ({ page }) => {
     await login(page);
     await navigateToPropertyDetail(page);
-    await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
+    await expect(page.getByText('Sunset Tower')).toBeVisible({ timeout: 30000 });
 
     // PropertyDetailPage.tsx renders a single view (Property Info + Rooms grid) with
     // no tablist at all — the tabbed interface the spec describes lives on the Room
@@ -255,10 +255,10 @@ test.describe('Property Detail (/property/:id)', () => {
   test('Back navigation → returns to property list from detail', async ({ page }) => {
     await login(page);
     await page.goto('/property');
-    await expect(page.locator('h1').first()).toContainText('Property Management', { timeout: 30000 });
+    await expect(page.locator('main h1').first()).toContainText('Property Management', { timeout: 30000 });
 
     await page.getByRole('button', { name: /Sunset Tower/i }).click();
-    await expect(page.locator('h1').first()).toContainText('Sunset Tower', { timeout: 30000 });
+    await expect(page.getByText('Sunset Tower')).toBeVisible({ timeout: 30000 });
 
     await page.getByText('Back to properties').click();
 

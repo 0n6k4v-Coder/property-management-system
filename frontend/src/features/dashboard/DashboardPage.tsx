@@ -38,7 +38,7 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Monthly Revenue"
-          value={summary ? formatCurrency(summary.total_revenue) : '—'}
+          value={summary ? formatCurrency(summary.monthly_revenue ?? summary.total_revenue) : '—'}
           delta="vs last month"
           isLoading={isLoading}
         />

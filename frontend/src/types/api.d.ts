@@ -374,11 +374,12 @@ declare namespace API {
     occupied_rooms: number;
     occupancy_rate: number;
     active_contracts: number;
-    total_revenue: number;
+    monthly_revenue?: number;
+    total_revenue?: number;
     overdue_count: number;
     overdue_amount: number;
     pending_maintenance: number;
-    overdue_invoices: number;
+    overdue_invoices?: number;
   }
 
   interface RevenueMetricResponse {

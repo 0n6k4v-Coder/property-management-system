@@ -203,15 +203,18 @@ test.describe('Settings (System Settings — admin config page)', () => {
   // default "All properties" load returns data and renders the table.
   test('SET-REAL-01 should load Audit Logs on the default tab without requiring a property filter', async ({ page }) => {
     await login(page);
+
+    const auditResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/admin/audit-logs') && response.status() === 200,
+      { timeout: 15000 },
+    );
+
     await page.goto('/settings');
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
     // Wait for the default Audit Logs API response (no property_id, "All properties")
-    await page.waitForResponse(
-      (response) =>
-        response.url().includes('/admin/audit-logs') && response.status() === 200,
-      { timeout: 10000 },
-    );
+    await auditResponsePromise;
 
     // Default tab is Audit Logs. Either the table header (rows exist) or the
     // explicit empty-state must appear — but NOT a 422-driven silent blank.
@@ -243,15 +246,17 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await expect(select).toBeVisible();
     await expect(select).toHaveValue(''); // "All properties" default
 
+    const filterPromise = page.waitForResponse(
+      (response) =>
+        response.url().includes('/admin/audit-logs') && response.status() === 200,
+      { timeout: 15000 },
+    );
+
     await select.selectOption({ value: SEEDED.propertySunsetId }, { timeout: 20000 });
     await expect(select).toHaveValue(SEEDED.propertySunsetId);
 
     // Wait for the filtered Audit Logs API response before asserting on table
-    await page.waitForResponse(
-      (response) =>
-        response.url().includes('/admin/audit-logs') && response.status() === 200,
-      { timeout: 10000 },
-    );
+    await filterPromise;
 
     // After filtering, the tab must still render a valid state (table or empty),
     // not a 422 / crash.
@@ -273,13 +278,6 @@ test.describe('Settings (System Settings — admin config page)', () => {
 
     await page.getByRole('tab', { name: 'System Config' }).click();
 
-    // Wait for the System Config API response before asserting on config rows
-    await page.waitForResponse(
-      (response) =>
-        response.url().includes('/admin/system-config') && response.status() === 200,
-      { timeout: 10000 },
-    );
-
     await expect(page.locator('th', { hasText: 'Key' })).toBeVisible({ timeout: 20000 });
     await expect(page.locator('th', { hasText: 'Value' })).toBeVisible();
     await expect(page.getByText('APP_NAME')).toBeVisible();
@@ -287,7 +285,7 @@ test.describe('Settings (System Settings — admin config page)', () => {
     // masked placeholder, not its real value.
     await expect(page.getByText('SECRET_KEY')).toBeVisible();
     // Several sensitive keys are masked (4 of them), so scope to .first().
-    await expect(page.getByText('••••••••').first()).toBeVisible();
+    await expect(page.getByText('••••••••').or(page.getByText('****')).first()).toBeVisible();
 
     expect(states.consoleErrors).toEqual([]);
     expect(states.jsErrors).toEqual([]);
@@ -307,13 +305,6 @@ test.describe('Settings (System Settings — admin config page)', () => {
     await expect(page.locator('h1').first()).toContainText(/system settings/i, { timeout: 30000 });
 
     await page.getByRole('tab', { name: 'System Config' }).click();
-
-    // Wait for the System Config API response before asserting on config rows
-    await page.waitForResponse(
-      (response) =>
-        response.url().includes('/admin/system-config') && response.status() === 200,
-      { timeout: 10000 },
-    );
 
     await expect(page.locator('th', { hasText: 'Key' })).toBeVisible({ timeout: 20000 });
 

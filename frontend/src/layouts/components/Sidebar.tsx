@@ -241,7 +241,7 @@ function NavItem({
 function SectionLabel({ label, expanded }: { label: string; expanded: boolean }) {
   return (
     <p
-      className={`px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-surface-400 transition-all duration-150 ${
+      className={`px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-surface-500 transition-all duration-150 ${
         expanded ? 'text-left w-auto' : 'text-center w-full'
       }`}
     >

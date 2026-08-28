@@ -332,13 +332,12 @@ class TestRevenueDateValidation:
 
     async def test_valid_range_succeeds(self) -> None:
         """Valid date range should succeed (not raise VAL-001)."""
+        stub_service = _make_stub_service(revenue_report=[])
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(dashboard_router, "require_property_scope", lambda *a, **kw: None)
             mock_user_has_property_scope = AsyncMock(return_value=True)
             mp.setattr("app.shared.deps.user_has_property_scope", mock_user_has_property_scope)
-            import app.modules.dashboard.services.dashboard_service as service_module
-            mp.setattr(service_module, "DashboardService", _make_stub_service(
-                revenue_report=[]))
+            mp.setattr(dashboard_router, "DashboardService", lambda db: stub_service(db))
 
             await dashboard_router.get_revenue_report(
                 response=_FakeResponse(),
@@ -457,13 +456,12 @@ class TestRevenueDateValidation:
 
     async def test_valid_range_succeeds(self) -> None:
         """Valid date range should succeed (not raise VAL-001)."""
+        stub_service = _make_stub_service(revenue_report=[])
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(dashboard_router, "require_property_scope", lambda *a, **kw: None)
             mock_user_has_property_scope = AsyncMock(return_value=True)
             mp.setattr("app.shared.deps.user_has_property_scope", mock_user_has_property_scope)
-            import app.modules.dashboard.services.dashboard_service as service_module
-            mp.setattr(service_module, "DashboardService", _make_stub_service(
-                revenue_report=[]))
+            mp.setattr(dashboard_router, "DashboardService", lambda db: stub_service(db))
 
             await dashboard_router.get_revenue_report(
                 response=_FakeResponse(),

@@ -107,7 +107,7 @@ async def _check_scope(
 )
 async def create_meter_reading(
     request: MeterReadingRequest,
-    current_user: dict[str, Any],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
 ) -> MeterReadingCreateResponse:
@@ -170,7 +170,7 @@ async def create_meter_reading(
 )
 async def get_meter_reading_history(
     response: Response,
-    current_user: dict[str, Any],
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
     room_id: uuid.UUID,
     limit: int = QUERY_LIMIT_12,
     db: AsyncSession = GET_DB,

@@ -101,7 +101,7 @@ test.describe('Reports (/reports)', () => {
     states = await captureAllStates(page);
   });
 
-  test('RPT-01: Revenue report → real fetch succeeds, shows empty state (SAMPLE_PROPERTY gap)', async ({ page }) => {
+  test('RPT-01: Revenue report → real fetch succeeds with real data', async ({ page }) => {
     await login(page);
     await navigateTo(page, '/reports', /reports/i);
 
@@ -109,12 +109,8 @@ test.describe('Reports (/reports)', () => {
     await expect(page.getByText('Revenue Overview')).toBeVisible();
     await expect(page.getByText('Collected, outstanding, and total billed by period')).toBeVisible();
 
-    // Real backend call to GET /dashboard/revenue?property_id=<nonexistent
-    // SAMPLE_PROPERTY> always returns an empty list — this is the actual
-    // current behavior, not a mock. No chart renders; the empty-state
-    // message does instead.
-    await expect(page.getByText('No revenue data available')).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator('[aria-label*="Revenue chart"]')).toHaveCount(0);
+    // Real backend call to GET /dashboard/revenue returns seeded revenue data
+    await expect(page.getByLabel(/revenue chart/i)).toBeVisible({ timeout: 10_000 });
 
     expect(states.consoleErrors).toEqual([]);
     expect(states.jsErrors).toEqual([]);
@@ -182,17 +178,15 @@ test.describe('Reports (/reports)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('RPT-05: Export all → only "Export CSV" (revenue-only) exists, disabled with no data; no Excel/PDF', async ({ page }) => {
+  test('RPT-05: Export all → only "Export CSV" (revenue-only) exists; no Excel/PDF', async ({ page }) => {
     await login(page);
     await navigateTo(page, '/reports', /reports/i);
 
     const exportCsvButton = page.getByRole('button', { name: 'Export CSV' });
     await expect(exportCsvButton).toBeVisible();
 
-    // Real backend behavior (SAMPLE_PROPERTY gap, see file header): revenue
-    // data is always an empty array, and ReportsPage.tsx disables the
-    // export button whenever `!revenue || revenue.length === 0`.
-    await expect(exportCsvButton).toBeDisabled();
+    // With real seeded revenue data, export button is enabled
+    await expect(exportCsvButton).toBeEnabled();
 
     // No Excel/PDF export options, and no "export all"/multi-report export
     // exists — the spec's "Export all" scenario describes a feature this
