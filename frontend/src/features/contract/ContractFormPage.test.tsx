@@ -210,23 +210,30 @@ describe('ContractFormPage', () => {
       await waitFor(() => screen.getByLabelText('Search tenant by name'));
       await user.type(screen.getByLabelText('Search tenant by name'), 'Joh');
 
-      // The datalist option text is "John Doe - 0812345678"
+      // Tenant suggestion list displays matching tenant name and phone in separate elements within an interactive button
       await waitFor(() => {
-        expect(screen.getByText('John Doe - 0812345678')).toBeInTheDocument();
+        expect(screen.getByText('Select matching tenant:')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /John Doe.*0812345678/ })).toBeInTheDocument();
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+        expect(screen.getByText('0812345678')).toBeInTheDocument();
       });
     });
 
-    it('shows tenant options in datalist with phone', async () => {
+    it('shows tenant options in suggestion list with phone', async () => {
       const user = userEvent.setup();
       renderPage();
 
       await screen.findByText('Sunset Tower');
       await user.selectOptions(screen.getByLabelText(/^Property/), 'p1');
 
+      await waitFor(() => screen.getByLabelText('Search tenant by name'));
       await user.type(screen.getByLabelText('Search tenant by name'), 'Joh');
 
       await waitFor(() => {
-        expect(screen.getByText('John Doe - 0812345678')).toBeInTheDocument();
+        const optionBtn = screen.getByRole('button', { name: /John Doe.*0812345678/ });
+        expect(optionBtn).toBeInTheDocument();
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+        expect(screen.getByText('0812345678')).toBeInTheDocument();
       });
     });
 

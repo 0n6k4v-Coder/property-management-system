@@ -146,29 +146,24 @@ describe('useRecordMeterMutation', () => {
     expect(mockAddToQueue).not.toHaveBeenCalled();
   });
 
-  it('re-throws non-network error when offline (no queue fallback)', async () => {
+  it('queues locally and returns offline placeholder when offline regardless of remote server status', async () => {
     Object.defineProperty(navigator, 'onLine', { value: false, configurable: true });
 
-    // Return a 400 validation error — not a network error
-    server.use(
-      http.post('*/api/v1/billing/meter-readings', () => {
-        return HttpResponse.json(
-          {
-            error: {
-              code: 'VAL-400',
-              message: 'Some validation error',
-            },
-          },
-          { status: 400 },
-        );
-      }),
-    );
+    mockAddToQueue.mockResolvedValue(undefined);
+    mockRegisterMeterSync.mockResolvedValue(true);
 
     const { result } = renderHookWithClient(() => useRecordMeterMutation());
 
-    await expect(result.current.mutateAsync(validPayload)).rejects.toThrow('Some validation error');
+    await result.current.mutateAsync(validPayload);
 
-    // Should NOT fallback to offline queue for non-network errors
-    expect(mockAddToQueue).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+    expect(result.current.data?.id).toBe('__offline__');
+    expect(result.current.data?.room_id).toBe('room-1');
+    expect(result.current.data?.electric_used).toBe(50);
+    expect(result.current.data?.water_used).toBe(25);
+    expect(mockAddToQueue).toHaveBeenCalledWith(validPayload);
+    expect(mockRegisterMeterSync).toHaveBeenCalled();
   });
 });
