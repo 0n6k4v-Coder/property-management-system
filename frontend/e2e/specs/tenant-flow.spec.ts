@@ -8,34 +8,12 @@
 // Component Audit: Verified against TenantListPage.tsx, api.ts, validators.ts
 //
 // Fullstack notes:
-//   - TenantListPage.tsx hardcodes `SAMPLE_PROPERTY_ID =
-//     '00000000-0000-0000-0000-000000000001'` (a nonexistent property) with
-//     no property-selector UI — the exact same pattern documented in
-//     dashboard.spec.ts. Every search always queries this nonexistent
-//     property, so the results list is always empty regardless of what
-//     tenants actually exist. Tests that depend on search *results*
-//     (listing, filtering, pagination totals) are skipped below with that
-//     rationale; tests that only depend on client-side validation or the
-//     empty-state copy are kept and run against the real backend.
-//   - Real bug found and fixed while converting this file: the tenant
-//     creation endpoint's Pydantic request schema
-//     (backend CreateTenantRequest) had `model_config =
-//     ConfigDict(strict=True)` with a bare `property_id: uuid.UUID` field.
-//     Pydantic v2 strict mode requires an already-parsed UUID *instance*,
-//     which JSON never provides (UUIDs always arrive as strings over
-//     HTTP) — so tenant creation was completely broken for every real
-//     client, always returning 422. Fixed by overriding
-//     `property_id: uuid.UUID = Field(strict=False)`.
-//   - TENANT-02 is skipped even after that fix: the same hardcoded
-//     SAMPLE_PROPERTY_ID means every real create-tenant submission targets
-//     a nonexistent property, which now fails with an unhandled 500
-//     (Postgres foreign-key violation) instead of the 422 the strict-mode
-//     bug used to mask. Two stacked real bugs, both blocking this flow:
-//     (1) no property-selector UI, and (2) the tenant service does not
-//     catch FK violations into a clean 4xx APIError. Not fixed here — the
-//     property-selector gap needs a UI feature, not a test workaround, and
-//     is the same class of issue already tracked for dashboard.spec.ts and
-//     the search tests above.
+//   - GAP-017 remediation (P1-W05): CreateTenantModal now includes dynamic
+//     property selection via useProperties() and binds property_id to the user's
+//     selection, allowing tenant creation across real/seeded properties.
+//   - TENANT-02 is enabled and verifies end-to-end tenant creation against the real
+//     backend. Search filtering tests (TENANT-03~07) remain skipped pending multi-property
+//     filtering UI (GAP-019/deferred).
 
 import { test, expect } from '@playwright/test';
 import { login, navigateTo, fillField, clickButton, expectValidationError } from '../utils/test-helpers';
@@ -64,11 +42,36 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test.skip('TENANT-02: Create tenant → modal opens, saves, shows toast success', async () => {
-    // SKIPPED: the create form submits the same hardcoded nonexistent
-    // SAMPLE_PROPERTY_ID (see file header), so every real submission hits a
-    // Postgres foreign-key violation on the backend — not testable against
-    // real data until the property-selector UI gap is fixed.
+  // --------------------------------------------------------------------------
+  // TENANT-02: Create tenant (Happy Path)
+  // --------------------------------------------------------------------------
+  test('TENANT-02: Create tenant → modal opens, saves, shows toast success', async ({ page }) => {
+    await login(page);
+    await navigateTo(page, '/tenants', /Tenants/i);
+
+    await clickButton(page, /New Tenant/i);
+    await expect(page.locator('h2:has-text("Create Tenant")').first()).toBeVisible({ timeout: 5000 });
+
+    // Select property from dynamic options
+    const propSelect = page.locator('#tenant-property-select');
+    await expect(propSelect).toBeVisible();
+    await propSelect.selectOption({ index: 1 }, { timeout: 10000 });
+
+    const uniquePhone = `08${Math.floor(10000000 + Math.random() * 90000000)}`;
+    await page.getByLabel('Full Name').fill('สุรศักดิ์ ใจดี');
+    await page.getByLabel('ID Card (13 digits)').fill('1234567890121');
+    await page.getByLabel('Phone (10 digits)').fill(uniquePhone);
+    await page.getByLabel('Email (optional)').fill('surasak.test@example.com');
+
+    await clickButton(page, /Create/i);
+
+    await expect(page.locator('text=Tenant created successfully').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('h2:has-text("Create Tenant")')).not.toBeVisible();
+
+    expect(states.consoleErrors).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+    expect(states.networkErrors).toEqual([]);
+    expect(states.hydrationErrors).toEqual([]);
   });
 
   // --------------------------------------------------------------------------

@@ -4,6 +4,7 @@
 
 import { useState, useRef, useEffect, useReducer } from 'react';
 import { useSearchTenants, useCreateTenant } from './api';
+import { useProperties } from '@/features/property/api';
 import { Card } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
@@ -12,7 +13,7 @@ import { TableSkeleton } from '@/shared/ui/TableSkeleton';
 import { useToast } from '@/shared/ui/Toast';
 import { createTenantSchema, type CreateTenantForm } from '@/shared/utils/validators';
 
-// Use the real seeded property ID from the E2E fixtures
+// Use the real seeded property ID from the E2E fixtures for search fallback
 import { SEEDED } from '@/../e2e/fixtures/seeded-ids';
 const DEFAULT_PROPERTY_ID = SEEDED.propertySunsetId;
 
@@ -174,8 +175,10 @@ function CreateTenantModal({
 }) {
   const { showToast } = useToast();
   const createTenant = useCreateTenant();
+  const { data: properties, isLoading: isPropertiesLoading } = useProperties();
+
   const [form, setForm] = useState<CreateTenantForm>({
-    property_id: DEFAULT_PROPERTY_ID,
+    property_id: '',
     full_name: '',
     id_card_number: '',
     phone: '',
@@ -202,7 +205,7 @@ function CreateTenantModal({
       showToast('Tenant created successfully', 'success');
       onClose();
       setForm({
-        property_id: DEFAULT_PROPERTY_ID,
+        property_id: '',
         full_name: '',
         id_card_number: '',
         phone: '',
@@ -218,6 +221,30 @@ function CreateTenantModal({
   return (
     <Modal open={open} onClose={onClose} title="Create Tenant">
       <div className="space-y-4">
+        {/* Property Selector */}
+        <div>
+          <label htmlFor="tenant-property-select" className="block text-sm font-medium text-surface-700">
+            Property <span className="text-red-500" aria-hidden="true">*</span>
+          </label>
+          <select
+            id="tenant-property-select"
+            value={form.property_id}
+            onChange={(e) => setForm((f) => ({ ...f, property_id: e.target.value }))}
+            disabled={isPropertiesLoading}
+            className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:bg-surface-100"
+          >
+            <option value="">Select a property…</option>
+            {(properties ?? []).map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          {errors.property_id && (
+            <p className="mt-1 text-xs text-red-600">{errors.property_id}</p>
+          )}
+        </div>
+
         <Input
           label="Full Name"
           value={form.full_name}

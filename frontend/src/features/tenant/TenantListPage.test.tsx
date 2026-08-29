@@ -257,7 +257,8 @@ describe('TenantListPage', () => {
     // Click Create without filling fields
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
-    // Should show validation error for full name
+    // Should show validation error for property and full name
+    expect(await screen.findByText('Property is required')).toBeInTheDocument();
     expect(await screen.findByText('Full name is required')).toBeInTheDocument();
   });
 
@@ -270,6 +271,9 @@ describe('TenantListPage', () => {
     await user.click(screen.getByText('New Tenant'));
     expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
 
+    // Select property
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p1');
+
     // Fill in valid form data
     await user.type(screen.getByLabelText('Full Name'), 'Test Tenant');
     await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890121');
@@ -280,6 +284,121 @@ describe('TenantListPage', () => {
 
     // Should show success toast and close modal
     expect(await screen.findByText('Tenant created successfully')).toBeInTheDocument();
+  });
+
+  // ── GAP-017 Test A: Dynamic property ID ─────────────────────────────
+  it('Test A (GAP-017): submits tenant creation with the dynamically selected property_id', async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    server.use(
+      http.post('*/api/v1/tenants', async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            data: {
+              id: 't-new-1',
+              property_id: capturedBody.property_id,
+              full_name: capturedBody.full_name,
+              phone: capturedBody.phone,
+              email: capturedBody.email ?? null,
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              created_at: '2026-03-01T00:00:00Z',
+            },
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByText('New Tenant'));
+    expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
+
+    // Select property p1 (Sunset Tower)
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p1');
+    await user.type(screen.getByLabelText('Full Name'), 'Dynamic Tenant');
+    await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890121');
+    await user.type(screen.getByLabelText('Phone (10 digits)'), '0812345678');
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByText('Tenant created successfully')).toBeInTheDocument();
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody?.property_id).toBe('p1');
+  });
+
+  // ── GAP-017 Test B: Property context changes ────────────────────────
+  it('Test B (GAP-017): submits tenant creation with updated property_id when property selection changes', async () => {
+    let capturedBody: Record<string, unknown> | null = null;
+    server.use(
+      http.post('*/api/v1/tenants', async ({ request }) => {
+        capturedBody = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          {
+            data: {
+              id: 't-new-2',
+              property_id: capturedBody.property_id,
+              full_name: capturedBody.full_name,
+              phone: capturedBody.phone,
+              email: capturedBody.email ?? null,
+              emergency_contact_name: null,
+              emergency_contact_phone: null,
+              created_at: '2026-03-01T00:00:00Z',
+            },
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByText('New Tenant'));
+    expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
+
+    // First select p1, then change to p2 (Riverside Apartments)
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p1');
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p2');
+
+    await user.type(screen.getByLabelText('Full Name'), 'Riverside Tenant');
+    await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890121');
+    await user.type(screen.getByLabelText('Phone (10 digits)'), '0898765432');
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByText('Tenant created successfully')).toBeInTheDocument();
+    expect(capturedBody).not.toBeNull();
+    expect(capturedBody?.property_id).toBe('p2');
+  });
+
+  // ── GAP-017 Test C: No active property selected ─────────────────────
+  it('Test C (GAP-017): prevents submission and shows validation error when no property is selected', async () => {
+    let apiCalled = false;
+    server.use(
+      http.post('*/api/v1/tenants', () => {
+        apiCalled = true;
+        return HttpResponse.json({ data: {} }, { status: 201 });
+      }),
+    );
+
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByText('New Tenant'));
+    expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
+
+    // Fill valid fields without selecting property
+    await user.type(screen.getByLabelText('Full Name'), 'No Prop Tenant');
+    await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890121');
+    await user.type(screen.getByLabelText('Phone (10 digits)'), '0812345678');
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByText('Property is required')).toBeInTheDocument();
+    expect(apiCalled).toBe(false);
   });
 
   // ── CreateTenantModal cancel ─────────────────────────────────────────
@@ -316,6 +435,9 @@ describe('TenantListPage', () => {
     await user.click(screen.getByText('New Tenant'));
     expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
 
+    // Select property
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p1');
+
     // Fill in valid form data
     await user.type(screen.getByLabelText('Full Name'), 'Duplicate Name');
     await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890121');
@@ -335,6 +457,7 @@ describe('TenantListPage', () => {
     await user.click(screen.getByText('New Tenant'));
     expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
 
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p1');
     await user.type(screen.getByLabelText('Full Name'), 'Test Tenant');
     // Invalid checksum ID (13 digits but wrong checksum)
     await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890123');
@@ -353,6 +476,7 @@ describe('TenantListPage', () => {
     await user.click(screen.getByText('New Tenant'));
     expect(await screen.findByText('Create Tenant')).toBeInTheDocument();
 
+    await user.selectOptions(screen.getByLabelText(/Property/i), 'p1');
     await user.type(screen.getByLabelText('Full Name'), 'Test Tenant');
     await user.type(screen.getByLabelText('ID Card (13 digits)'), '1234567890121');
     // Invalid phone (not 10 digits starting with 0)

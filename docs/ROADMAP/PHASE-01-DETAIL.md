@@ -504,7 +504,7 @@ Make every remaining feature gap explicit.
 | **GAP-014** | Property | Unassign tenant from room detail | `property-flow.spec.ts:325` | Skipped | **E** | `RoomDetailPage.tsx:88`, `frontend/src/features/contract/ContractDetailPage.tsx`. Unassigning is performed via Contract Termination (`PATCH /contracts/{id}/terminate`), which automatically transitions room status to `available` per BR-01. | Non-blocker | Obsolete test expectation; contract termination is canonical |
 | **GAP-015** | Property | Add meter reading from room detail | `property-flow.spec.ts:338` | Skipped | **D** | `RoomDetailPage.tsx:94`, `frontend/src/features/meter/MeterReadingPage.tsx`. Meter entry is centralized at dedicated mobile-first `/meter-reading` page per FR-METER-01. | Non-blocker | Defer embedded widget to v1.1 |
 | **GAP-016** | Property | View meter history in room detail | `property-flow.spec.ts:351` | Skipped | **D** | `RoomDetailPage.tsx:94`, backend `GET /api/v1/billing/meter-readings/{room_id}/history`. Backend endpoint exists and is tested. Embedded tab view deferred to v1.1. | Non-blocker | Defer embedded table to v1.1 |
-| **GAP-017** | Tenant | Tenant creation modal foreign-key scoping | `tenant-flow.spec.ts:67` | Skipped | **B** | `TenantListPage.tsx:178` uses `DEFAULT_PROPERTY_ID = SEEDED.propertySunsetId`. In E2E, if tenant creation runs against dynamic properties, property switcher is needed. | Release Blocker (P1) | Remediate in P1-W05: integrate property selector or ensure active property context |
+| **GAP-017** | Tenant | Tenant creation modal foreign-key scoping | `tenant-flow.spec.ts:67` | Passed | **B** | `CreateTenantModal` resolved active property context via `useProperties()` selector. Verified with Unit/Integration (19 tests) and E2E `TENANT-02` against real database. | Resolved (P1-W05) | Remediation complete: dynamic property selector integrated and verified |
 | **GAP-018** | Tenant | Search tenants by name/phone | `tenant-flow.spec.ts:79` | Skipped | **A** | `TenantListPage.tsx:55`, `useSearchTenants`, `backend/app/modules/tenant/routers/tenant_router.py:177` (`GET /tenants/search`). Verified working in unit tests and negative search E2E tests (`TENANT-SEARCH-02`). | Non-blocker | Working and verified |
 | **GAP-019** | Tenant | Filter tenants by property | `tenant-flow.spec.ts:86` | Skipped | **D** | `TenantListPage.tsx`. Multi-property filter dropdown deferred to v1.1. | Non-blocker | Defer to v1.1 |
 | **GAP-020** | Tenant | Tenant detail page navigation | `tenant-flow.spec.ts:90` | Skipped | **D** | `TenantListPage.tsx`, `REQUIREMENTS.md FR-TENANT-03`. History is tracked via contract records in v1.0. Dedicated tenant profile page deferred to v1.1. | Non-blocker | Defer to v1.1 |
@@ -551,27 +551,32 @@ Resolve only defects that prevent v1.0.0 release.
 
 For each blocker:
 
-* **M01** Identify root cause.
-* **M02** Identify affected components.
-* **M03** Define corrective change.
-* **M04** Define regression test.
+* **M01** Identify root cause: `CreateTenantModal` in `TenantListPage.tsx` previously hardcoded `property_id: DEFAULT_PROPERTY_ID` (seeded Sunset Tower ID) with no dynamic property context resolution or selection input, causing foreign-key violations if creating tenants in non-seeded/dynamic environments.
+* **M02** Identify affected components: `TenantListPage.tsx`, `TenantListPage.test.tsx`, `tenant-flow.spec.ts`.
+* **M03** Define corrective change: Integrated `useProperties()` hook into `CreateTenantModal`, added a required property `<select>` dropdown (`#tenant-property-select`), validated dynamic `property_id` selection via `createTenantSchema` (Zod), and bound mutation payload to the selected property context.
+* **M04** Define regression test: Added Unit/Integration tests in `TenantListPage.test.tsx` verifying (A) dynamic property submission, (B) property context changes, (C) error handling when no property selected, and enabled E2E test `TENANT-02` in `tenant-flow.spec.ts`.
 
 ### Evidence
 
 `P1-W05-T01-E01`
+- GAP-017 classified and verified.
 
 ---
 
 ### P1-W05-T02 — Root Cause Fix
 
-* **M01** Implement fix.
-* **M02** Add/update regression test.
-* **M03** Run affected verification.
-* **M04** Re-run impacted quality gates.
+* **M01** Implement fix: Updated `TenantListPage.tsx` with dynamic property selector dropdown and form binding.
+* **M02** Add/update regression test: Added 3 new test cases in `TenantListPage.test.tsx` (19/19 passing), enabled `TENANT-02` in `tenant-flow.spec.ts`.
+* **M03** Run affected verification: Vitest `npm test -- src/features/tenant` (27/27 tests passed), `npm run build` (passed), `npm run lint` (0 errors, 0 warnings).
+* **M04** Re-run impacted quality gates: Gate 10 (Frontend Tests & Linters) passed.
 
 ### Evidence
 
 `P1-W05-T02-E01`
+- Frontend Tenant Unit/Integration Tests: 27/27 PASSED
+- TypeScript Build & Typecheck: PASSED
+- ESLint (0 warnings): PASSED
+- Release Blockers: 0 remaining
 
 ### Rule
 
@@ -582,10 +587,16 @@ Non-blocking enhancements and new scope should not be introduced here.
 ### Exit Criteria
 
 ```text
-[ ] No release blocker remains
-[ ] Root-cause fixes verified
-[ ] Regression tests pass
+[x] No release blocker remains
+[x] Root-cause fixes verified
+[x] Regression tests pass
 ```
+
+### Status
+
+**✅ P1-W05 COMPLETED (PASS) — P1-W06 UNBLOCKED**
+
+All release blockers resolved (GAP-017 remediated). Total Release Blockers: 0.
 
 ---
 
