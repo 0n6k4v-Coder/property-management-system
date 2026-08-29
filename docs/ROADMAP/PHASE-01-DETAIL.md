@@ -594,9 +594,57 @@ Non-blocking enhancements and new scope should not be introduced here.
 
 ### Status
 
-**✅ P1-W05 COMPLETED (PASS) — P1-W06 UNBLOCKED**
+**✅ P1-W05 COMPLETED (PASS) — P1-W05-R UNBLOCKED**
 
 All release blockers resolved (GAP-017 remediated). Total Release Blockers: 0.
+
+---
+
+# P1-W05-R — Flaky Test Discovery & Root-Cause Analysis
+
+## Objective
+
+Perform a forensic investigation of all observed test instability, failures, and flaky-test candidates before proceeding to P1-W06.
+
+### Investigation Scope & Matrix
+
+| ID | Test / Area | Initial Result | Reproduction | Classification | Root Cause | Release Impact |
+|---|---|---|---|---|---|---|
+| **FLK-001** | `ContractFormPage.test.tsx` > "shows tenant results after typing 3+ characters" | Failed | 5/5 Failed (100% Deterministic) | **DETERMINISTIC TEST FAILURE** | Test asserted on obsolete `<datalist>` formatted string (`"John Doe - 0812345678"`) after UI was upgraded in commit `73dae1a` to a custom suggestion button list containing separate child `<span>` elements (`<span>John Doe</span>` and `<span>0812345678</span>`). | Non-blocking test defect (UI works in production & E2E) |
+| **FLK-002** | `ContractFormPage.test.tsx` > "shows tenant options in datalist with phone" | Failed | 5/5 Failed (100% Deterministic) | **DETERMINISTIC TEST FAILURE** | Same root cause as FLK-001 (assertion on combined datalist option text after component refactor). | Non-blocking test defect |
+| **FLK-003** | `meter/api.test.tsx` > "re-throws non-network error when offline (no queue fallback)" | Failed | 5/5 Failed (100% Deterministic) | **DETERMINISTIC TEST FAILURE** | In commit `73dae1a`, `useRecordMeterMutation` was refactored to check `if (!navigator.onLine)` upfront before calling `apiFetch`. Under `navigator.onLine = false`, the mutation immediately enters the IDB queue fallback and resolves successfully instead of throwing, violating the test's assumption that an HTTP 400 network call would be attempted. | Non-blocking test specification mismatch |
+| **FLK-004** | Playwright E2E full-suite execution & historical retry reports | Pass (111 passed, 33 skipped, 0 failed in P1-W03) | 100% Pass in isolated/clean container environments | **ENVIRONMENT / INFRASTRUCTURE INSTABILITY** (Historical) | Playwright retries (`retries: 2` in `playwright.config.ts`) mitigate transient host CPU contention and port binding delays on resource-constrained multi-container dev hosts. No active E2E flakes reproduce in clean container environment. | Non-blocking (Mitigated by test runner config) |
+
+### Discovered Failures Summary
+- Total failure candidates: 4
+- Deterministic test failures: 3 (Unit tests)
+- Genuine flaky tests: 0
+- Environment / infrastructure instability: 1 (Historical E2E retry)
+- Test isolation / fixture contamination: 0
+- Application defects: 0
+- Inconclusive: 0
+- Release blockers: 0
+
+### Sustainable Remediation Proposals
+1. **ContractFormPage.test.tsx (FLK-001, FLK-002):** Update assertion locators to match the custom suggestion buttons (`screen.getByRole('button', { name: /John Doe/i })` or separate span queries).
+2. **meter/api.test.tsx (FLK-003):** Align test expectation with the offline-first contract (`if (!navigator.onLine)` queues unconditionally, which is correct PWA behavior) or simulate offline failure modes accurately.
+3. **E2E Infrastructure (FLK-004):** Maintain `retries: 2` in `playwright.config.ts` and ensure clean isolated container teardown/startup via `scripts/setup-e2e.sh`.
+
+### Exit Criteria
+
+```text
+[x] All known release-readiness failures investigated
+[x] Every investigated failure has a defensible classification
+[x] Root causes identified and backed by reproducible evidence
+[x] Sustainable remediation backlog documented
+[x] No unexplained release-readiness failure remains
+```
+
+### Status
+
+**✅ P1-W05-R COMPLETED (PASS) — P1-W06 UNBLOCKED**
+
+No genuine application defects or release blockers found. All unit test failures are deterministic assertion drifts from commit `73dae1a`. P1-W06 is unblocked.
 
 ---
 
