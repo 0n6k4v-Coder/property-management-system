@@ -21,16 +21,17 @@ Prove that the current repository state is ready to become the **v1.0.0 release 
 
 ## Workstreams
 
-| ID         | Workstream                   | Objective                                                                       | Status |
-| ---------- | ---------------------------- | ------------------------------------------------------------------------------- | ------ |
-| **P1-W01** | Release Baseline             | Establish the exact repository state under verification.                        | ✅      |
-| **P1-W02** | Quality Gate Verification    | Verify the complete quality-gate suite against the release baseline.            | ✅      |
-| **P1-W03** | Fullstack E2E Verification   | Verify critical workflows against the real application stack.                   | ✅      |
-| **P1-W04** | Feature Gap Classification   | Identify and classify all remaining incomplete functionality.                   | ✅      |
-| **P1-W05** | Release-Blocking Defects     | Resolve defects that prevent v1.0.0 release.                                    | ⏳      |
-| **P1-W06** | Documentation Reconciliation | Align project documentation with the actual repository state.                   | ⏳      |
-| **P1-W07** | Production Preflight         | Verify production build, configuration, infrastructure, and recovery readiness. | ⏳      |
-| **P1-W08** | Release Candidate            | Freeze and prepare the final v1.0.0 release candidate.                          | ⏳      |
+| ID           | Workstream                   | Objective                                                                       | Status |
+| ------------ | ---------------------------- | ------------------------------------------------------------------------------- | ------ |
+| **P1-W01**   | Release Baseline             | Establish the exact repository state under verification.                        | ✅      |
+| **P1-W02**   | Quality Gate Verification    | Verify the complete quality-gate suite against the release baseline.            | ✅      |
+| **P1-W03**   | Fullstack E2E Verification   | Verify critical workflows against the real application stack.                   | ✅      |
+| **P1-W04**   | Feature Gap Classification   | Identify and classify all remaining incomplete functionality.                   | ✅      |
+| **P1-W05**   | Release-Blocking Defects     | Resolve defects that prevent v1.0.0 release.                                    | ✅      |
+| **P1-W05-R** | Flaky Test Root-Cause        | Forensic investigation of test instability and failure candidates.              | ✅      |
+| **P1-W06**   | Documentation Reconciliation | Align project documentation with the actual repository state.                   | ⏳      |
+| **P1-W07**   | Production Preflight         | Verify production build, configuration, infrastructure, and recovery readiness. | ⏳      |
+| **P1-W08**   | Release Candidate            | Freeze and prepare the final v1.0.0 release candidate.                          | ⏳      |
 
 ---
 
