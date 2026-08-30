@@ -59,7 +59,6 @@
 | NFR-Architecture | `shared/utils/validators.ts` | Zod schemas, validation utils | `src/shared/utils/validators.test.ts` | — |
 | NFR-Architecture | `shared/utils/status.ts` | Status formatting, enum utils | `src/shared/utils/status.test.ts` | — |
 | NFR-Architecture | `shared/hooks/useSidebar.ts` | Sidebar state management | `src/shared/hooks/useSidebar.test.ts` | — |
-| NFR-Architecture | `shared/hooks/useFocusTrap.ts` | Focus trap accessibility hook | `src/shared/hooks/useFocusTrap.test.ts` | — |
 | NFR-Architecture | `shared/components/Dialog` | Modal dialog component | `src/shared/components/Dialog.test.tsx` | — |
 | FR-METER-01~04 | `MeterInput` (offline) | `useOfflineQueue()` | `src/features/meter/hooks/useOfflineQueue.test.tsx` | §3.3 `POST /meter-readings` (offline) |
 | FR-DASH-01 | `DashboardPage` API | `useDashboardSummaryQuery()` | `src/features/dashboard/api.test.tsx` | §3.2 `GET /dashboard` |

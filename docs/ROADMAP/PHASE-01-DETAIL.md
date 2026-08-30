@@ -671,14 +671,18 @@ Perform a forensic investigation of all observed test instability, failures, and
 * **Verification:** Full frontend test suite (53 files, 960/960 unit tests PASS, 100%), typecheck passed, lint passed (0 errors, 0 warnings), Vite production build passed cleanly.
 * **Classification:** RESOLVED
 
-#### ARCH-CONS-003 — Consolidate Native Dialog Architecture (G3-IMPLEMENT-01)
-* **Problem:** Two competing overlay primitives existed: `Modal.tsx` (using a custom fixed `<div>` backdrop to simulate modality) and `Dialog.tsx` (using native HTML5 `<dialog>` and `showModal()` / `close()` lifecycle).
-* **Resolution:** Consolidated onto `Dialog.tsx` as the single canonical modal-dialog foundation across the application:
+#### ARCH-CONS-003 — Consolidate Native Dialog Architecture (G3-IMPLEMENT-01 & G3-FOLLOWUP-01)
+* **Problem:** Two competing overlay primitives existed: `Modal.tsx` (using a custom fixed `<div>` backdrop to simulate modality) and `Dialog.tsx` (using native HTML5 `<dialog>` and `showModal()` / `close()` lifecycle). Additionally, tablet navigation previously used a custom backdrop `<div>` + `<aside>` overlay, `useFocusTrap.ts` was dead code, and real browser-level accessibility verification was missing.
+* **Resolution:** Consolidated onto `Dialog.tsx` as the single canonical modal-dialog foundation across the application and completed G3 follow-up:
   1. `Dialog.tsx`: Standardized as the canonical modal primitive wrapping HTML5 `<dialog>` with `showModal()` / `close()` lifecycle, `onCancel` default prevention forwarding to `onClose`, and native backdrop styling (`dialog::backdrop` via Tailwind `backdrop:bg-black/50`).
   2. `Modal.tsx`: Refactored to delegate directly to `Dialog.tsx` with native modal lifecycle, `aria-label={title}`, and conditional subtree mounting (`if (!open) return null`), completely eliminating the custom fixed `<div>` backdrop overlay.
-  3. `Sidebar.tsx`: Preserved semantic separation between persistent desktop navigation (`<aside aria-label="Sidebar navigation">`), tablet overlay navigation (`<aside aria-label="Sidebar navigation (overlay)">`), and transient mobile drawer navigation (`<Dialog open={mobileOpen} ...>`).
-  4. Test Environment: Added global polyfills for `HTMLDialogElement.prototype.showModal` and `close` in `frontend/src/setupTests.ts` ensuring full JSDOM compatibility across unit tests.
-* **Verification:** Unit tests (54 test files, 966/966 PASS, 100%), typecheck clean (0 errors), lint clean (0 warnings), Vite production build clean, fullstack E2E suite PASS (111 passed, 2 flaky resolved on retry, 32 skipped, 0 failures).
+  3. `Sidebar.tsx` & Tablet Navigation Semantics: Migrated the temporary expanded tablet navigation overlay from custom fixed backdrop + `<aside>` to the canonical `Dialog` (`<Dialog open={isTabletOverlay} onClose={toggle} className="... md:block backdrop:bg-black/40" aria-label="Sidebar navigation (overlay)">`) ensuring native modal semantics (backdrop click, Escape, focus containment, background isolation) while preserving persistent desktop navigation (`<aside aria-label="Sidebar navigation">`) and mobile drawer navigation (`<Dialog open={mobileOpen} ...>`).
+  4. `useFocusTrap` Resolution: Removed `useFocusTrap.ts` and its test file `useFocusTrap.test.ts` after verifying 0 active production consumers and confirming native browser `<dialog>` modal semantics handle focus containment without synthetic DOM listeners.
+  5. Browser-Level A11y & Modal Verification: Added real fullstack browser Playwright E2E verification (`frontend/e2e/specs/dialog-a11y.spec.ts`):
+     - `DIA-01`: Modal opening, accessible role & name (`getByRole('dialog', { name: ... })`), focus entry, header close button.
+     - `DIA-02`: Escape key modal closing (`page.keyboard.press('Escape')`) and background interaction isolation.
+     - `DIA-03`: Responsive navigation verification across Desktop (persistent `<aside>`), Mobile (<768px native `<dialog>` drawer), and Tablet (768–1023px native `<dialog>` overlay).
+* **Verification:** Unit tests (53 test files, 955/955 PASS, 100%), typecheck clean (0 errors), lint clean (0 warnings), Vite production build clean, fullstack E2E suite PASS (114 passed, 32 skipped, 0 failures).
 * **Classification:** RESOLVED
 
 ### Exit Criteria

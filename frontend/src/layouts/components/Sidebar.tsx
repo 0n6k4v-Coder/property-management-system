@@ -405,19 +405,14 @@ export function Sidebar({ className = '', sidebarState }: SidebarProps) {
 
       {/* Tablet overlay (expanded on tablet) */}
       {isTabletOverlay && (
-        <div className="hidden md:block" role="presentation">
-          <div
-            className="fixed inset-0 z-40 bg-black/40"
-            aria-hidden="true"
-            onClick={toggle}
-          />
-          <aside
-            className={`fixed left-0 top-0 z-40 h-full w-60 shadow-xl transition-transform duration-200 ease-out ${className}`}
-            aria-label="Sidebar navigation (overlay)"
-          >
-            <SidebarContent expanded onToggle={toggle} />
-          </aside>
-        </div>
+        <Dialog
+          open={isTabletOverlay}
+          onClose={toggle}
+          className="m-0 hidden h-full w-60 max-h-full max-w-full border-0 bg-transparent p-0 shadow-xl md:block backdrop:bg-black/40"
+          aria-label="Sidebar navigation (overlay)"
+        >
+          <SidebarContent expanded onToggle={toggle} onNavigate={toggle} />
+        </Dialog>
       )}
 
       {/* Mobile drawer */}

@@ -438,20 +438,18 @@ describe('Sidebar', () => {
   // ── Tablet overlay ─────────────────────────────────────────────────────────
 
   describe('tablet overlay', () => {
-    it('shows tablet overlay when expanded AND isTabletOverlay is true', () => {
-      const { container } = renderWithSidebar(makeMockSidebar(true, true), ['/dashboard']);
+    it('shows tablet overlay dialog when expanded AND isTabletOverlay is true', () => {
+      renderWithSidebar(makeMockSidebar(true, true), ['/dashboard']);
 
-      const backdrop = container.querySelector('.fixed.inset-0.z-40');
-      expect(backdrop).toBeInTheDocument();
-      const overlayAside = container.querySelector('aside[aria-label="Sidebar navigation (overlay)"]');
-      expect(overlayAside).toBeInTheDocument();
+      const dialog = screen.getByRole('dialog', { name: 'Sidebar navigation (overlay)' });
+      expect(dialog).toBeInTheDocument();
+      expect(dialog.tagName).toBe('DIALOG');
     });
 
     it('renders normal sidebar when collapsed even if isTabletOverlay is true', () => {
       const { container } = renderWithSidebar(makeMockSidebar(false, true), ['/dashboard']);
 
-      const backdrop = container.querySelector('.fixed.inset-0.z-40');
-      expect(backdrop).not.toBeInTheDocument();
+      expect(screen.queryByRole('dialog', { name: 'Sidebar navigation (overlay)' })).not.toBeInTheDocument();
       const aside = container.querySelector('aside[aria-label="Sidebar navigation"]');
       expect(aside).toBeInTheDocument();
     });
