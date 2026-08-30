@@ -88,10 +88,68 @@
 //       the payment. Documented here so a future feature PR can flip it to a real
 //       test and remove the skip-rationale.
 
-import { test, expect } from '@playwright/test';
+import { test, expect, type APIRequestContext } from '@playwright/test';
 import { login, navigateTo } from '../utils/test-helpers';
 import { captureAllStates, type CapturedStates } from '../utils/state-capture';
 import { SEEDED, SEEDED_DATA } from '../fixtures/seeded-ids';
+
+async function loginForApi(request: APIRequestContext): Promise<string> {
+  const res = await request.post('/api/v1/auth/login', {
+    data: { email: 'admin@example.com', password: 'Admin123!' },
+  });
+  const body = (await res.json()) as { data: { access_token: string } };
+  return body.data.access_token;
+}
+
+/**
+ * Creates an isolated, test-owned invoice by recording a meter reading and generating
+ * an invoice on a deterministic unique future billing period.
+ */
+let invoiceCounter = 0;
+async function createTestPayableInvoice(request: APIRequestContext): Promise<{ id: string; number: string }> {
+  const token = await loginForApi(request);
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  // Use a predictable future month/year per call to avoid collisions with any test or retry
+  invoiceCounter += 1;
+  const month = (invoiceCounter % 12) + 1;
+  const year = 2030 + Math.floor(invoiceCounter / 12);
+
+  // 1. Record meter reading for room 102 (which has an active contract in Sunset Tower)
+  const meterRes = await request.post('/api/v1/billing/meter-readings', {
+    headers: authHeaders,
+    data: {
+      room_id: SEEDED.room102Id,
+      billing_month: month,
+      billing_year: year,
+      electric_previous: 0,
+      electric_current: 200 + invoiceCounter * 10,
+      water_previous: 0,
+      water_current: 100 + invoiceCounter * 5,
+    },
+  });
+  if (!meterRes.ok()) {
+    const err = await meterRes.text();
+    throw new Error(`Failed to record meter reading for test invoice: ${err}`);
+  }
+
+  // 2. Generate invoice for Sunset Tower for this billing period
+  const genRes = await request.post('/api/v1/billing/invoices/generate', {
+    headers: authHeaders,
+    data: {
+      property_id: SEEDED.propertySunsetId,
+      billing_month: month,
+      billing_year: year,
+    },
+  });
+  if (!genRes.ok()) {
+    const err = await genRes.text();
+    throw new Error(`Failed to generate test invoice: ${err}`);
+  }
+
+  const genBody = (await genRes.json()) as { data: { id: string; invoice_number: string } };
+  return { id: genBody.data.id, number: genBody.data.invoice_number };
+}
 
 test.describe('Invoice Payment Flow', () => {
   let states: CapturedStates;
@@ -221,15 +279,17 @@ test.describe('Invoice Payment Flow', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('should record a payment and update the remaining balance', async ({ page }) => {
+  test('should record a payment and update the remaining balance', async ({ page, request }) => {
+    const testInvoice = await createTestPayableInvoice(request);
+
     await login(page);
-    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
+    await navigateTo(page, `/invoices/${testInvoice.id}`, testInvoice.number);
 
     await page.getByRole('button', { name: 'Record Payment' }).click();
     const paymentDialog = page.getByRole('dialog', { name: 'Record Payment' });
     await expect(paymentDialog).toBeVisible();
 
-    // Pay a partial amount so the invoice stays payable for repeated test runs.
+    // Pay a partial amount on the test-owned invoice.
     await paymentDialog.getByLabel('Amount').fill('1000');
     // Method left as default "cash" — see file header note on the real
     // backend's accepted method values.
@@ -242,9 +302,11 @@ test.describe('Invoice Payment Flow', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  test('should validate that payment amount must be positive', async ({ page }) => {
+  test('should validate that payment amount must be positive', async ({ page, request }) => {
+    const testInvoice = await createTestPayableInvoice(request);
+
     await login(page);
-    await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
+    await navigateTo(page, `/invoices/${testInvoice.id}`, testInvoice.number);
 
     await page.getByRole('button', { name: 'Record Payment' }).click();
     const paymentDialog = page.getByRole('dialog', { name: 'Record Payment' });

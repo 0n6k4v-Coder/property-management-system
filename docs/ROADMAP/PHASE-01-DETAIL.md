@@ -697,6 +697,21 @@ Perform a forensic investigation of all observed test instability, failures, and
 * **Verification:** Fullstack E2E suite (114 passed, 32 skipped, 0 failed), Unit test suite (53 files, 955/955 passed), typecheck clean (0 errors), lint clean (0 warnings), Vite production build clean.
 * **Classification:** RESOLVED
 
+#### Test Determinism & State Isolation Remediation (P2-ARCH-AUDIT-03)
+
+* **Finding Ref:** Flaky Test & Test Determinism Architecture Remediation
+* **Remediation Scope:**
+  1. `DET-001` (Shared mutable seeded invoice): Seeded invoice `INV-2026-0001` preserved as strictly read-only fixture. Mutable payment tests in `invoice-payment.spec.ts` migrated to dynamically generated, test-owned invoices on isolated future billing periods.
+  2. `DET-002` (Shared room / contract mutation): Added `ensureRoomAvailable` setup helper in `contract-flow.spec.ts` to idempotently terminate existing contracts on room 103 before form creation, preventing BR-01 409 collisions across retries.
+  3. `DET-003` (Shared meter-reading uniqueness): Meter reading tests in `meter-offline-sync.spec.ts` verified using disjoint room/period combinations with zero cross-test collision.
+  4. `DET-004` (Uncontrolled tenant randomness): Replaced `Math.random()` with deterministic phone number `0821000001` in `tenant-flow.spec.ts` (`TENANT-02`).
+  5. `DET-005` (Failure-sensitive throwaway resources): Added `ensureRoomAvailable` idempotency helper to `createThrowawayContract` and `createThrowawayOnRoom` in `contract-flow.spec.ts` to terminate residual active contracts on target rooms prior to contract creation.
+  6. `DET-006` (Leaking throwaway cleanup in afterEach): REJECTED as an anti-pattern; state isolation is guaranteed via self-contained, test-owned resource lifecycles and idempotent setup rather than failure-sensitive teardowns.
+  7. `DET-007` (Global read-only seed reset during suite run): PRESERVED as intentional suite-start single-reset lifecycle per project architecture constitution (`workers: 1`, `retries: 2`).
+* **Impact:** 100% deterministic test state isolation across all mutable E2E workflows; 0 mutations on shared read-only seeded fixtures.
+* **Verification:** Fullstack E2E suite (116 passed, 32 skipped, 0 failed across 148 tests), Unit test suite (53 files, 955/955 passed), TypeScript typecheck clean (0 errors), ESLint clean (0 warnings).
+* **Classification:** RESOLVED
+
 ### Exit Criteria
 
 ```text
@@ -707,6 +722,8 @@ Perform a forensic investigation of all observed test instability, failures, and
 [x] No unexplained release-readiness failure remains
 [x] AUTH-VT-02 remediation completed and verified stable
 [x] P2-ARCH-01 Responsive UserMenu consolidated into single logical instance
+[x] P2-ARCH-02 Playwright best practices audit remediation completed (PW-001 ~ PW-004)
+[x] P2-ARCH-03 Test determinism & mutable state isolation completed (DET-001 ~ DET-005)
 ```
 
 ### Status

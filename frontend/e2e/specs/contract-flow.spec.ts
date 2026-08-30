@@ -65,12 +65,30 @@ async function loginForApi(request: APIRequestContext): Promise<string> {
   return body.data.access_token;
 }
 
-async function createThrowawayContract(request: APIRequestContext): Promise<string> {
+async function ensureRoomAvailable(request: APIRequestContext, roomId: string): Promise<void> {
+  const token = await loginForApi(request);
+  const res = await request.get(`/api/v1/contracts/active?property_id=${SEEDED.propertySunsetId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.ok()) {
+    const body = (await res.json()) as { data: Array<{ id: string; room_id: string }> };
+    const existing = body.data?.find((c) => c.room_id === roomId);
+    if (existing) {
+      await request.patch(`/api/v1/contracts/${existing.id}/terminate`, {
+        headers: { Authorization: `Bearer ${token}` },
+        data: { reason: 'tenant_moved_out' },
+      });
+    }
+  }
+}
+
+async function createThrowawayContract(request: APIRequestContext, roomId: string = SEEDED.room101Id): Promise<string> {
+  await ensureRoomAvailable(request, roomId);
   const token = await loginForApi(request);
   const res = await request.post('/api/v1/contracts/', {
     headers: { Authorization: `Bearer ${token}` },
     data: {
-      room_id: SEEDED.room101Id,
+      room_id: roomId,
       tenant_id: SEEDED.tenantJohnDoeId,
       property_id: SEEDED.propertySunsetId,
       start_date: '2026-01-01',
@@ -155,7 +173,9 @@ test.describe('Contract Management Flow', () => {
   });
 
   // ── CONT-02: Create contract (real UI fill, room 103 — available, no BR-01 clash) ──
-  test('CONT-02 should create a contract via the form', async ({ page }) => {
+  test('CONT-02 should create a contract via the form', async ({ page, request }) => {
+    await ensureRoomAvailable(request, SEEDED.room103Id);
+
     await login(page);
     await navigateTo(page, '/contracts/new', /new contract/i);
 
@@ -208,6 +228,7 @@ test.describe('Contract Management Flow', () => {
 
   // ── CONT-05: Renewal workflow (terminate throwaway on room 104, then renew) ──
   async function createThrowawayOnRoom(request: APIRequestContext, roomId: string): Promise<string> {
+    await ensureRoomAvailable(request, roomId);
     const token = await loginForApi(request);
     const res = await request.post('/api/v1/contracts/', {
       headers: { Authorization: `Bearer ${token}` },

@@ -57,7 +57,7 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
     await expect(propSelect).toBeVisible();
     await propSelect.selectOption({ index: 1 }, { timeout: 10000 });
 
-    const uniquePhone = `08${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const uniquePhone = '0821000001';
     await page.getByLabel('Full Name').fill('สุรศักดิ์ ใจดี');
     await page.getByLabel('ID Card (13 digits)').fill('1234567890121');
     await page.getByLabel('Phone (10 digits)').fill(uniquePhone);
