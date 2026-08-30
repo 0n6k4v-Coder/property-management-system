@@ -2,8 +2,10 @@
 // Create new contract form with room/tenant selection, rent, deposit, dates.
 // SCR-CONTRACT-CREATE: POST /contracts
 
-import { useReducer } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useCreateContract } from './api';
 import { useProperties } from '@/features/property/api';
 import { usePropertyWithRooms } from '@/features/property/api';
@@ -12,115 +14,81 @@ import { Card, CardHeader } from '@/shared/ui/Card';
 import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { useToast } from '@/shared/ui/Toast';
-
-type State = {
-  propertyId: string;
-  roomId: string;
-  tenantId: string;
-  tenantSearch: string;
-  startDate: string;
-  endDate: string;
-  monthlyRent: string;
-  depositAmount: string;
-  specialConditions: string;
-};
-
-type Action =
-  | { type: 'SET_PROPERTY'; payload: string }
-  | { type: 'SET_ROOM'; payload: string }
-  | { type: 'SET_TENANT'; payload: string }
-  | { type: 'SET_TENANT_SEARCH'; payload: string }
-  | { type: 'SET_START_DATE'; payload: string }
-  | { type: 'SET_END_DATE'; payload: string }
-  | { type: 'SET_MONTHLY_RENT'; payload: string }
-  | { type: 'SET_DEPOSIT_AMOUNT'; payload: string }
-  | { type: 'SET_SPECIAL_CONDITIONS'; payload: string }
-  | { type: 'RESET' };
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case 'SET_PROPERTY':
-      return { ...state, propertyId: action.payload, roomId: '', tenantId: '' };
-    case 'SET_ROOM':
-      return { ...state, roomId: action.payload };
-    case 'SET_TENANT':
-      return { ...state, tenantId: action.payload, tenantSearch: '' };
-    case 'SET_TENANT_SEARCH':
-      return { ...state, tenantSearch: action.payload };
-    case 'SET_START_DATE':
-      return { ...state, startDate: action.payload };
-    case 'SET_END_DATE':
-      return { ...state, endDate: action.payload };
-    case 'SET_MONTHLY_RENT':
-      return { ...state, monthlyRent: action.payload };
-    case 'SET_DEPOSIT_AMOUNT':
-      return { ...state, depositAmount: action.payload };
-    case 'SET_SPECIAL_CONDITIONS':
-      return { ...state, specialConditions: action.payload };
-    case 'RESET':
-      return initialState;
-    default:
-      return state;
-  }
-}
-
-const initialState: State = {
-  propertyId: '',
-  roomId: '',
-  tenantId: '',
-  tenantSearch: '',
-  startDate: '',
-  endDate: '',
-  monthlyRent: '',
-  depositAmount: '',
-  specialConditions: '',
-};
+import { createContractSchema, type CreateContractForm } from '@/shared/utils/validators';
 
 export default function ContractFormPage() {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const createMutation = useCreateContract();
   const { data: properties } = useProperties();
-  const [state, dispatch] = useReducer(reducer, initialState);
 
-  const { data: propertyWithRooms } = usePropertyWithRooms(state.propertyId || null);
+  // Workflow state for tenant search input
+  const [tenantSearch, setTenantSearch] = useState('');
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    setValue,
+    resetField,
+    formState: { errors },
+  } = useForm<CreateContractForm>({
+    resolver: zodResolver(createContractSchema),
+    defaultValues: {
+      property_id: '',
+      room_id: '',
+      tenant_id: '',
+      start_date: '',
+      end_date: '',
+      monthly_rent: undefined,
+      deposit_amount: undefined,
+      special_conditions: '',
+    },
+  });
+
+  const propertyId = useWatch({ control, name: 'property_id' }) ?? '';
+  const tenantId = useWatch({ control, name: 'tenant_id' }) ?? '';
+
+  const { data: propertyWithRooms } = usePropertyWithRooms(propertyId || null);
   const { data: tenantResults } = useSearchTenants(
-    { propertyId: state.propertyId, query: state.tenantSearch },
-    state.propertyId !== '' && state.tenantSearch.length >= 3,
+    { propertyId, query: tenantSearch },
+    propertyId !== '' && tenantSearch.length >= 3,
   );
 
   const rooms = propertyWithRooms?.rooms ?? [];
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (
-      !state.propertyId ||
-      !state.roomId ||
-      !state.tenantId ||
-      !state.startDate ||
-      !state.endDate ||
-      !state.monthlyRent ||
-      !state.depositAmount
-    ) {
-      showToast('Please fill in all required fields', 'error');
-      return;
+  // Reset room and tenant selection when property changes
+  const prevPropertyIdRef = useRef(propertyId);
+  useEffect(() => {
+    if (prevPropertyIdRef.current !== propertyId) {
+      prevPropertyIdRef.current = propertyId;
+      resetField('room_id', { defaultValue: '' });
+      resetField('tenant_id', { defaultValue: '' });
+      setTenantSearch('');
     }
+  }, [propertyId, resetField]);
+
+  async function onSubmit(data: CreateContractForm) {
     try {
       await createMutation.mutateAsync({
-        property_id: state.propertyId,
-        room_id: state.roomId,
-        tenant_id: state.tenantId,
-        start_date: state.startDate,
-        end_date: state.endDate,
-        monthly_rent: parseFloat(state.monthlyRent),
-        deposit_amount: parseFloat(state.depositAmount),
-        special_conditions: state.specialConditions || null,
+        property_id: data.property_id,
+        room_id: data.room_id,
+        tenant_id: data.tenant_id,
+        start_date: data.start_date,
+        end_date: data.end_date,
+        monthly_rent: data.monthly_rent,
+        deposit_amount: data.deposit_amount,
+        special_conditions: data.special_conditions || null,
       });
       showToast('Contract created successfully', 'success');
       navigate('/contracts');
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Creation failed', 'error');
     }
+  }
+
+  function onInvalid() {
+    showToast('Please fill in all required fields', 'error');
   }
 
   return (
@@ -132,7 +100,7 @@ export default function ContractFormPage() {
 
       <Card>
         <CardHeader title="Contract Information" />
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4">
           {/* Property selection */}
           <div>
             <label htmlFor="property-select" className="block text-sm font-medium text-surface-700">
@@ -140,8 +108,7 @@ export default function ContractFormPage() {
             </label>
             <select
               id="property-select"
-              value={state.propertyId}
-              onChange={(e) => dispatch({ type: 'SET_PROPERTY', payload: e.target.value })}
+              {...register('property_id')}
               required
               className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500"
             >
@@ -152,18 +119,20 @@ export default function ContractFormPage() {
                 </option>
               ))}
             </select>
+            {errors.property_id && (
+              <p className="mt-1 text-xs text-red-600">{errors.property_id.message}</p>
+            )}
           </div>
 
           {/* Room selection (depends on property) */}
-          {state.propertyId && (
+          {propertyId && (
             <div>
               <label htmlFor="room-select" className="block text-sm font-medium text-surface-700">
                 Room <span className="text-red-500" aria-hidden="true">*</span>
               </label>
               <select
                 id="room-select"
-                value={state.roomId}
-                onChange={(e) => dispatch({ type: 'SET_ROOM', payload: e.target.value })}
+                {...register('room_id')}
                 required
                 className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500"
               >
@@ -174,11 +143,14 @@ export default function ContractFormPage() {
                   </option>
                 ))}
               </select>
+              {errors.room_id && (
+                <p className="mt-1 text-xs text-red-600">{errors.room_id.message}</p>
+              )}
             </div>
           )}
 
           {/* Tenant search */}
-          {state.propertyId && (
+          {propertyId && (
             <div>
               <label htmlFor="tenant-search" className="block text-sm font-medium text-surface-700">
                 Search Tenant <span className="text-red-500" aria-hidden="true">*</span>
@@ -187,15 +159,15 @@ export default function ContractFormPage() {
                 id="tenant-search"
                 type="text"
                 list="tenant-options"
-                value={state.tenantSearch}
+                value={tenantSearch}
                 onChange={(e) => {
                   const val = e.target.value;
-                  dispatch({ type: 'SET_TENANT_SEARCH', payload: val });
+                  setTenantSearch(val);
                   const match = tenantResults?.data.find(
-                    (t) => t.full_name.toLowerCase() === val.toLowerCase() || t.id === val
+                    (t) => t.full_name.toLowerCase() === val.toLowerCase() || t.id === val,
                   );
                   if (match) {
-                    dispatch({ type: 'SET_TENANT', payload: match.id });
+                    setValue('tenant_id', match.id, { shouldValidate: true });
                   }
                 }}
                 placeholder="Type at least 3 characters…"
@@ -215,8 +187,8 @@ export default function ContractFormPage() {
                       key={t.id}
                       type="button"
                       onClick={() => {
-                        dispatch({ type: 'SET_TENANT', payload: t.id });
-                        dispatch({ type: 'SET_TENANT_SEARCH', payload: t.full_name });
+                        setValue('tenant_id', t.id, { shouldValidate: true });
+                        setTenantSearch(t.full_name);
                       }}
                       className="flex w-full items-center justify-between rounded-md bg-white px-3 py-1.5 text-left text-sm text-surface-800 hover:bg-primary-50 hover:text-primary-700 border border-surface-200"
                     >
@@ -226,8 +198,11 @@ export default function ContractFormPage() {
                   ))}
                 </div>
               )}
-              {state.tenantId && (
-                <p className="mt-1 text-xs text-green-600">Selected tenant ID: {state.tenantId.slice(0, 8)}</p>
+              {tenantId && (
+                <p className="mt-1 text-xs text-green-600">Selected tenant ID: {tenantId.slice(0, 8)}</p>
+              )}
+              {errors.tenant_id && (
+                <p className="mt-1 text-xs text-red-600">{errors.tenant_id.message}</p>
               )}
             </div>
           )}
@@ -238,16 +213,16 @@ export default function ContractFormPage() {
               label="Start Date"
               requiredIndicator={true}
               type="date"
-              value={state.startDate}
-              onChange={(e) => dispatch({ type: 'SET_START_DATE', payload: e.target.value })}
+              {...register('start_date')}
+              error={errors.start_date?.message}
               required
             />
             <Input
               label="End Date"
               requiredIndicator={true}
               type="date"
-              value={state.endDate}
-              onChange={(e) => dispatch({ type: 'SET_END_DATE', payload: e.target.value })}
+              {...register('end_date')}
+              error={errors.end_date?.message}
               required
             />
           </div>
@@ -260,8 +235,8 @@ export default function ContractFormPage() {
               type="number"
               min="0"
               step="0.01"
-              value={state.monthlyRent}
-              onChange={(e) => dispatch({ type: 'SET_MONTHLY_RENT', payload: e.target.value })}
+              {...register('monthly_rent', { valueAsNumber: true })}
+              error={errors.monthly_rent?.message}
               required
             />
             <Input
@@ -270,8 +245,8 @@ export default function ContractFormPage() {
               type="number"
               min="0"
               step="0.01"
-              value={state.depositAmount}
-              onChange={(e) => dispatch({ type: 'SET_DEPOSIT_AMOUNT', payload: e.target.value })}
+              {...register('deposit_amount', { valueAsNumber: true })}
+              error={errors.deposit_amount?.message}
               required
             />
           </div>
@@ -283,8 +258,7 @@ export default function ContractFormPage() {
             </label>
             <textarea
               id="special-conditions"
-              value={state.specialConditions}
-              onChange={(e) => dispatch({ type: 'SET_SPECIAL_CONDITIONS', payload: e.target.value })}
+              {...register('special_conditions')}
               rows={3}
               maxLength={2000}
               className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500"
@@ -294,6 +268,9 @@ export default function ContractFormPage() {
             <p id="special-conditions-hint" className="mt-1 text-xs text-surface-500">
               Optional special conditions for this contract
             </p>
+            {errors.special_conditions && (
+              <p className="mt-1 text-xs text-red-600">{errors.special_conditions.message}</p>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-2">

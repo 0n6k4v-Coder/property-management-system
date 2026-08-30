@@ -15,12 +15,12 @@ export const createPropertySchema = z.object({ /* react-doctor-disable-line unus
   billing_due_day: z
     .number()
     .int('Must be a whole number')
-    .min(1, 'Day must be 1-28')
-    .max(28, 'Day must be 1-28'),
+    .min(1, 'Must be 1–28')
+    .max(28, 'Must be 1–28'),
   min_deposit_months: z
     .number()
     .int('Must be a whole number')
-    .min(1, 'Minimum is 1 month'),
+    .min(1, 'Must be at least 1'),
 });
 
 export type CreatePropertyForm = z.infer<typeof createPropertySchema>;

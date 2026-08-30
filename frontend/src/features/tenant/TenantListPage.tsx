@@ -3,6 +3,8 @@
 // SCR-TENANT-LIST: GET /tenants/search, POST /tenants
 
 import { useState, useRef, useEffect, useReducer } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useSearchTenants, useCreateTenant } from './api';
 import { useProperties } from '@/features/property/api';
 import { Card } from '@/shared/ui/Card';
@@ -177,50 +179,43 @@ function CreateTenantModal({
   const createTenant = useCreateTenant();
   const { data: properties, isLoading: isPropertiesLoading } = useProperties();
 
-  const [form, setForm] = useState<CreateTenantForm>({
-    property_id: '',
-    full_name: '',
-    id_card_number: '',
-    phone: '',
-    email: '',
-    emergency_contact_name: '',
-    emergency_contact_phone: '',
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateTenantForm>({
+    resolver: zodResolver(createTenantSchema),
+    defaultValues: {
+      property_id: '',
+      full_name: '',
+      id_card_number: '',
+      phone: '',
+      email: '',
+      emergency_contact_name: '',
+      emergency_contact_phone: '',
+    },
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  async function handleSubmit() {
-    const parsed = createTenantSchema.safeParse(form);
-    if (!parsed.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const path = issue.path[0] as string;
-        if (!fieldErrors[path]) fieldErrors[path] = issue.message;
-      }
-      setErrors(fieldErrors);
-      return;
-    }
-    setErrors({});
+  async function onSubmit(data: CreateTenantForm) {
     try {
-      await createTenant.mutateAsync(parsed.data);
+      await createTenant.mutateAsync(data);
       showToast('Tenant created successfully', 'success');
+      reset();
       onClose();
-      setForm({
-        property_id: '',
-        full_name: '',
-        id_card_number: '',
-        phone: '',
-        email: '',
-        emergency_contact_name: '',
-        emergency_contact_phone: '',
-      });
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Failed to create tenant', 'error');
     }
   }
 
+  function handleCancel() {
+    reset();
+    onClose();
+  }
+
   return (
-    <Modal open={open} onClose={onClose} title="Create Tenant">
-      <div className="space-y-4">
+    <Modal open={open} onClose={handleCancel} title="Create Tenant">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         {/* Property Selector */}
         <div>
           <label htmlFor="tenant-property-select" className="block text-sm font-medium text-surface-700">
@@ -228,8 +223,7 @@ function CreateTenantModal({
           </label>
           <select
             id="tenant-property-select"
-            value={form.property_id}
-            onChange={(e) => setForm((f) => ({ ...f, property_id: e.target.value }))}
+            {...register('property_id')}
             disabled={isPropertiesLoading}
             className="mt-1 block w-full rounded-lg border border-surface-300 bg-white px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-primary-500 disabled:cursor-not-allowed disabled:bg-surface-100"
           >
@@ -241,30 +235,27 @@ function CreateTenantModal({
             ))}
           </select>
           {errors.property_id && (
-            <p className="mt-1 text-xs text-red-600">{errors.property_id}</p>
+            <p className="mt-1 text-xs text-red-600">{errors.property_id.message}</p>
           )}
         </div>
 
         <Input
           label="Full Name"
-          value={form.full_name}
-          onChange={(e) => setForm((f) => ({ ...f, full_name: e.target.value }))}
-          error={errors.full_name}
+          {...register('full_name')}
+          error={errors.full_name?.message}
         />
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="ID Card (13 digits)"
-            value={form.id_card_number}
-            onChange={(e) => setForm((f) => ({ ...f, id_card_number: e.target.value }))}
-            error={errors.id_card_number}
+            {...register('id_card_number')}
+            error={errors.id_card_number?.message}
             maxLength={13}
             placeholder="1234567890123"
           />
           <Input
             label="Phone (10 digits)"
-            value={form.phone}
-            onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-            error={errors.phone}
+            {...register('phone')}
+            error={errors.phone?.message}
             maxLength={10}
             placeholder="0812345678"
           />
@@ -272,27 +263,26 @@ function CreateTenantModal({
         <Input
           label="Email (optional)"
           type="email"
-          value={form.email ?? ''}
-          onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-          error={errors.email}
+          {...register('email')}
+          error={errors.email?.message}
         />
         <div className="grid grid-cols-2 gap-4">
           <Input
             label="Emergency Contact Name"
-            value={form.emergency_contact_name ?? ''}
-            onChange={(e) => setForm((f) => ({ ...f, emergency_contact_name: e.target.value }))}
+            {...register('emergency_contact_name')}
+            error={errors.emergency_contact_name?.message}
           />
           <Input
             label="Emergency Contact Phone"
-            value={form.emergency_contact_phone ?? ''}
-            onChange={(e) => setForm((f) => ({ ...f, emergency_contact_phone: e.target.value }))}
+            {...register('emergency_contact_phone')}
+            error={errors.emergency_contact_phone?.message}
           />
         </div>
         <div className="flex justify-end gap-3 pt-2">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} isLoading={createTenant.isPending}>Create</Button>
+          <Button variant="secondary" type="button" onClick={handleCancel}>Cancel</Button>
+          <Button type="submit" isLoading={createTenant.isPending}>Create</Button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }

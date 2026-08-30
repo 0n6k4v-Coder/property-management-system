@@ -5,6 +5,8 @@
 
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useProperties, usePropertyWithRooms, useCreateProperty } from './api';
 import { Card, CardHeader } from '@/shared/ui/Card';
 import { Badge } from '@/shared/ui/Badge';
@@ -13,6 +15,7 @@ import { Input } from '@/shared/ui/Input';
 import { Modal } from '@/shared/ui/Modal';
 import { CardSkeleton } from '@/shared/ui/CardSkeleton';
 import { statusToVariant } from '@/shared/utils/status';
+import { createPropertySchema, type CreatePropertyForm } from '@/shared/utils/validators';
 import type { API } from '@/types/api.d';
 
 // ── Page ────────────────────────────────────────────────────────────
@@ -143,58 +146,51 @@ interface CreatePropertyFormProps {
 
 function CreatePropertyForm({ onCancel, onSuccess }: CreatePropertyFormProps) {
   const createProperty = useCreateProperty();
-  const [form, setForm] = useState({
-    name: '',
-    address: '',
-    billing_due_day: 5,
-    min_deposit_months: 2,
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+    setError,
+  } = useForm<CreatePropertyForm>({
+    resolver: zodResolver(createPropertySchema),
+    defaultValues: {
+      name: '',
+      address: '',
+      billing_due_day: 5,
+      min_deposit_months: 2,
+    },
   });
-  const [errors, setErrors] = useState<Record<string, string>>({});
 
-  function validate(): boolean {
-    const e: Record<string, string> = {};
-    if (!form.name.trim()) e.name = 'Property name is required';
-    if (!form.address.trim()) e.address = 'Address is required';
-    if (form.billing_due_day < 1 || form.billing_due_day > 28) e.billing_due_day = 'Must be 1–28';
-    if (form.min_deposit_months < 1) e.min_deposit_months = 'Must be at least 1';
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!validate()) return;
+  async function onSubmit(data: CreatePropertyForm) {
     try {
       await createProperty.mutateAsync({
-        name: form.name.trim(),
-        address: form.address.trim(),
-        billing_due_day: form.billing_due_day,
-        min_deposit_months: form.min_deposit_months,
+        name: data.name.trim(),
+        address: data.address.trim(),
+        billing_due_day: data.billing_due_day,
+        min_deposit_months: data.min_deposit_months,
       });
       onSuccess();
     } catch (err) {
-      setErrors({ submit: err instanceof Error ? err.message : 'Failed to create property' });
+      setError('root', { message: err instanceof Error ? err.message : 'Failed to create property' });
     }
   }
 
   return (
     <Card>
       <CardHeader title="Create New Property" subtitle="Fill in the details below" />
-      <form onSubmit={handleSubmit} className="space-y-4 mt-4" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-4" noValidate>
         <Input
           label="Property Name"
           placeholder="e.g. Sathorn Condominium"
-          value={form.name}
-          onChange={(e) => setForm({ ...form, name: e.target.value })}
-          error={errors.name}
+          {...register('name')}
+          error={errors.name?.message}
           required
         />
         <Input
           label="Address"
           placeholder="e.g. 123 Sathorn Road, Bangkok"
-          value={form.address}
-          onChange={(e) => setForm({ ...form, address: e.target.value })}
-          error={errors.address}
+          {...register('address')}
+          error={errors.address?.message}
           required
         />
         <div className="grid grid-cols-2 gap-4">
@@ -203,25 +199,23 @@ function CreatePropertyForm({ onCancel, onSuccess }: CreatePropertyFormProps) {
             type="number"
             min={1}
             max={28}
-            value={form.billing_due_day}
-            onChange={(e) => setForm({ ...form, billing_due_day: Number(e.target.value) })}
-            error={errors.billing_due_day}
+            {...register('billing_due_day', { valueAsNumber: true })}
+            error={errors.billing_due_day?.message}
             required
           />
           <Input
             label="Min Deposit (months)"
             type="number"
             min={1}
-            value={form.min_deposit_months}
-            onChange={(e) => setForm({ ...form, min_deposit_months: Number(e.target.value) })}
-            error={errors.min_deposit_months}
+            {...register('min_deposit_months', { valueAsNumber: true })}
+            error={errors.min_deposit_months?.message}
             required
           />
         </div>
 
-        {errors.submit && (
+        {errors.root?.message && (
           <div className="rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {errors.submit}
+            {errors.root.message}
           </div>
         )}
 

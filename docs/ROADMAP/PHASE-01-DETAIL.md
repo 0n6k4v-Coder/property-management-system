@@ -656,6 +656,21 @@ Perform a forensic investigation of all observed test instability, failures, and
 * **Verification:** Unit tests (32/32 Sidebar tests PASS, 20/20 useSidebar tests PASS, 960/960 full unit test suite PASS), build & lint clean (0 warnings), fullstack E2E verified.
 * **Classification:** RESOLVED
 
+#### ARCH-CONS-001 & ARCH-CONS-004 — Standardize Entity Form State & Validation Architecture (G2-IMPLEMENT-01)
+* **Problem:** Architectural divergence across entity forms: Property creation used local controlled state and manual validation while a shared schema existed; Contract creation used `useReducer` and manual validation; Maintenance creation used `useReducer` and manual validation; Tenant creation used `useState` and imperative `safeParse()`.
+* **Resolution:** Standardized entity-form state and validation across all 4 target entity forms:
+  1. `PropertyListPage.tsx`: Migrated to `useForm<CreatePropertyForm>` + `zodResolver(createPropertySchema)` using the shared Zod schema as validation source of truth. Removed duplicate manual validation function.
+  2. `ContractFormPage.tsx`: Migrated to `useForm<CreateContractForm>` + `zodResolver(createContractSchema)`. Dependent fields (`property_id` -> `room_id`, `tenant_id`, and tenant search query) managed cleanly via RHF `useWatch` and `resetField`, with tenant autocomplete search preserved as workflow state.
+  3. `MaintenanceFormPage.tsx`: Migrated to `useForm<CreateMaintenanceForm>` + `zodResolver(createMaintenanceSchema)` with feature-local Zod contract. Dependent field (`property_id` -> `room_id`) reset managed via `useWatch` and `resetField`.
+  4. `TenantListPage.tsx`: Migrated `CreateTenantModal` to `useForm<CreateTenantForm>` + `zodResolver(createTenantSchema)`, replacing manual `safeParse()` with declarative RHF registration and validation.
+* **Preserved Exceptions:** Legitimate workflow/lightweight exceptions preserved:
+  - `LoginPage.tsx` / `RegisterPage.tsx`: Authentication workflow state.
+  - `ExtendModal.tsx` / `RenewModal.tsx` / `TerminateModal.tsx`: Lightweight primitive callback modals.
+  - `InvoiceDetailPage.tsx` (PaymentModal): Already follows RHF + Zod.
+  - `MeterReadingPage.tsx`: Already follows RHF + Zod with separate offline IDB queue workflow state.
+* **Verification:** Full frontend test suite (53 files, 960/960 unit tests PASS, 100%), typecheck passed, lint passed (0 errors, 0 warnings), Vite production build passed cleanly.
+* **Classification:** RESOLVED
+
 ### Exit Criteria
 
 ```text

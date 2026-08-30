@@ -94,7 +94,7 @@ describe('createPropertySchema', () => {
       min_deposit_months: 1,
     });
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0].message).toMatch(/1-28/i);
+    expect(result.error?.issues[0].message).toMatch(/1[–-]28/i);
   });
 
   it('fails when min_deposit_months is less than 1', () => {
