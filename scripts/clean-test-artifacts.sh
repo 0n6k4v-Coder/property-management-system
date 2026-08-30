@@ -48,8 +48,7 @@ for dir in backend/.hypothesis backend/.pytest_cache backend/htmlcov backend/tes
            frontend/test-results frontend/playwright-report frontend/e2e-results \
            frontend/coverage frontend/blob-report; do
     if [ -d "$dir" ]; then
-        chmod -R u+w "$dir" 2>/dev/null || \
-            sudo chmod -R u+w "$dir" 2>/dev/null || true
+        chmod -R u+w "$dir" 2>/dev/null || true
     fi
 done
 

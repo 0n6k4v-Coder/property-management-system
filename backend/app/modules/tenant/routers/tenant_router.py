@@ -59,6 +59,12 @@ QUERY_PROPERTY_ID_OPTIONAL = Query(None, description="Filter by property")
     status_code=HTTPStatus.CREATED,
     summary="Create a new tenant (FR-TENANT-01, FR-TENANT-02)",
 )
+@router.post(
+    "",
+    response_model=TenantCreateResponse,
+    status_code=HTTPStatus.CREATED,
+    include_in_schema=False,
+)
 async def create_tenant(
     payload: CreateTenantRequest,
     _: Annotated[None, require_property_scope()],

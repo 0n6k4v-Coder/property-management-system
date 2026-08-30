@@ -47,7 +47,7 @@ export function useCreateTenant() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (data: API.TenantRequest) => {
-      const res = await apiFetch<API.SuccessResponse<API.TenantResponse>>('/tenants', {
+      const res = await apiFetch<API.SuccessResponse<API.TenantResponse>>('/tenants/', {
         method: 'POST',
         body: JSON.stringify(data),
       });

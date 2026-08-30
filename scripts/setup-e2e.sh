@@ -66,17 +66,16 @@ if [ "$BACKEND_HEALTHY" != "true" ]; then
 fi
 
 # --- 3. Force clean DB state (handles tmpfs issues) -------------------------
-echo "${YELLOW}→ [3/5] Resetting database...${RESET}"
-# The test DB uses tmpfs which is wiped on container restart, but if the
-# container is still running, we need to drop+recreate the database manually
-# to eliminate stale connections and dirty state between runs.
+echo "${YELLOW}→ [3/5] Resetting database schema...${RESET}"
+# Drop and recreate the public schema so migrations run from a clean baseline
+# even if the db container is reused across test runs.
 docker compose -f "${TEST_COMPOSE}" exec -T db \
-  psql -U postgres -c "
+  psql -U user -d pms_test -c "
     SELECT pg_terminate_backend(pid) FROM pg_stat_activity
     WHERE datname = 'pms_test' AND pid <> pg_backend_pid();
-    DROP DATABASE IF EXISTS pms_test;
-    CREATE DATABASE pms_test;
-  " 2>/dev/null || echo "DB reset skipped (may not exist yet)"
+    DROP SCHEMA IF EXISTS public CASCADE;
+    CREATE SCHEMA public;
+  " 2>/dev/null || echo "Schema reset skipped"
 
 # --- 4. Apply migrations ----------------------------------------------------
 echo "${YELLOW}→ [4/5] Applying migrations...${RESET}"

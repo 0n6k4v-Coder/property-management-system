@@ -614,13 +614,14 @@ Perform a forensic investigation of all observed test instability, failures, and
 | **FLK-001** | `ContractFormPage.test.tsx` > "shows tenant results after typing 3+ characters" | Failed | 5/5 Failed (100% Deterministic) | **DETERMINISTIC TEST FAILURE** | Test asserted on obsolete `<datalist>` formatted string (`"John Doe - 0812345678"`) after UI was upgraded in commit `73dae1a` to a custom suggestion button list containing separate child `<span>` elements (`<span>John Doe</span>` and `<span>0812345678</span>`). | Non-blocking test defect (UI works in production & E2E) |
 | **FLK-002** | `ContractFormPage.test.tsx` > "shows tenant options in datalist with phone" | Failed | 5/5 Failed (100% Deterministic) | **DETERMINISTIC TEST FAILURE** | Same root cause as FLK-001 (assertion on combined datalist option text after component refactor). | Non-blocking test defect |
 | **FLK-003** | `meter/api.test.tsx` > "re-throws non-network error when offline (no queue fallback)" | Failed | 5/5 Failed (100% Deterministic) | **DETERMINISTIC TEST FAILURE** | In commit `73dae1a`, `useRecordMeterMutation` was refactored to check `if (!navigator.onLine)` upfront before calling `apiFetch`. Under `navigator.onLine = false`, the mutation immediately enters the IDB queue fallback and resolves successfully instead of throwing, violating the test's assumption that an HTTP 400 network call would be attempted. | Non-blocking test specification mismatch |
-| **FLK-004** | Playwright E2E full-suite execution & historical retry reports | Pass (111 passed, 33 skipped, 0 failed in P1-W03) | 100% Pass in isolated/clean container environments | **ENVIRONMENT / INFRASTRUCTURE INSTABILITY** (Historical) | Playwright retries (`retries: 2` in `playwright.config.ts`) mitigate transient host CPU contention and port binding delays on resource-constrained multi-container dev hosts. No active E2E flakes reproduce in clean container environment. | Non-blocking (Mitigated by test runner config) |
+| **FLK-004-A** | Playwright E2E full-suite execution & multi-worker race contention | Pass (112 passed, 32 skipped, 0 failed with workers=1) | Reproduces on multi-worker (`workers=2+`) sharing single mutable seeded database | **SHARED MUTABLE FIXTURE CONTENTION** | Parallel Playwright workers execute against the same mutable database state concurrently, causing race conditions in stateful flows (contracts, meter, invoices). Resolved by enforcing `workers: 1` in E2E configuration. | Non-blocking (Mitigated by serial worker execution) |
+| **FLK-004-B** | Frontend test container filesystem `EACCES` on `mkdir /app/node_modules/.vite` | Fixed | 100% Deterministic on fresh/rebuilt containers | **ENVIRONMENT / INFRASTRUCTURE PERMISSIONS** | Frontend Dockerfile built `node_modules` under `root` without pre-existing `chown` to `node:node`, and Docker volume mount initialization preserved root ownership. Resolved by updating `frontend/Dockerfile` (`chown -R node:node /app/node_modules /home/node`) and mounting anonymous volume `- /app/node_modules` in `docker-compose.test.yml`. | Resolved / Non-blocking |
 
 ### Discovered Failures Summary
-- Total failure candidates: 4
-- Deterministic test failures: 3 (Unit tests)
+- Total failure candidates: 5
+- Deterministic test failures: 3 (Unit tests: FLK-001, FLK-002, FLK-003)
 - Genuine flaky tests: 0
-- Environment / infrastructure instability: 1 (Historical E2E retry)
+- Environment / infrastructure instability: 2 (FLK-004-A multi-worker contention, FLK-004-B container permissions)
 - Test isolation / fixture contamination: 0
 - Application defects: 0
 - Inconclusive: 0
@@ -629,7 +630,8 @@ Perform a forensic investigation of all observed test instability, failures, and
 ### Sustainable Remediation Proposals
 1. **ContractFormPage.test.tsx (FLK-001, FLK-002):** Update assertion locators to match the custom suggestion buttons (`screen.getByRole('button', { name: /John Doe/i })` or separate span queries).
 2. **meter/api.test.tsx (FLK-003):** Align test expectation with the offline-first contract (`if (!navigator.onLine)` queues unconditionally, which is correct PWA behavior) or simulate offline failure modes accurately.
-3. **E2E Infrastructure (FLK-004):** Maintain `retries: 2` in `playwright.config.ts` and ensure clean isolated container teardown/startup via `scripts/setup-e2e.sh`.
+3. **E2E Infrastructure Contention (FLK-004-A):** Standardize on `workers: 1` in `playwright.config.ts` for end-to-end suites targeting the shared live database.
+4. **E2E Container Filesystem Permissions (FLK-004-B):** Ensure `frontend/Dockerfile` maintains `node:node` ownership across `/app/node_modules` and `/home/node`, and `docker-compose.test.yml` uses image-backed volume configuration.
 
 ### Exit Criteria
 

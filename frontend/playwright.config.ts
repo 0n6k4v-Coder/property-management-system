@@ -17,7 +17,7 @@ export default defineConfig({
   fullyParallel: CI,
   forbidOnly: CI,
   retries: 2,
-  workers: 2,
+  workers: process.env.CI ? 1 : 1, // Single worker avoids multi-tenant DB mutation collisions across tests in fullstack E2E
   timeout: 120_000, // 2 minutes per test — extended for full-suite E2E
   reporter: [['list']],
 

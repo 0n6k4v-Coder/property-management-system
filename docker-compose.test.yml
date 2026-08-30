@@ -148,20 +148,6 @@ services:
     command: ["pytest", "tests/", "-v", "--cov=app", "--cov-report=term-missing", "--cov-report=xml", "--cov-report=html:/tmp/coverage/htmlcov"]
 
   # -------------------------------------------------------------------------
-  # Frontend Init — Fixes node_modules volume permissions before tests run
-  # -------------------------------------------------------------------------
-  # Named volumes are initialized as root by Docker, but the frontend-test
-  # container runs as uid 1000. This init container chowns the volume so
-  # Vite optimizer and Playwright can write to it.
-  frontend-test-init:
-    image: busybox
-    user: root
-    volumes:
-      - test-frontend-node-modules:/app/node_modules
-    command: sh -c "chown -R 1000:1000 /app/node_modules && echo 'node_modules permissions fixed'"
-    restart: "no"
-
-  # -------------------------------------------------------------------------
   # Frontend Test Runner — Ephemeral container for Vitest + Playwright E2E
   # -------------------------------------------------------------------------
   frontend-test:
@@ -176,10 +162,8 @@ services:
       - PLAYWRIGHT_OUTPUT_DIR=/app/test-results/playwright
     volumes:
       - ./frontend:/app:cached
-      - test-frontend-node-modules:/app/node_modules
+      - /app/node_modules
     depends_on:
-      frontend-test-init:
-        condition: service_completed_successfully
       backend:
         condition: service_healthy
     restart: "no"
@@ -327,8 +311,6 @@ services:
 # Volumes — Test-isolated (separate from dev volumes)
 # =============================================================================
 volumes:
-  test-frontend-node-modules:
-    driver: local
   test-redis-data:
     driver: local
   test-minio-data:

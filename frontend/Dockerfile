@@ -34,6 +34,12 @@ RUN apk add --no-cache \
 ENV HOME=/home/node
 RUN npx playwright install chromium ffmpeg
 
+# Ensure /home/node and /app/node_modules (including .vite cache) have correct ownership for node user (1000:1000)
+# so when Docker initializes named volume from image contents, ownership is preserved
+RUN mkdir -p /app/node_modules/.vite && \
+    chown -R node:node /app/node_modules && \
+    chown -R node:node /home/node
+
 # Switch to the built-in 'node' user (uid 1000) from the base image
 # This matches the host user (uid 1000) so bind-mounted volumes are writable
 USER node

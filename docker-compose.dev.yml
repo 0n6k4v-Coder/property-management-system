@@ -109,7 +109,7 @@ services:
     user: root
     volumes:
       - frontend-node-modules:/app/node_modules
-    command: sh -c "chown -R 1000:1000 /app/node_modules 2>/dev/null; echo 'node_modules permissions fixed'"
+    command: sh -c "mkdir -p /app/node_modules/.vite && chown -R 1000:1000 /app/node_modules && chmod -R u+rwX /app/node_modules && echo 'node_modules permissions fixed'"
     restart: "no"
     profiles:
       - dev
