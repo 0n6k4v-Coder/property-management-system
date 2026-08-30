@@ -36,10 +36,11 @@ afterAll(() => server.close());
 
 // ── Mock sidebar state factory ─────────────────────────────────────────────────
 
-function makeMockSidebar(expanded = true) {
+function makeMockSidebar(expanded = true, isTabletOverlay = false) {
   return {
     expanded,
     mobileOpen: false,
+    isTabletOverlay,
     toggle: vi.fn(),
     setExpanded: vi.fn(),
     openMobile: vi.fn(),
@@ -383,6 +384,20 @@ describe('Sidebar', () => {
       );
       expect(screen.getAllByRole('navigation', { name: /Main navigation/i }).length).toBeGreaterThanOrEqual(1);
     });
+
+    it('renders tablet overlay when internal useSidebar detects tablet viewport and expanded', () => {
+      mockTabletMatchMedia();
+      const { container } = render(
+        <MemoryRouter initialEntries={['/dashboard']}>
+          <AuthProvider>
+            <Sidebar />
+          </AuthProvider>
+        </MemoryRouter>,
+      );
+      // In tablet viewport, useSidebar initializes with expanded=false, so collapsed aside is rendered initially
+      const aside = container.querySelector('aside[aria-label="Sidebar navigation"]');
+      expect(aside).toBeInTheDocument();
+    });
   });
 
   // ── className prop ─────────────────────────────────────────────────────────
@@ -408,6 +423,7 @@ describe('Sidebar', () => {
       renderWithSidebar({
         expanded: true,
         mobileOpen: true,
+        isTabletOverlay: false,
         toggle: vi.fn(),
         setExpanded: vi.fn(),
         openMobile: vi.fn(),
@@ -422,13 +438,23 @@ describe('Sidebar', () => {
   // ── Tablet overlay ─────────────────────────────────────────────────────────
 
   describe('tablet overlay', () => {
-    it('shows tablet overlay when expanded AND tablet viewport matches', () => {
-      mockTabletMatchMedia();
-
-      const { container } = renderWithSidebar(makeMockSidebar(true), ['/dashboard']);
+    it('shows tablet overlay when expanded AND isTabletOverlay is true', () => {
+      const { container } = renderWithSidebar(makeMockSidebar(true, true), ['/dashboard']);
 
       const backdrop = container.querySelector('.fixed.inset-0.z-40');
       expect(backdrop).toBeInTheDocument();
+      const overlayAside = container.querySelector('aside[aria-label="Sidebar navigation (overlay)"]');
+      expect(overlayAside).toBeInTheDocument();
+    });
+
+    it('renders normal sidebar when collapsed even if isTabletOverlay is true', () => {
+      const { container } = renderWithSidebar(makeMockSidebar(false, true), ['/dashboard']);
+
+      const backdrop = container.querySelector('.fixed.inset-0.z-40');
+      expect(backdrop).not.toBeInTheDocument();
+      const aside = container.querySelector('aside[aria-label="Sidebar navigation"]');
+      expect(aside).toBeInTheDocument();
     });
   });
 });
+

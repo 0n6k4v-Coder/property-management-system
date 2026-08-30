@@ -15,6 +15,8 @@ interface SidebarState {
   expanded: boolean;
   /** Mobile drawer open/closed (transient — never persisted). */
   mobileOpen: boolean;
+  /** Whether the viewport is in tablet range (768–1023px). */
+  isTabletOverlay: boolean;
 }
 
 interface SidebarActions {
@@ -37,14 +39,15 @@ type SidebarAction =
   | { type: 'SET_EXPANDED'; expanded: boolean }
   | { type: 'OPEN_MOBILE' }
   | { type: 'CLOSE_MOBILE' }
-  | { type: 'TOGGLE_MOBILE' };
+  | { type: 'TOGGLE_MOBILE' }
+  | { type: 'SET_TABLET_OVERLAY'; isTabletOverlay: boolean };
 
 // ── Initial State ───────────────────────────────────────────────────
 
 function getInitialState(): SidebarState {
   // SSR / unavailable guard
   if (typeof window === 'undefined' || !window.localStorage) {
-    return { expanded: true, mobileOpen: false };
+    return { expanded: true, mobileOpen: false, isTabletOverlay: false };
   }
   let persisted = true;
   try {
@@ -59,7 +62,7 @@ function getInitialState(): SidebarState {
     '(min-width: 768px) and (max-width: 1023px)',
   ).matches;
   if (isTablet) persisted = false;
-  return { expanded: persisted, mobileOpen: false };
+  return { expanded: persisted, mobileOpen: false, isTabletOverlay: isTablet };
 }
 
 // ── Reducer ─────────────────────────────────────────────────────────
@@ -79,6 +82,8 @@ function sidebarReducer(
       return { ...state, mobileOpen: false };
     case 'TOGGLE_MOBILE':
       return { ...state, mobileOpen: !state.mobileOpen };
+    case 'SET_TABLET_OVERLAY':
+      return { ...state, isTabletOverlay: action.isTabletOverlay };
     default:
       return state;
   }
@@ -87,8 +92,8 @@ function sidebarReducer(
 // ── Hook ────────────────────────────────────────────────────────────
 
 /**
- * useSidebar — manages desktop expanded state (persisted to localStorage)
- * and transient mobile drawer open state. Per SDD §5:
+ * useSidebar — manages desktop expanded state (persisted to localStorage),
+ * transient mobile drawer open state, and reactive tablet overlay state. Per SDD §5:
  * - Desktop (≥1024px): expanded persisted across sessions.
  * - Tablet (768–1023px): collapsed by default; expand is overlay, transient.
  * - Mobile (<768px): hidden; mobileOpen opens overlay drawer, transient.
@@ -111,6 +116,7 @@ export function useSidebar(): UseSidebarReturn {
 
   // Close mobile drawer when viewport grows to desktop (avoid stuck-open drawer).
   useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
     const mql = window.matchMedia('(min-width: 1024px)');
     const onChange = (e: MediaQueryListEvent) => {
       if (e.matches) dispatch({ type: 'CLOSE_MOBILE' });
@@ -119,8 +125,22 @@ export function useSidebar(): UseSidebarReturn {
     return () => mql.removeEventListener('change', onChange);
   }, []);
 
+  // Track tablet overlay viewport (768–1023px) reactively.
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mql = window.matchMedia('(min-width: 768px) and (max-width: 1023px)');
+    const onChange = (e: MediaQueryListEvent) => {
+      dispatch({ type: 'SET_TABLET_OVERLAY', isTabletOverlay: e.matches });
+    };
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
   const toggle = useCallback(() => {
-    const isMobile = window.matchMedia('(max-width: 767px)').matches;
+    const isMobile =
+      typeof window !== 'undefined' &&
+      window.matchMedia &&
+      window.matchMedia('(max-width: 767px)').matches;
     if (isMobile) {
       dispatch({ type: 'TOGGLE_MOBILE' });
     } else {
@@ -142,6 +162,7 @@ export function useSidebar(): UseSidebarReturn {
   return {
     expanded: state.expanded,
     mobileOpen: state.mobileOpen,
+    isTabletOverlay: state.isTabletOverlay,
     toggle,
     setExpanded,
     openMobile,

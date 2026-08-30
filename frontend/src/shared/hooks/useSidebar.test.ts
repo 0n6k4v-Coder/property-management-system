@@ -184,7 +184,7 @@ describe('useSidebar', () => {
   });
 
   describe('media query listener', () => {
-    it('registers a change listener for desktop breakpoint', () => {
+    it('registers a change listener for desktop breakpoint and tablet breakpoint', () => {
       const addEventListenerSpy = vi.fn();
       window.matchMedia = vi.fn(() => ({
         matches: false,
@@ -201,10 +201,11 @@ describe('useSidebar', () => {
         'change',
         expect.any(Function),
       );
+      expect(addEventListenerSpy).toHaveBeenCalledTimes(2);
     });
 
     it('closes mobile drawer when viewport grows to desktop', () => {
-      const changeHandlers: Array<(e: MediaQueryListEvent) => void> = [];
+      const changeHandlers: Record<string, Array<(e: MediaQueryListEvent) => void>> = {};
       window.matchMedia = vi.fn((query: string) => ({
         matches: false,
         media: query,
@@ -212,7 +213,10 @@ describe('useSidebar', () => {
         addListener: vi.fn(),
         removeListener: vi.fn(),
         addEventListener: vi.fn((event: string, handler: (e: MediaQueryListEvent) => void) => {
-          if (event === 'change') changeHandlers.push(handler);
+          if (event === 'change') {
+            if (!changeHandlers[query]) changeHandlers[query] = [];
+            changeHandlers[query].push(handler);
+          }
         }),
         removeEventListener: vi.fn(),
         dispatchEvent: vi.fn(),
@@ -224,9 +228,71 @@ describe('useSidebar', () => {
 
       // Simulate the media query change event firing with matches=true
       act(() => {
-        changeHandlers.forEach((h) => h({ matches: true } as MediaQueryListEvent));
+        changeHandlers['(min-width: 1024px)']?.forEach((h) =>
+          h({ matches: true } as MediaQueryListEvent),
+        );
       });
       expect(result.current.mobileOpen).toBe(false);
+    });
+
+    it('reactively updates isTabletOverlay when viewport crosses tablet breakpoint', () => {
+      const changeHandlers: Record<string, Array<(e: MediaQueryListEvent) => void>> = {};
+      window.matchMedia = vi.fn((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn((event: string, handler: (e: MediaQueryListEvent) => void) => {
+          if (event === 'change') {
+            if (!changeHandlers[query]) changeHandlers[query] = [];
+            changeHandlers[query].push(handler);
+          }
+        }),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      const { result } = renderHook(() => useSidebar());
+      expect(result.current.isTabletOverlay).toBe(false);
+
+      // Transition: Desktop → Tablet (768px - 1023px matches true)
+      act(() => {
+        changeHandlers['(min-width: 768px) and (max-width: 1023px)']?.forEach((h) =>
+          h({ matches: true } as MediaQueryListEvent),
+        );
+      });
+      expect(result.current.isTabletOverlay).toBe(true);
+
+      // Transition: Tablet → Desktop (768px - 1023px matches false)
+      act(() => {
+        changeHandlers['(min-width: 768px) and (max-width: 1023px)']?.forEach((h) =>
+          h({ matches: false } as MediaQueryListEvent),
+        );
+      });
+      expect(result.current.isTabletOverlay).toBe(false);
+    });
+
+    it('unsubscribes listeners on unmount without leaking', () => {
+      const removeEventListenerSpy = vi.fn();
+      window.matchMedia = vi.fn((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: removeEventListenerSpy,
+        dispatchEvent: vi.fn(),
+      }));
+
+      const { unmount } = renderHook(() => useSidebar());
+      unmount();
+      expect(removeEventListenerSpy).toHaveBeenCalledWith(
+        'change',
+        expect.any(Function),
+      );
+      expect(removeEventListenerSpy).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -240,10 +306,11 @@ describe('useSidebar', () => {
       expect(typeof result.current.toggleMobile).toBe('function');
     });
 
-    it('returns expanded and mobileOpen as boolean state', () => {
+    it('returns expanded, mobileOpen, and isTabletOverlay as boolean state', () => {
       const { result } = renderHook(() => useSidebar());
       expect(typeof result.current.expanded).toBe('boolean');
       expect(typeof result.current.mobileOpen).toBe('boolean');
+      expect(typeof result.current.isTabletOverlay).toBe('boolean');
     });
   });
 });

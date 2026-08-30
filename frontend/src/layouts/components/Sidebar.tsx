@@ -381,6 +381,7 @@ export function Sidebar({ className = '', sidebarState }: SidebarProps) {
   const {
     expanded,
     mobileOpen,
+    isTabletOverlay: isTabletViewport,
     toggle,
     closeMobile,
   } = sidebarState ?? localSidebar;
@@ -388,10 +389,7 @@ export function Sidebar({ className = '', sidebarState }: SidebarProps) {
   const widthClass = expanded ? SIDEBAR_WIDTH_EXPANDED : SIDEBAR_WIDTH_COLLAPSED;
 
   // On tablet, "expanded" opens as overlay drawer (not push).
-  const isTabletOverlay =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(min-width: 768px) and (max-width: 1023px)').matches &&
-    expanded;
+  const isTabletOverlay = isTabletViewport && expanded;
 
   return (
     <>

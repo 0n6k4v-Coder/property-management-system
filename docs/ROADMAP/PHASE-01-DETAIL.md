@@ -649,6 +649,13 @@ Perform a forensic investigation of all observed test instability, failures, and
 * **Verification:** Unit tests (26/26 TopHeader tests PASS, 14/14 MainLayout tests PASS, 956/956 full unit test suite PASS), build & lint clean (0 warnings), fullstack E2E verified.
 * **Classification:** RESOLVED
 
+#### ARCH-RESP-04 — Sidebar Responsive State Centralization (P2-ARCH-RESP-02)
+* **Problem:** `Sidebar.tsx` directly evaluated `window.matchMedia(...).matches` during render for `isTabletOverlay`. The value was read as a one-time snapshot rather than a reactive state subscription.
+* **Resolution:** Sidebar tablet overlay state was moved from a render-time `window.matchMedia(...).matches` snapshot into the existing `useSidebar` responsive state architecture.
+* **Impact:** The resulting implementation uses reactive media-query change notification (`change` event listener on `(min-width: 768px) and (max-width: 1023px)`) and proper lifecycle cleanup while preserving existing desktop/tablet/mobile sidebar behavior.
+* **Verification:** Unit tests (32/32 Sidebar tests PASS, 20/20 useSidebar tests PASS, 960/960 full unit test suite PASS), build & lint clean (0 warnings), fullstack E2E verified.
+* **Classification:** RESOLVED
+
 ### Exit Criteria
 
 ```text
