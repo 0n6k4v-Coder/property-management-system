@@ -129,7 +129,8 @@ describe('MainLayout', () => {
 
   it('renders CTA button on supported routes (/invoices)', () => {
     renderLayout(['/invoices']);
-    expect(screen.getAllByRole('button', { name: /\+ New Invoice/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /\+ New Invoice/i })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /\+ New Invoice/i })).toBeInTheDocument();
   });
 
   it('does not render CTA on unsupported routes (/dashboard)', () => {

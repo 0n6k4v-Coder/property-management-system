@@ -125,21 +125,36 @@ describe('TopHeader', () => {
   });
 
   // ── Page CTA ──────────────────────────────────────────────────────────────
-  // Note: CTA button appears in BOTH desktop header and mobile header.
+  // Note: Exactly ONE CTA button is rendered in the unified responsive header.
 
-  it('renders "+ Add Property" CTA on /property route', () => {
+  it('renders exactly one "+ Add Property" CTA on /property route', () => {
     renderHeader(['/property']);
-    expect(screen.getAllByRole('button', { name: /add property/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /add property/i })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /add property/i })).toBeInTheDocument();
   });
 
-  it('renders "+ New Invoice" CTA on /invoices route', () => {
+  it('renders exactly one "+ New Invoice" CTA on /invoices route', () => {
     renderHeader(['/invoices']);
-    expect(screen.getAllByRole('button', { name: /new invoice/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /new invoice/i })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /new invoice/i })).toBeInTheDocument();
   });
 
-  it('renders "+ New Request" CTA on /maintenance route', () => {
+  it('renders exactly one "+ New Request" CTA on /maintenance route', () => {
     renderHeader(['/maintenance']);
-    expect(screen.getAllByRole('button', { name: /new request/i }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: /new request/i })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /new request/i })).toBeInTheDocument();
+  });
+
+  it('renders exactly one "+ Add Tenant" CTA on /tenants route', () => {
+    renderHeader(['/tenants']);
+    expect(screen.getAllByRole('button', { name: /add tenant/i })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /add tenant/i })).toBeInTheDocument();
+  });
+
+  it('renders exactly one "+ New Contract" CTA on /contracts route', () => {
+    renderHeader(['/contracts']);
+    expect(screen.getAllByRole('button', { name: /new contract/i })).toHaveLength(1);
+    expect(screen.getByRole('button', { name: /new contract/i })).toBeInTheDocument();
   });
 
   it('does not render CTA on /dashboard route', () => {

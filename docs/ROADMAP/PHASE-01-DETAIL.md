@@ -642,6 +642,13 @@ Perform a forensic investigation of all observed test instability, failures, and
 * **Verification:** Unit tests (24/24 PASS with strict uniqueness assertions), a11y suite (7/7 PASS), Full E2E suite (113 PASS, 0 failures).
 * **Classification:** RESOLVED
 
+#### ARCH-RESP-01 — TopHeader Primary CTA Consolidation (P2-ARCH-RESP-01)
+* **Problem:** The same logical CTA was previously implemented as two separate interactive `<button>` elements (mobile icon-only button and desktop text+icon button) differentiated only by responsive presentation.
+* **Resolution:** Consolidated TopHeader Primary CTA into ONE logical `<button>` using responsive Tailwind presentation utilities (`inline-flex size-10 sm:size-auto sm:h-auto items-center justify-center sm:justify-start gap-1.5 rounded-lg bg-primary-700 sm:px-4 sm:py-2 text-sm font-medium text-white`, icon `<PlusIcon className="size-5 sm:size-4" />`, compact label `<span className="hidden sm:inline lg:hidden">...</span>`, and full label `<span className="hidden lg:inline">...</span>`).
+* **Impact:** Exactly one CTA button in DOM across all viewports (<640px icon-only, 640px–1023px icon+compact label, ≥1024px icon+full label); preserved mobile/tablet/desktop visual behavior; eliminated duplicate accessible interactive controls; unit/integration tests updated to enforce the single-control contract.
+* **Verification:** Unit tests (26/26 TopHeader tests PASS, 14/14 MainLayout tests PASS, 956/956 full unit test suite PASS), build & lint clean (0 warnings), fullstack E2E verified.
+* **Classification:** RESOLVED
+
 ### Exit Criteria
 
 ```text

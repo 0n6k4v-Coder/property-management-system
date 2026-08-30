@@ -342,30 +342,18 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
             <SearchIcon />
           </button>
 
-          {/* Responsive Primary CTA */}
+          {/* Responsive Primary CTA (Single interactive instance in DOM) */}
           {cta && (
-            <>
-              {/* Mobile icon-only CTA */}
-              <button
-                type="button"
-                onClick={() => navigate(cta.to, { viewTransition: true })}
-                className="inline-flex size-10 items-center justify-center rounded-lg bg-primary-700 text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 sm:hidden"
-                aria-label={cta.label}
-              >
-                <PlusIcon />
-              </button>
-
-              {/* Desktop / Tablet button with label */}
-              <button
-                type="button"
-                onClick={() => navigate(cta.to, { viewTransition: true })}
-                className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-primary-700 px-4 py-2 text-sm font-medium text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-              >
-                <PlusIcon className="size-4" />
-                <span className="hidden lg:inline">{cta.label}</span>
-                <span className="lg:hidden">{cta.label.replace('+ ', '')}</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => navigate(cta.to, { viewTransition: true })}
+              className="inline-flex size-10 sm:size-auto sm:h-auto items-center justify-center sm:justify-start gap-1.5 rounded-lg bg-primary-700 sm:px-4 sm:py-2 text-sm font-medium text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+              aria-label={cta.label}
+            >
+              <PlusIcon className="size-5 sm:size-4" />
+              <span className="hidden sm:inline lg:hidden">{cta.label.replace('+ ', '')}</span>
+              <span className="hidden lg:inline">{cta.label}</span>
+            </button>
           )}
 
           {/* Unified User menu dropdown (Single interactive instance in DOM) */}
