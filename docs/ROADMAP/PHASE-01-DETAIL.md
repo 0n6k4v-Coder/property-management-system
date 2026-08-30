@@ -671,6 +671,16 @@ Perform a forensic investigation of all observed test instability, failures, and
 * **Verification:** Full frontend test suite (53 files, 960/960 unit tests PASS, 100%), typecheck passed, lint passed (0 errors, 0 warnings), Vite production build passed cleanly.
 * **Classification:** RESOLVED
 
+#### ARCH-CONS-003 — Consolidate Native Dialog Architecture (G3-IMPLEMENT-01)
+* **Problem:** Two competing overlay primitives existed: `Modal.tsx` (using a custom fixed `<div>` backdrop to simulate modality) and `Dialog.tsx` (using native HTML5 `<dialog>` and `showModal()` / `close()` lifecycle).
+* **Resolution:** Consolidated onto `Dialog.tsx` as the single canonical modal-dialog foundation across the application:
+  1. `Dialog.tsx`: Standardized as the canonical modal primitive wrapping HTML5 `<dialog>` with `showModal()` / `close()` lifecycle, `onCancel` default prevention forwarding to `onClose`, and native backdrop styling (`dialog::backdrop` via Tailwind `backdrop:bg-black/50`).
+  2. `Modal.tsx`: Refactored to delegate directly to `Dialog.tsx` with native modal lifecycle, `aria-label={title}`, and conditional subtree mounting (`if (!open) return null`), completely eliminating the custom fixed `<div>` backdrop overlay.
+  3. `Sidebar.tsx`: Preserved semantic separation between persistent desktop navigation (`<aside aria-label="Sidebar navigation">`), tablet overlay navigation (`<aside aria-label="Sidebar navigation (overlay)">`), and transient mobile drawer navigation (`<Dialog open={mobileOpen} ...>`).
+  4. Test Environment: Added global polyfills for `HTMLDialogElement.prototype.showModal` and `close` in `frontend/src/setupTests.ts` ensuring full JSDOM compatibility across unit tests.
+* **Verification:** Unit tests (54 test files, 966/966 PASS, 100%), typecheck clean (0 errors), lint clean (0 warnings), Vite production build clean, fullstack E2E suite PASS (111 passed, 2 flaky resolved on retry, 32 skipped, 0 failures).
+* **Classification:** RESOLVED
+
 ### Exit Criteria
 
 ```text

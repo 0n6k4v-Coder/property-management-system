@@ -28,3 +28,19 @@ if (typeof globalThis.MutationObserver === 'undefined') {
   }
   globalThis.MutationObserver = MockMutationObserver as unknown as typeof MutationObserver;
 }
+
+// Polyfill HTMLDialogElement.prototype.showModal and close for JSDOM
+if (typeof HTMLDialogElement !== 'undefined') {
+  if (!HTMLDialogElement.prototype.showModal) {
+    HTMLDialogElement.prototype.showModal = function () {
+      this.open = true;
+      this.dispatchEvent(new Event('open', { bubbles: true }));
+    };
+  }
+  if (!HTMLDialogElement.prototype.close) {
+    HTMLDialogElement.prototype.close = function () {
+      this.open = false;
+      this.dispatchEvent(new Event('close', { bubbles: true }));
+    };
+  }
+}

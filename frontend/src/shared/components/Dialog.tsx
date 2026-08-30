@@ -2,16 +2,16 @@
 // Reusable wrapper for native <dialog> element.
 // Encapsulates imperative showModal/close API to satisfy eslint react-doctor/no-event-handler.
 
-import { useRef, type ReactNode } from 'react';
+import { useRef, type ReactNode, type DialogHTMLAttributes } from 'react';
 
-interface DialogProps {
+export interface DialogProps extends DialogHTMLAttributes<HTMLDialogElement> {
   open: boolean;
   onClose?: () => void;
   children: ReactNode;
   className?: string;
 }
 
-export function Dialog({ open, onClose, children, className }: DialogProps) {
+export function Dialog({ open, onClose, children, className, ...rest }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   // Sync open prop with dialog state using callback ref pattern
@@ -38,6 +38,7 @@ export function Dialog({ open, onClose, children, className }: DialogProps) {
       ref={setDialogRef}
       onCancel={handleCancel}
       className={className}
+      {...rest}
     >
       {children}
     </dialog>
