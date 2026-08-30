@@ -226,13 +226,14 @@ test.describe('Invoice Payment Flow', () => {
     await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await page.getByRole('button', { name: 'Record Payment' }).click();
-    await expect(page.getByRole('dialog', { name: 'Record Payment' })).toBeVisible();
+    const paymentDialog = page.getByRole('dialog', { name: 'Record Payment' });
+    await expect(paymentDialog).toBeVisible();
 
     // Pay a partial amount so the invoice stays payable for repeated test runs.
-    await page.getByLabel('Amount').fill('1000');
+    await paymentDialog.getByLabel('Amount').fill('1000');
     // Method left as default "cash" — see file header note on the real
     // backend's accepted method values.
-    await page.getByRole('button', { name: 'Record Payment' }).last().click();
+    await paymentDialog.getByRole('button', { name: 'Record Payment' }).click();
 
     await expect(page.getByRole('alert').filter({ hasText: /payment recorded|success/i })).toBeVisible({ timeout: 10_000 });
 
@@ -246,10 +247,11 @@ test.describe('Invoice Payment Flow', () => {
     await navigateTo(page, `/invoices/${SEEDED.invoice20260001Id}`, SEEDED_DATA.invoice.number);
 
     await page.getByRole('button', { name: 'Record Payment' }).click();
-    await expect(page.getByRole('dialog', { name: 'Record Payment' })).toBeVisible();
+    const paymentDialog = page.getByRole('dialog', { name: 'Record Payment' });
+    await expect(paymentDialog).toBeVisible();
 
-    await page.getByLabel('Amount').fill('0');
-    await page.getByRole('button', { name: 'Record Payment' }).last().click();
+    await paymentDialog.getByLabel('Amount').fill('0');
+    await paymentDialog.getByRole('button', { name: 'Record Payment' }).click();
 
     await expect(page.getByText(/must be positive/i)).toBeVisible();
 

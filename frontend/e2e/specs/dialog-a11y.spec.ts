@@ -47,12 +47,22 @@ test.describe('Native Dialog Accessibility Verification', () => {
 
     // Background interaction isolation check:
     // When a native dialog is opened via showModal(), the underlying page is inert / blocked from pointer events.
-    // Clicking a background button should fail/be intercepted by the modal backdrop.
+    // In native modal mode, clicking a background element must fail actionability / pointer interception.
     const searchInput = page.locator('input[placeholder*="min. 3 chars"]');
-    // In native modal mode, clicking background element should not focus it
-    await searchInput.click({ force: false, timeout: 2000 }).catch(() => {
-      // Expected to be blocked or throw in real browser due to modal backdrop
-    });
+    
+    // Assert that interacting with the background element is blocked / rejected by the modal barrier
+    let clickSucceeded: boolean;
+    try {
+      await searchInput.click({ timeout: 1500 });
+      clickSucceeded = true;
+    } catch {
+      clickSucceeded = false;
+    }
+    expect(clickSucceeded).toBe(false);
+
+    // Verify background searchInput did NOT receive focus (dialog remains isolated)
+    const isSearchFocused = await searchInput.evaluate((el) => el === document.activeElement);
+    expect(isSearchFocused).toBe(false);
 
     // Press Escape to close modal
     await page.keyboard.press('Escape');
@@ -64,8 +74,7 @@ test.describe('Native Dialog Accessibility Verification', () => {
   test('DIA-03: Responsive Navigation - Desktop persistent <aside>, Mobile <dialog>, Tablet <dialog>', async ({ page }) => {
     // Desktop Viewport (1280x800)
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/dashboard', /Dashboard/i);
 
     // Desktop should have persistent aside navigation
     const desktopAside = page.locator('aside[aria-label="Sidebar navigation"]');
@@ -73,9 +82,8 @@ test.describe('Native Dialog Accessibility Verification', () => {
 
     // Mobile Viewport (375x667)
     await page.setViewportSize({ width: 375, height: 667 });
-    await page.waitForTimeout(300);
 
-    // Open mobile navigation drawer via header menu button
+    // Open mobile navigation drawer via header menu button (wait for mobile menu button to become visible)
     const mobileMenuBtn = page.getByRole('button', { name: /Toggle navigation menu/i });
     await expect(mobileMenuBtn).toBeVisible();
     await mobileMenuBtn.click();
@@ -90,8 +98,7 @@ test.describe('Native Dialog Accessibility Verification', () => {
 
     // Tablet Viewport (820x1180)
     await page.setViewportSize({ width: 820, height: 1180 });
-    await page.goto('/dashboard');
-    await page.waitForLoadState('networkidle');
+    await navigateTo(page, '/dashboard', /Dashboard/i);
 
     // In tablet mode, sidebar is collapsed by default.
     // Find and click the toggle button to expand tablet overlay

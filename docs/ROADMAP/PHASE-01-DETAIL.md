@@ -682,7 +682,19 @@ Perform a forensic investigation of all observed test instability, failures, and
      - `DIA-01`: Modal opening, accessible role & name (`getByRole('dialog', { name: ... })`), focus entry, header close button.
      - `DIA-02`: Escape key modal closing (`page.keyboard.press('Escape')`) and background interaction isolation.
      - `DIA-03`: Responsive navigation verification across Desktop (persistent `<aside>`), Mobile (<768px native `<dialog>` drawer), and Tablet (768–1023px native `<dialog>` overlay).
-* **Verification:** Unit tests (53 test files, 955/955 PASS, 100%), typecheck clean (0 errors), lint clean (0 warnings), Vite production build clean, fullstack E2E suite PASS (114 passed, 32 skipped, 0 failures).
+#### P2-ARCH-AUDIT-02 — Playwright Interaction Reliability & Assertion Integrity Remediation (P2-ARCH-AUDIT-02-IMPLEMENT-01)
+* **Problem:** Audit identified four Playwright test anti-patterns:
+  1. `PW-001`: Swallowed assertion failure in `dialog-a11y.spec.ts` (`.catch(() => {})`).
+  2. `PW-002`: Arbitrary viewport sleep in `dialog-a11y.spec.ts` (`waitForTimeout(300)`).
+  3. `PW-003`: Modal action positional disambiguation via `.last().click()` in `contract-flow.spec.ts` and `invoice-payment.spec.ts`.
+  4. `PW-004`: Generic `networkidle` readiness in shared helpers (`login()`, `navigateTo()`) and navigation functions.
+* **Resolution:** Remediated all 4 findings according to official Playwright best practices:
+  1. `PW-001`: Replaced swallowed `.catch()` with explicit verification that background pointer click is blocked/rejected and underlying element does NOT receive focus (`document.activeElement`).
+  2. `PW-002`: Replaced `waitForTimeout(300)` with observable responsive application state assertions (`expect(mobileMenuBtn).toBeVisible()`).
+  3. `PW-003`: Scoped modal action buttons directly within active dialog locators (`termDialog.getByRole('button', { name: 'Terminate' })`, `renewDialog.getByRole('button', { name: 'Renew' })`, `paymentDialog.getByRole('button', { name: 'Record Payment' })`), eliminating arbitrary `.last()` disambiguation while preserving justified structural table indexing.
+  4. `PW-004`: Removed generic `networkidle` from `test-helpers.ts` (`login()`, `navigateTo()`) and spec navigation helpers, establishing readiness purely via observable DOM conditions (DOM content loaded, URL matching, and expected heading/element visibility).
+* **Impact:** 0 swallowed assertions, 0 arbitrary viewport timeouts, 0 modal-action positional disambiguations, 0 generic `networkidle` waits in navigation helpers.
+* **Verification:** Fullstack E2E suite (114 passed, 32 skipped, 0 failed), Unit test suite (53 files, 955/955 passed), typecheck clean (0 errors), lint clean (0 warnings), Vite production build clean.
 * **Classification:** RESOLVED
 
 ### Exit Criteria

@@ -38,9 +38,8 @@ export async function login(
 ): Promise<void> {
   await page.goto('/login');
 
-  // Wait for React app to hydrate - use domcontentloaded + networkidle
+  // Wait for DOM content to load
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
 
   // Wait for form elements to be visible (auto-waiting per C-03)
   await expect(
@@ -69,7 +68,6 @@ export async function navigateTo(
 ): Promise<void> {
   await page.goto(path);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
   // Wait for heading to be visible (React may need time to render).
   // NOTE: MainLayout renders its own <h2>Property Management</h2> brand
   // title before page content, so matching 'h1, h2' would pick that up

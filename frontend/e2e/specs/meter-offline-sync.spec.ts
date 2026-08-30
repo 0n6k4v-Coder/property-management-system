@@ -49,7 +49,6 @@ import { SEEDED } from '../fixtures/seeded-ids';
 async function navigateToMeterReading(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/meter-reading');
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
   await expect(page.locator('h1').first()).toContainText(/meter reading/i, { timeout: 30000 });
 }
 

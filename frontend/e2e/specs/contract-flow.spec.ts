@@ -127,10 +127,11 @@ test.describe('Contract Management Flow', () => {
     await navigateTo(page, `/contracts/${contractId}`, /contract/i);
 
     await page.getByRole('button', { name: 'Terminate' }).click();
-    await expect(page.getByRole('dialog', { name: 'Terminate Contract' })).toBeVisible();
+    const termDialog = page.getByRole('dialog', { name: 'Terminate Contract' });
+    await expect(termDialog).toBeVisible();
 
-    await page.getByLabel('Reason').selectOption('tenant_moved_out');
-    await page.getByRole('button', { name: 'Terminate' }).last().click();
+    await termDialog.getByLabel('Reason').selectOption('tenant_moved_out');
+    await termDialog.getByRole('button', { name: 'Terminate' }).click();
 
     await expect(page.getByRole('alert').filter({ hasText: /terminated|success/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByText('Termination Record')).toBeVisible();
@@ -232,20 +233,22 @@ test.describe('Contract Management Flow', () => {
     await navigateTo(page, `/contracts/${contractId}`, /contract/i);
 
     await page.getByRole('button', { name: 'Terminate' }).click();
-    await expect(page.getByRole('dialog', { name: 'Terminate Contract' })).toBeVisible();
-    await page.getByLabel('Reason').selectOption('tenant_moved_out');
-    await page.getByRole('button', { name: 'Terminate' }).last().click();
+    const termDialog = page.getByRole('dialog', { name: 'Terminate Contract' });
+    await expect(termDialog).toBeVisible();
+    await termDialog.getByLabel('Reason').selectOption('tenant_moved_out');
+    await termDialog.getByRole('button', { name: 'Terminate' }).click();
     await expect(page.getByRole('alert').filter({ hasText: /terminated|success/i })).toBeVisible({ timeout: 10_000 });
     await expect(page.getByRole('button', { name: 'Renew Contract' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Renew Contract' }).click();
-    await expect(page.getByRole('dialog', { name: 'Renew Contract' })).toBeVisible({ timeout: 10_000 });
+    const renewDialog = page.getByRole('dialog', { name: 'Renew Contract' });
+    await expect(renewDialog).toBeVisible({ timeout: 10_000 });
 
-    await page.getByLabel('New Start Date').fill('2027-01-01');
-    await page.getByLabel('New End Date').fill('2027-12-31');
-    await page.getByLabel(/new monthly rent/i).fill('7000');
-    await page.getByLabel(/new deposit amount/i).fill('14000');
-    await page.getByRole('button', { name: 'Renew' }).last().click();
+    await renewDialog.getByLabel('New Start Date').fill('2027-01-01');
+    await renewDialog.getByLabel('New End Date').fill('2027-12-31');
+    await renewDialog.getByLabel(/new monthly rent/i).fill('7000');
+    await renewDialog.getByLabel(/new deposit amount/i).fill('14000');
+    await renewDialog.getByRole('button', { name: 'Renew' }).click();
 
     await expect(page.getByText('7,000')).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText('14,000')).toBeVisible();
@@ -285,8 +288,7 @@ test.describe('Contract Management Flow', () => {
   // confirms the three inputs exist on the single page (cross-reference CONT-02).
   test('CONT-NEW-01/02/03 should expose room, tenant and terms inputs on the single-page form', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts/new');
-    await expect(page.locator('h1').first()).toContainText(/new contract/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts/new', /new contract/i);
 
     // Room + Tenant are conditionally rendered only after a property is picked.
     await page.locator('#property-select').selectOption({ label: 'Sunset Tower' });
@@ -306,8 +308,7 @@ test.describe('Contract Management Flow', () => {
   // ── CONT-NEW-04: Auto-calculate — NOT IMPLEMENTED (rent/deposit are plain manual inputs) ──
   test('CONT-NEW-04 should assert no auto-calculate of deposit from rent', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts/new');
-    await expect(page.locator('h1').first()).toContainText(/new contract/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts/new', /new contract/i);
 
     await page.getByLabel(/monthly rent/i).fill('5500');
     // If auto-calc existed, deposit would be derived (e.g. 2x rent). It stays empty.
@@ -321,8 +322,7 @@ test.describe('Contract Management Flow', () => {
   // ── CONT-NEW-05 / 06: Preview PDF / Submit→PDF — NOT IMPLEMENTED ──
   test('CONT-NEW-05/06 should assert no preview-PDF or submit-to-PDF feature', async ({ page }) => {
     await login(page);
-    await page.goto('/contracts/new');
-    await expect(page.locator('h1').first()).toContainText(/new contract/i, { timeout: 30000 });
+    await navigateTo(page, '/contracts/new', /new contract/i);
 
     await expect(page.getByRole('button', { name: /preview|generate pdf|download pdf/i })).toHaveCount(0);
 

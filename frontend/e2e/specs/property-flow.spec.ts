@@ -36,13 +36,13 @@ const ROOM_101_SHORT_ID = SEEDED.room101Id.slice(0, 8);
 async function navigateToPropertyDetail(page: Page, propertyId: string = SEEDED.propertySunsetId): Promise<void> {
   await page.goto(`/property/${propertyId}`);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
+  // TopHeader renders 'Property Detail' breadcrumb in nav[aria-label="Breadcrumb"] for /property/:id routes
+  await expect(page.locator('nav[aria-label="Breadcrumb"] span')).toHaveText('Property Detail', { timeout: 30000 });
 }
 
 async function navigateToRoomDetail(page: Page, roomId = SEEDED.room101Id): Promise<void> {
   await page.goto(`/property/rooms/${roomId}`);
   await page.waitForLoadState('domcontentloaded');
-  await page.waitForLoadState('networkidle');
   // RoomDetailPage.tsx has no <h1> — wait for the tablist instead.
   await expect(page.getByRole('tablist')).toBeVisible({ timeout: 30000 });
 }
