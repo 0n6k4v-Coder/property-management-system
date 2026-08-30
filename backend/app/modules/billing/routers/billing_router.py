@@ -28,7 +28,7 @@ References:
 """
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,9 +55,9 @@ from app.modules.billing.services import BillingService
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    ensure_property_scope,
     get_current_user,
     require_property_scope,
-    user_has_property_scope,
 )
 from app.shared.exceptions import APIError
 from app.shared.idempotency import check_idempotency, store_idempotency
@@ -70,31 +70,6 @@ QUERY_LIMIT_12 = Query(12, ge=1, le=100, description="Max readings to return (1-
 QUERY_PROPERTY_ID = Query(None, description="Filter by property")
 QUERY_PAGE = Query(1, ge=1, description="Page number")
 QUERY_LIMIT_20 = Query(20, ge=1, le=100, description="Items per page (1-100)")
-
-
-async def _check_scope(
-    current_user: dict[str, Any], db: AsyncSession, property_id: uuid.UUID | None
-) -> None:
-    """Resolve-then-check authorization helper.
-
-    Raises ``AUTH-005`` (403) unless the caller is a global owner/admin or
-    holds a scope row for ``property_id``. A ``None`` ``property_id`` (entity
-    not found) is treated as "no scope" so the caller cannot read/guess
-    non-existent resources across properties.
-    """
-    _ = current_user.get("user_id")
-    if property_id is None:
-        raise APIError(
-            code="AUTH-005",
-            message="Insufficient property scope",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    if not await user_has_property_scope(current_user, db, property_id):
-        raise APIError(
-            code="AUTH-005",
-            message="Insufficient property scope",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
 
 
 # ── POST /meter-readings ──────────────────────────────────────────────
@@ -122,7 +97,7 @@ async def create_meter_reading(
     """
     repo = BillingRepository(db)
     room_property_id: uuid.UUID | None = await repo.get_room_property_id(request.room_id)
-    await _check_scope(current_user, db, room_property_id)
+    await ensure_property_scope(current_user, db, room_property_id)
 
     if idempotency_key:
         cached = await check_idempotency(
@@ -190,7 +165,7 @@ async def get_meter_reading_history(
 
     repo = BillingRepository(db)
     room_property_id: uuid.UUID | None = await repo.get_room_property_id(room_id)
-    await _check_scope(current_user, db, room_property_id)
+    await ensure_property_scope(current_user, db, room_property_id)
 
     service = BillingService(db)
     readings = await service.get_meter_reading_history(room_id, limit)
@@ -285,7 +260,7 @@ async def list_invoices(
     service = BillingService(db)
     if property_id is not None:
         # Direct field: check the supplied property's scope directly.
-        await _check_scope(current_user, db, property_id)
+        await ensure_property_scope(current_user, db, property_id)
         allowed_property_ids: list[uuid.UUID] | None = [property_id]
     else:
         allowed_property_ids = await service.get_current_user_property_ids(current_user)
@@ -340,7 +315,7 @@ async def get_invoice_detail(
             status_code=status.HTTP_404_NOT_FOUND,
         )
 
-    await _check_scope(current_user, db, invoice.property_id)
+    await ensure_property_scope(current_user, db, invoice.property_id)
 
     return InvoiceDetailWrapperResponse(
         data=InvoiceDetailResponse(
@@ -388,7 +363,7 @@ async def record_payment(
     invoice_property_id: uuid.UUID | None = await repo.get_invoice_property_id(
         request.invoice_id
     )
-    await _check_scope(current_user, db, invoice_property_id)
+    await ensure_property_scope(current_user, db, invoice_property_id)
 
     if idempotency_key:
         cached = await check_idempotency(

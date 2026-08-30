@@ -95,6 +95,27 @@ async def user_has_property_scope(
     return any(s.property_id == property_id for s in scopes)
 
 
+async def ensure_property_scope(
+    current_user: dict[str, Any],
+    db: AsyncSession,
+    property_id: uuid.UUID | None,
+) -> None:
+    """Canonical authorization helper enforcing property scope.
+
+    Raises ``AUTH-005`` (403) unless the caller is a global owner/admin or
+    holds a scope row for ``property_id``. A ``None`` ``property_id`` (entity
+    not found or unresolved) is treated as "no scope" (403 AUTH-005).
+    """
+    from app.modules.auth.constants import AUTH_005
+
+    if property_id is None or not await user_has_property_scope(current_user, db, property_id):
+        raise APIError(
+            code="AUTH-005",
+            message=AUTH_005,
+            status_code=status.HTTP_403_FORBIDDEN,
+        )
+
+
 def require_property_scope(
     path_param: str | None = None,
     query_param: str | None = None,

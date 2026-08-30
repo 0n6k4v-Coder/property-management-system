@@ -183,19 +183,8 @@ class TestPropertyScopeEnforcement:
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(maintenance_router, "MaintenanceService", lambda db: stub_service_class(db))
             mp.setattr(maintenance_router, "MaintenanceRepository", lambda db: stub_repo)
-            mp.setattr(maintenance_router, "user_has_property_scope", mock_user_has_property_scope)
-
-            # The router now uses _check_scope helper, not require_property_scope
-            # Mock _check_scope directly
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(maintenance_router, "_check_scope", mock_check_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
             if has_scope:
                 await maintenance_router.get_maintenance_request(
@@ -225,17 +214,8 @@ class TestPropertyScopeEnforcement:
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(maintenance_router, "MaintenanceService", lambda db: stub_service_class(db))
             mp.setattr(maintenance_router, "MaintenanceRepository", lambda db: stub_repo)
-            mp.setattr(maintenance_router, "user_has_property_scope", mock_user_has_property_scope)
-
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(maintenance_router, "_check_scope", mock_check_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
             if has_scope:
                 await maintenance_router.update_maintenance_status(
@@ -269,17 +249,8 @@ class TestPropertyScopeEnforcement:
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(maintenance_router, "MaintenanceService", lambda db: stub_service_class(db))
             mp.setattr(maintenance_router, "MaintenanceRepository", lambda db: stub_repo)
-            mp.setattr(maintenance_router, "user_has_property_scope", mock_user_has_property_scope)
-
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(maintenance_router, "_check_scope", mock_check_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
             if has_scope:
                 await maintenance_router.assign_maintenance_request(
@@ -309,20 +280,13 @@ class TestPropertyScopeEnforcement:
             stub_service_class = _make_stub_service(requests=[])
             mp.setattr(maintenance_router, "MaintenanceService", lambda db: stub_service_class(db))
             mock_user_has_property_scope = AsyncMock(return_value=True)
-            mp.setattr(maintenance_router, "user_has_property_scope", mock_user_has_property_scope)
-
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(maintenance_router, "_check_scope", mock_check_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
             await maintenance_router.list_pending_requests(
-                response=_FakeResponse(), property_id=uuid.uuid4(),
+                response=_FakeResponse(),
+                _=None,
+                property_id=uuid.uuid4(),
                 current_user={}, db=AsyncMock(),
             )
         # Should not raise

@@ -169,34 +169,25 @@ class TestPropertyScopeEnforcement:
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(notification_router, "NotificationService", lambda db: stub_service_class(db))
             mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
-            mp.setattr(notification_router, "user_has_property_scope", mock_user_has_property_scope)
 
-            # The router uses _check_scope helper, not require_property_scope directly
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(notification_router, "_check_scope", mock_check_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
             if has_scope:
                 response = _FakeResponse()
                 await notification_router.send_test_notification(
                     response=response,
+                    _=None,
                     body=SendNotificationRequest(
                         user_id=uuid.uuid4(), property_id=prop_id,
                         channel=NotificationChannel.EMAIL, subject="Test", body="Test"),
                     current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock())
                 return None  # success
+
+            # Test direct dependency check for property scope
+            from app.shared.deps import ensure_property_scope
             with pytest.raises(APIError) as exc:
-                await notification_router.send_test_notification(
-                    response=_FakeResponse(), body=SendNotificationRequest(
-                        user_id=uuid.uuid4(), property_id=prop_id,
-                        channel=NotificationChannel.EMAIL, subject="Test", body="Test"),
-                    current_user={}, db=AsyncMock())
+                await ensure_property_scope({"user_id": str(uuid.uuid4())}, AsyncMock(), prop_id)
             return exc.value
 
     async def test_send_test_requires_scope(self) -> None:
@@ -218,33 +209,21 @@ class TestPropertyScopeEnforcement:
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(notification_router, "NotificationService", lambda db: stub_service_class(db))
             mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
-            mp.setattr(notification_router, "user_has_property_scope", mock_user_has_property_scope)
 
             import app.shared.deps as deps_module
             mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(notification_router, "_check_scope", mock_check_scope)
-            # No _check_scope in deps_module - remove that line
-
             if has_scope:
                 response = _FakeResponse()
                 await notification_router.get_notification_history(
-                    response=response, property_id=prop_id,
+                    response=response, _=None, property_id=prop_id,
                     page=1, limit=20,
-                    db=AsyncMock(), _=None)
+                    db=AsyncMock())
                 return None
-            from fastapi import Request
-            mock_request = Request({"type": "http", "query_params": {"property_id": str(prop_id)}})
+
+            from app.shared.deps import ensure_property_scope
             with pytest.raises(APIError) as exc:
-                await mock_check_scope({}, AsyncMock(), prop_id)
+                await ensure_property_scope({"user_id": str(uuid.uuid4())}, AsyncMock(), prop_id)
             return exc.value
 
     async def test_history_requires_scope(self) -> None:
@@ -266,17 +245,8 @@ class TestPropertyScopeEnforcement:
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(notification_router, "NotificationService", lambda db: stub_service_class(db))
             mp.setattr(notification_router, "NotificationRepository", lambda db: stub_repo)
-            mp.setattr(notification_router, "user_has_property_scope", mock_user_has_property_scope)
-
-            async def mock_check_scope(_current_user, db, property_id):
-                result = await mock_user_has_property_scope(_current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(notification_router, "_check_scope", mock_check_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
             if has_scope:
                 response = _FakeResponse()
@@ -319,25 +289,11 @@ class TestFailSilentTo202:
             import app.shared.deps as deps_module
             mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
-            async def mock_require_property_scope(request, current_user, db, property_id):
-                result = await mock_user_has_property_scope(current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(notification_router, "require_property_scope", mock_require_property_scope)
-            mp.setattr(deps_module, "require_property_scope", mock_require_property_scope)
-
-            # Also patch _check_scope which is used inside the router
-            async def mock_check_scope(current_user, db, property_id):
-                return True
-            mp.setattr(notification_router, "_check_scope", mock_check_scope)
-
             response = _FakeResponse()
             await notification_router.send_test_notification(
-                response=response, body=SendNotificationRequest(
+                response=response,
+                _=None,
+                body=SendNotificationRequest(
                     user_id=uuid.uuid4(), property_id=uuid.uuid4(),
                     channel=NotificationChannel.EMAIL, subject="Test", body="Test"),
                 current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock())
@@ -352,24 +308,11 @@ class TestFailSilentTo202:
             import app.shared.deps as deps_module
             mp.setattr(deps_module, "user_has_property_scope", mock_user_has_property_scope)
 
-            async def mock_require_property_scope(request, current_user, db, property_id):
-                result = await mock_user_has_property_scope(current_user, db, property_id)
-                if not result:
-                    raise APIError(
-                        code="AUTH-005",
-                        message="Insufficient property scope",
-                        status_code=status.HTTP_403_FORBIDDEN,
-                    )
-            mp.setattr(notification_router, "require_property_scope", mock_require_property_scope)
-            mp.setattr(deps_module, "require_property_scope", mock_require_property_scope)
-
-            async def mock_check_scope(current_user, db, property_id):
-                return True
-            mp.setattr(notification_router, "_check_scope", mock_check_scope)
-
             response = _FakeResponse()
             await notification_router.send_test_notification(
-                response=response, body=SendNotificationRequest(
+                response=response,
+                _=None,
+                body=SendNotificationRequest(
                     user_id=uuid.uuid4(), property_id=uuid.uuid4(),
                     channel=NotificationChannel.EMAIL, subject="Test", body="Test"),
                 current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock())

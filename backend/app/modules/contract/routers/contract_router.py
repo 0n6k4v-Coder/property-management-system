@@ -14,12 +14,11 @@ Implements the Target Design from docs/API.md fixing anti-patterns #5, #13, #1, 
 
 import uuid
 from datetime import date
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.constants import AUTH_005
 from app.modules.contract.repository import ContractRepository
 from app.modules.contract.schemas import (
     ContractCreateResponse,
@@ -36,39 +35,12 @@ from app.shared.database import get_db
 from app.shared.deps import (
     GET_CURRENT_USER,
     CurrentUser,
-    user_has_property_scope,
+    ensure_property_scope,
+    require_property_scope,
 )
-from app.shared.exceptions import APIError
 from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["contracts"], redirect_slashes=False)
-
-
-async def _check_scope(
-    current_user: dict[str, Any],
-    db: AsyncSession,
-    property_id: uuid.UUID | None,
-) -> None:
-    """Resolve-then-check authorization helper.
-
-    Raises ``AUTH-005`` (403) unless the caller is a global owner/admin or
-    holds a scope row for ``property_id``. A ``None`` ``property_id`` (entity
-    not found) is treated as "no scope" so the caller cannot read/guess
-    non-existent resources across properties.
-    """
-    _ = current_user.get("user_id")
-    if property_id is None:
-        raise APIError(
-            code="AUTH-005",
-            message=AUTH_005,
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    if not await user_has_property_scope(current_user, db, property_id):
-        raise APIError(
-            code="AUTH-005",
-            message=AUTH_005,
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
 
 
 # ── POST /contracts/ ──────────────────────────────────────────────────
@@ -88,6 +60,7 @@ async def _check_scope(
 )
 async def create_contract(
     body: CreateContractRequest,
+    _: Annotated[None, require_property_scope()],
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
@@ -100,9 +73,6 @@ async def create_contract(
     prior 201 within the 24h dedupe window; reusing a key with a different
     body raises ``409 VAL-409``.
     """
-    # Additional explicit scope check (the dependency checks body.property_id)
-    await _check_scope(current_user, db, body.property_id)
-
     if idempotency_key:
         cached = await check_idempotency(
             db,
@@ -174,7 +144,7 @@ async def list_active_contracts(
     service = ContractService(db)
     if property_id is not None:
         # Direct field: check the supplied property's scope directly.
-        await _check_scope(current_user, db, property_id)
+        await ensure_property_scope(current_user, db, property_id)
         allowed_property_ids: list[uuid.UUID] | None = [property_id]
     else:
         allowed_property_ids = await service.get_current_user_property_ids(current_user)
@@ -220,7 +190,7 @@ async def get_contract(
 
     repo = ContractRepository(db)
     prop_id: uuid.UUID | None = await repo.get_contract_property_id(contract_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     service = ContractService(db)
     contract = await service.get_contract(contract_id)
@@ -250,7 +220,7 @@ async def terminate_contract(
     """
     repo = ContractRepository(db)
     prop_id: uuid.UUID | None = await repo.get_contract_property_id(contract_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     service = ContractService(db)
     contract = await service.terminate_contract(
@@ -288,7 +258,7 @@ async def extend_lease(
     """
     repo = ContractRepository(db)
     prop_id: uuid.UUID | None = await repo.get_contract_property_id(contract_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     if idempotency_key:
         cached = await check_idempotency(
@@ -347,7 +317,7 @@ async def renew_contract(
     """
     repo = ContractRepository(db)
     prop_id: uuid.UUID | None = await repo.get_contract_property_id(contract_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     if idempotency_key:
         cached = await check_idempotency(
@@ -413,7 +383,7 @@ async def get_lease_history(
 
     repo = ContractRepository(db)
     prop_id: uuid.UUID | None = await repo.get_room_property_id(room_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     service = ContractService(db)
     contracts, total = await service.get_lease_history_paginated(

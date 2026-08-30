@@ -179,12 +179,13 @@ class TestPropertyScopeEnforcement:
         prop_id = room_property_id or uuid.uuid4()
         stub_service = _make_stub_service(history=[])
         stub_repo = _StubRepo(room_property_id=prop_id)
+        mock_scope = AsyncMock(return_value=has_scope)
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(billing_router, "BillingService", stub_service)
             mp.setattr(billing_router, "BillingRepository",
                        lambda db: stub_repo)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=has_scope))
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             response = _FakeResponse()
             if has_scope:
                 await billing_router.get_meter_reading_history(
@@ -216,8 +217,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(billing_router, "BillingService", stub_service)
             mp.setattr(billing_router, "BillingRepository",
                        lambda db: stub_repo)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await billing_router.get_invoice_detail(
                     response=_FakeResponse(), invoice_id=uuid.uuid4(),
@@ -234,8 +236,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(billing_router, "BillingService", stub_service)
             mp.setattr(billing_router, "BillingRepository",
                        lambda db: stub_repo)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await billing_router.record_payment(
                     request=_payment_request(),
@@ -248,8 +251,9 @@ class TestPropertyScopeEnforcement:
         stub_service = _make_stub_service(property_ids=[prop_id])
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(billing_router, "BillingService", stub_service)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await billing_router.list_invoices(
                     response=_FakeResponse(), property_id=prop_id,
@@ -285,8 +289,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(billing_router, "BillingService", stub_service)
             mp.setattr(billing_router, "BillingRepository",
                        lambda db: stub_repo)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=True))
+            mock_scope = AsyncMock(return_value=True)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             response = _FakeResponse()
             await billing_router.get_invoice_detail(
                 response=response, invoice_id=uuid.uuid4(), current_user={},
@@ -312,8 +317,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(billing_router, "BillingService", stub_service)
             mp.setattr(billing_router, "BillingRepository",
                        lambda db: stub_repo)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=True))
+            mock_scope = AsyncMock(return_value=True)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             await billing_router.record_payment(
                 request=_payment_request(), current_user={"user_id": str(uuid.uuid4())}, db=AsyncMock())
         # Should not raise
@@ -323,8 +329,9 @@ class TestPropertyScopeEnforcement:
         stub_service = _make_stub_service(property_ids=[prop_id])
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(billing_router, "BillingService", stub_service)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=True))
+            mock_scope = AsyncMock(return_value=True)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             await billing_router.list_invoices(
                 response=_FakeResponse(), property_id=prop_id,
                 current_user={}, db=AsyncMock(),
@@ -427,8 +434,9 @@ class TestMoneyIsDecimal:
             mp.setattr(billing_router, "BillingService", stub_service)
             mp.setattr(billing_router, "BillingRepository",
                        lambda db: stub_repo)
-            mp.setattr(billing_router, "user_has_property_scope",
-                       AsyncMock(return_value=True))
+            mock_scope = AsyncMock(return_value=True)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             response = _FakeResponse()
             await billing_router.record_payment(
                 request=RecordPaymentRequest(

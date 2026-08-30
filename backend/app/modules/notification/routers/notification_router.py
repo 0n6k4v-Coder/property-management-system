@@ -34,9 +34,9 @@ from app.modules.notification.services.notification_service import NotificationS
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    ensure_property_scope,
     get_current_user,
     require_property_scope,
-    user_has_property_scope,
 )
 from app.shared.exceptions import APIError
 from app.shared.idempotency import check_idempotency, store_idempotency
@@ -51,33 +51,6 @@ limit_qp_dep = Query(20, ge=1, le=100, description="Items per page (1-100)")
 property_id_qp_dep = Query(..., description="Property ID (required for scope)")
 
 
-async def _check_scope(
-    current_user: dict[str, Any],
-    db: AsyncSession,
-    property_id: uuid.UUID | None,
-) -> None:
-    """Resolve-then-check authorization helper.
-
-    Raises AUTH-005 (403) unless the caller is a global owner/admin or
-    holds a scope row for ``property_id``. A ``None`` ``property_id``
-    (entity not found) is treated as "no scope" so the caller cannot
-    read/guess non-existent resources across properties.
-    """
-    _ = current_user.get("user_id")
-    if property_id is None:
-        raise APIError(
-            code="AUTH-005",
-            message="Insufficient property scope",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    if not await user_has_property_scope(current_user, db, property_id):
-        raise APIError(
-            code="AUTH-005",
-            message="Insufficient property scope",
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-
-
 # ── POST /test ──────────────────────────────────────────────────────────
 
 
@@ -90,11 +63,11 @@ async def _check_scope(
 )
 async def send_test_notification(
     response: Response,
+    _: Annotated[None, require_property_scope()],  # body-sourced property_id
     current_user: Annotated[CurrentUser, Depends(get_current_user)],
     body: SendNotificationRequest,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     db: AsyncSession = get_db_dep,
-    _: Annotated[None, require_property_scope()] = None,  # body-sourced property_id
 ) -> dict[str, Any]:
     """POST /api/v1/notifications/test.
 
@@ -104,9 +77,6 @@ async def send_test_notification(
     Response (#3, #15): 202 Accepted with ``notification_id`` + ``status: queued``.
     Caching (#20): ``Cache-Control: private, no-store``.
     """
-    # Additional scope check using helper (belt-and-suspenders)
-    await _check_scope(current_user, db, body.property_id)
-
     # Idempotency check
     if idempotency_key:
         cached = await check_idempotency(
@@ -228,7 +198,7 @@ async def get_notification(
         )
 
     # Resolve-then-check: get property_id from notification, then check scope
-    await _check_scope(current_user, db, notif.property_id)
+    await ensure_property_scope(current_user, db, notif.property_id)
 
     return {"data": NotificationResponse.model_validate(notif), "meta": None}
 
@@ -267,7 +237,7 @@ async def resend_notification(
         )
 
     # Resolve-then-check (mirror maintenance_router.py:190-192)
-    await _check_scope(current_user, db, notif.property_id)
+    await ensure_property_scope(current_user, db, notif.property_id)
 
     # Idempotency check
     if idempotency_key:

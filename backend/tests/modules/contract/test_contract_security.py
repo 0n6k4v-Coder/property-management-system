@@ -216,8 +216,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(contract_router, "ContractService", _make_stub_service(contract=fake_contract))
             mp.setattr(contract_router, "ContractRepository",
                        lambda db: _StubRepo(contract_property_id=prop_id))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=has_scope))
+            mock_scope = AsyncMock(return_value=has_scope)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             if has_scope:
                 await contract_router.get_contract(
                     response=_FakeResponse(), contract_id=uuid.uuid4(), current_user={},
@@ -243,8 +244,9 @@ class TestPropertyScopeEnforcement:
                        _make_stub_service(contract=fake_contract))
             mp.setattr(contract_router, "ContractRepository",
                        lambda db: _StubRepo(contract_property_id=uuid.uuid4()))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=True))
+            mock_scope = AsyncMock(return_value=True)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             await contract_router.get_contract(
                 response=_FakeResponse(), contract_id=uuid.uuid4(), current_user={},
                 db=AsyncMock())
@@ -254,8 +256,9 @@ class TestPropertyScopeEnforcement:
                 mp.setattr(contract_router, "ContractService", _make_stub_service())
                 mp.setattr(contract_router, "ContractRepository",
                            lambda db: _StubRepo(contract_property_id=uuid.uuid4()))
-                mp.setattr(contract_router, "user_has_property_scope",
-                           AsyncMock(return_value=False))
+                mock_scope = AsyncMock(return_value=False)
+                import app.shared.deps as deps_module
+                mp.setattr(deps_module, "user_has_property_scope", mock_scope)
                 with pytest.raises(APIError) as exc:
                     await contract_router.terminate_contract(
                         body=TerminateContractRequest(
@@ -270,8 +273,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(contract_router, "ContractService", _make_stub_service())
             mp.setattr(contract_router, "ContractRepository",
                        lambda db: _StubRepo(contract_property_id=uuid.uuid4()))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await contract_router.extend_lease(
                     contract_id=uuid.uuid4(), current_user={},
@@ -285,8 +289,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(contract_router, "ContractService", _make_stub_service())
             mp.setattr(contract_router, "ContractRepository",
                        lambda db: _StubRepo(contract_property_id=uuid.uuid4()))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await contract_router.renew_contract(
                     contract_id=uuid.uuid4(), current_user={},
@@ -303,8 +308,9 @@ class TestPropertyScopeEnforcement:
             mp.setattr(contract_router, "ContractService", _make_stub_service())
             mp.setattr(contract_router, "ContractRepository",
                        lambda db: _StubRepo(room_property_id=uuid.uuid4()))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await contract_router.get_lease_history(
                     response=_FakeResponse(), room_id=uuid.uuid4(),
@@ -316,8 +322,9 @@ class TestPropertyScopeEnforcement:
         prop_id = uuid.uuid4()
         with pytest.MonkeyPatch().context() as mp:
             mp.setattr(contract_router, "ContractService", _make_stub_service(contracts=[]))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=False))
+            mock_scope = AsyncMock(return_value=False)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await contract_router.list_active_contracts(
                     response=_FakeResponse(), property_id=prop_id,
@@ -347,8 +354,9 @@ class TestContractNotFoundEnvelope:
             mp.setattr(contract_router, "ContractService", _StubService)
             mp.setattr(contract_router, "ContractRepository",
                        lambda db: _StubRepo(contract_property_id=uuid.uuid4()))
-            mp.setattr(contract_router, "user_has_property_scope",
-                       AsyncMock(return_value=True))
+            mock_scope = AsyncMock(return_value=True)
+            import app.shared.deps as deps_module
+            mp.setattr(deps_module, "user_has_property_scope", mock_scope)
             with pytest.raises(APIError) as exc:
                 await contract_router.get_contract(
                     response=_FakeResponse(), contract_id=uuid.uuid4(),

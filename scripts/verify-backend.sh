@@ -141,10 +141,10 @@ echo ""
 
 # 6. Suppression Check
 echo "🔍 Checking suppression lines..."
-SUPPRESSION_COUNT=$(docker compose -f docker-compose.dev.yml exec -T backend grep -r "type: ignore\|noqa\|eslint-disable" app/ --include="*.py" 2>/dev/null | wc -l)
-if [ "$SUPPRESSION_COUNT" -gt 0 ]; then
-    echo "❌ Found $SUPPRESSION_COUNT suppression lines"
-    docker compose -f docker-compose.dev.yml exec -T backend grep -r "type: ignore\|noqa\|eslint-disable" app/ --include="*.py"
+SUPPRESSION_OUT=$(docker exec "$CONTAINER" grep -rE "type: ignore|noqa|eslint-disable" app/ 2>/dev/null || true)
+if [ -n "$SUPPRESSION_OUT" ]; then
+    echo "❌ Found suppression lines:"
+    echo "$SUPPRESSION_OUT"
     fail "suppression check failed"
     OVERALL_STATUS=1
 else

@@ -11,12 +11,11 @@ Implements the Target Design from docs/API.md fixing anti-patterns #5, #1, #20:
 """
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.auth.constants import AUTH_005
 from app.modules.maintenance.repository import MaintenanceRepository
 from app.modules.maintenance.schemas import (
     AssignMaintenanceRequest,
@@ -30,10 +29,10 @@ from app.modules.maintenance.services.maintenance_service import MaintenanceServ
 from app.shared.database import get_db
 from app.shared.deps import (
     CurrentUser,
+    ensure_property_scope,
     get_current_user,
-    user_has_property_scope,
+    require_property_scope,
 )
-from app.shared.exceptions import APIError
 from app.shared.idempotency import check_idempotency, store_idempotency
 
 router = APIRouter(tags=["maintenance"], redirect_slashes=False)
@@ -43,33 +42,6 @@ GET_DB = Depends(get_db)
 GET_CURRENT_USER = Depends(get_current_user)
 QUERY_PROPERTY_ID = Query(..., description="Filter by property")
 QUERY_LIMIT_12 = Query(12, ge=1, le=100, description="Max readings to return (1-100)")
-
-
-async def _check_scope(
-    current_user: dict[str, Any],
-    db: AsyncSession,
-    property_id: uuid.UUID | None,
-) -> None:
-    """Resolve-then-check authorization helper.
-
-    Raises ``AUTH-005`` (403) unless the caller is a global owner/admin or
-    holds a scope row for ``property_id``. A ``None`` ``property_id`` (entity
-    not found) is treated as "no scope" so the caller cannot read/guess
-    non-existent resources across properties.
-    """
-    _ = current_user.get("user_id")
-    if property_id is None:
-        raise APIError(
-            code="AUTH-005",
-            message=AUTH_005,
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
-    if not await user_has_property_scope(current_user, db, property_id):
-        raise APIError(
-            code="AUTH-005",
-            message=AUTH_005,
-            status_code=status.HTTP_403_FORBIDDEN,
-        )
 
 
 # ── POST /maintenance/ ──────────────────────────────────────────────
@@ -88,6 +60,7 @@ async def _check_scope(
 )
 async def create_maintenance_request(
     body: CreateMaintenanceRequest,
+    _: Annotated[None, require_property_scope()],
     current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     db: AsyncSession = GET_DB,
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
@@ -100,9 +73,6 @@ async def create_maintenance_request(
     prior 201 within the 24h dedupe window; reusing a key with a different
     body raises ``409 VAL-409``.
     """
-    # Additional explicit scope check (the dependency checks body.property_id)
-    await _check_scope(current_user, db, body.property_id)
-
     if idempotency_key:
         cached = await check_idempotency(
             db,
@@ -145,22 +115,21 @@ async def create_maintenance_request(
     summary="List pending maintenance requests by property",
 )
 async def list_pending_requests(
-    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     response: Response,
+    _: Annotated[None, require_property_scope(query_param="property_id")],
+    current_user: Annotated[CurrentUser, GET_CURRENT_USER],
     property_id: uuid.UUID = QUERY_PROPERTY_ID,
     db: AsyncSession = GET_DB,
 ) -> MaintenanceListResponse:
     """Get pending maintenance requests for a property (fixes #5, #20).
 
     Authorization (#5): ``property_id`` is a required query param, checked
-    inline after FastAPI parses it.
+    via ``require_property_scope(query_param="property_id")``.
     Caching (#20): ``Cache-Control: private, no-store`` — maintenance lists
     are property-scoped and must not be shared/stored.
     """
-    # Fixes #5: scope check after FastAPI parses query param
-    _ = current_user.get("user_id")
-    await _check_scope(current_user, db, property_id)
     # Fixes #20: maintenance list must never be cached/shared.
+    _ = current_user.get("user_id")
     response.headers["Cache-Control"] = "private, no-store"
 
     service = MaintenanceService(db)
@@ -196,7 +165,7 @@ async def get_maintenance_request(
 
     repo = MaintenanceRepository(db)
     prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     service = MaintenanceService(db)
     request = await service.get_request(request_id)
@@ -225,7 +194,7 @@ async def update_maintenance_status(
     """
     repo = MaintenanceRepository(db)
     prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     service = MaintenanceService(db)
     request = await service.update_status(
@@ -257,7 +226,7 @@ async def assign_maintenance_request(
     """
     repo = MaintenanceRepository(db)
     prop_id: uuid.UUID | None = await repo.get_request_property_id(request_id)
-    await _check_scope(current_user, db, prop_id)
+    await ensure_property_scope(current_user, db, prop_id)
 
     service = MaintenanceService(db)
     request = await service.assign_to(
