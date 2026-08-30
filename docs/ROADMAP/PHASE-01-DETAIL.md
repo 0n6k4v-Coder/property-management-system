@@ -627,11 +627,20 @@ Perform a forensic investigation of all observed test instability, failures, and
 - Inconclusive: 0
 - Release blockers: 0
 
-### Sustainable Remediation Proposals
-1. **ContractFormPage.test.tsx (FLK-001, FLK-002):** Update assertion locators to match the custom suggestion buttons (`screen.getByRole('button', { name: /John Doe/i })` or separate span queries).
-2. **meter/api.test.tsx (FLK-003):** Align test expectation with the offline-first contract (`if (!navigator.onLine)` queues unconditionally, which is correct PWA behavior) or simulate offline failure modes accurately.
-3. **E2E Infrastructure Contention (FLK-004-A):** Standardize on `workers: 1` in `playwright.config.ts` for end-to-end suites targeting the shared live database.
-4. **E2E Container Filesystem Permissions (FLK-004-B):** Ensure `frontend/Dockerfile` maintains `node:node` ownership across `/app/node_modules` and `/home/node`, and `docker-compose.test.yml` uses image-backed volume configuration.
+### Remediation & Architectural Consolidation Completed
+
+#### AUTH-VT-02 Remediation (P1-W05-RI-AUTH-FIX)
+* **Root Cause:** Synthetic `page.evaluate()` DOM click and unanchored button query in E2E test, coupled with default open user menu state.
+* **Fix:** Native Playwright accessible locator interaction (`getByRole('button', { name: /^[A-Z?]{1,2}$/ })` and `getByRole('menuitem', { name: /log out/i })`) + production menu closed-by-default state (`useState(false)`).
+* **Verification:** 20/20 consecutive first-pass PASS (0 retries, 0 failures), Desktop + Mobile viewport verification clean.
+* **Classification:** RESOLVED
+
+#### P2-ARCH-01 — Responsive UserMenu Consolidation
+* **Problem:** Responsive `TopHeader` mounted duplicate interactive `UserMenuDropdown` instances across desktop and mobile branches with shared state and separate refs.
+* **Resolution:** Consolidated header into a single responsive container with exactly ONE interactive `UserMenuDropdown` instance, using Tailwind CSS responsive utilities for layout positioning.
+* **Impact:** Reduced DOM duplication, eliminated multiple-ref ambiguity, ensured strict DOM element uniqueness across all viewports.
+* **Verification:** Unit tests (24/24 PASS with strict uniqueness assertions), a11y suite (7/7 PASS), Full E2E suite (113 PASS, 0 failures).
+* **Classification:** RESOLVED
 
 ### Exit Criteria
 
@@ -641,6 +650,8 @@ Perform a forensic investigation of all observed test instability, failures, and
 [x] Root causes identified and backed by reproducible evidence
 [x] Sustainable remediation backlog documented
 [x] No unexplained release-readiness failure remains
+[x] AUTH-VT-02 remediation completed and verified stable
+[x] P2-ARCH-01 Responsive UserMenu consolidated into single logical instance
 ```
 
 ### Status

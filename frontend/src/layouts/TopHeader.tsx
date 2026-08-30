@@ -234,7 +234,7 @@ function UserMenuDropdown({
     .toUpperCase();
 
   return (
-    <div className="relative inline-block text-left">
+    <div ref={menuRef} className="relative inline-block text-left">
       <button
         type="button"
         id={anchorId}
@@ -249,7 +249,6 @@ function UserMenuDropdown({
 
       {expanded && (
         <div
-          ref={menuRef}
           id={menuId}
           role="menu"
           aria-orientation="vertical"
@@ -296,88 +295,80 @@ export function TopHeader({ onToggleSidebar }: TopHeaderProps) {
   const cta = getCtaForRoute(pathname);
 
   // ── User menu dropdown state ──
-  const [menuOpen, setMenuOpen] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
   const avatarButtonId = useId();
   const avatarMenuId = useId();
 
   return (
     <header className="shrink-0 z-30 border-b border-surface-200 bg-white">
-      {/* ── Desktop / Tablet Header ── */}
-      <div className="hidden h-20 items-center justify-between px-4 sm:flex sm:px-6 lg:px-8">
-        {/* Left: Greeting + Breadcrumb */}
-        <div className="min-w-0">
-          <h2 className="truncate text-xl font-semibold text-surface-900 lg:text-2xl">
-            Welcome back, {firstName}!
-          </h2>
-          <nav aria-label="Breadcrumb" className="mt-0.5">
-            <span className="text-sm text-surface-500">{pageTitle}</span>
-          </nav>
-        </div>
-
-        {/* Right: Search + Primary CTA + User Menu */}
-        <div className="flex items-center gap-2 lg:gap-3">
+      <div className="flex h-16 sm:h-20 items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Left: Mobile Hamburger OR Desktop Greeting + Breadcrumb */}
+        <div className="flex items-center min-w-0">
+          {/* Mobile Hamburger toggle */}
           <button
             type="button"
-            className="inline-flex size-10 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-100 active:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+            onClick={onToggleSidebar}
+            className="inline-flex size-10 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-100 active:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 sm:hidden"
+            aria-label="Toggle navigation menu"
+            aria-expanded="false"
+          >
+            <MenuIcon />
+          </button>
+
+          {/* Mobile page title */}
+          <h2 className="truncate pl-2 text-base font-semibold text-surface-900 sm:hidden">
+            {pageTitle}
+          </h2>
+
+          {/* Desktop / Tablet Greeting + Breadcrumb */}
+          <div className="hidden min-w-0 sm:block">
+            <h2 className="truncate text-xl font-semibold text-surface-900 lg:text-2xl">
+              Welcome back, {firstName}!
+            </h2>
+            <nav aria-label="Breadcrumb" className="mt-0.5">
+              <span className="text-sm text-surface-500">{pageTitle}</span>
+            </nav>
+          </div>
+        </div>
+
+        {/* Right: Search (desktop) + CTA + Single UserMenuDropdown */}
+        <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3">
+          {/* Desktop Search */}
+          <button
+            type="button"
+            className="hidden sm:inline-flex size-10 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-100 active:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
             aria-label="Search"
           >
             <SearchIcon />
           </button>
 
+          {/* Responsive Primary CTA */}
           {cta && (
-            <button
-              type="button"
-              onClick={() => navigate(cta.to, { viewTransition: true })}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary-700 px-4 py-2 text-sm font-medium text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-            >
-              <PlusIcon className="size-4" />
-              <span className="hidden lg:inline">{cta.label}</span>
-              <span className="lg:hidden">{cta.label.replace('+ ', '')}</span>
-            </button>
+            <>
+              {/* Mobile icon-only CTA */}
+              <button
+                type="button"
+                onClick={() => navigate(cta.to, { viewTransition: true })}
+                className="inline-flex size-10 items-center justify-center rounded-lg bg-primary-700 text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500 sm:hidden"
+                aria-label={cta.label}
+              >
+                <PlusIcon />
+              </button>
+
+              {/* Desktop / Tablet button with label */}
+              <button
+                type="button"
+                onClick={() => navigate(cta.to, { viewTransition: true })}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-primary-700 px-4 py-2 text-sm font-medium text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
+              >
+                <PlusIcon className="size-4" />
+                <span className="hidden lg:inline">{cta.label}</span>
+                <span className="lg:hidden">{cta.label.replace('+ ', '')}</span>
+              </button>
+            </>
           )}
 
-          {/* User menu dropdown (desktop) */}
-          <UserMenuDropdown
-            expanded={menuOpen}
-            setExpanded={setMenuOpen}
-            anchorId={avatarButtonId}
-            menuId={avatarMenuId}
-          />
-        </div>
-      </div>
-
-      {/* ── Mobile Header ── */}
-      <div className="flex h-16 items-center justify-between px-4 sm:hidden">
-        {/* Left: Hamburger toggle */}
-        <button
-          type="button"
-          onClick={onToggleSidebar}
-          className="inline-flex size-10 items-center justify-center rounded-lg text-surface-600 hover:bg-surface-100 active:bg-surface-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-          aria-label="Toggle navigation menu"
-          aria-expanded="false"
-        >
-          <MenuIcon />
-        </button>
-
-        {/* Center-left: Page title */}
-        <h2 className="flex-1 truncate pl-2 text-base font-semibold text-surface-900">
-          {pageTitle}
-        </h2>
-
-        {/* Right: CTA icon-only + Avatar */}
-        <div className="flex items-center gap-1.5">
-          {cta && (
-            <button
-              type="button"
-              onClick={() => navigate(cta.to, { viewTransition: true })}
-              className="inline-flex size-10 items-center justify-center rounded-lg bg-primary-700 text-white hover:bg-primary-800 active:bg-primary-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-500"
-              aria-label={cta.label}
-            >
-              <PlusIcon />
-            </button>
-          )}
-
-          {/* Avatar menu dropdown (mobile) */}
+          {/* Unified User menu dropdown (Single interactive instance in DOM) */}
           <UserMenuDropdown
             expanded={menuOpen}
             setExpanded={setMenuOpen}

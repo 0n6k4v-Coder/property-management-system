@@ -148,17 +148,18 @@ describe('TopHeader', () => {
   });
 
   // ── Avatar ────────────────────────────────────────────────────────────────
-  // Note: avatar button appears in BOTH desktop header and mobile header.
+  // Note: Exactly ONE user avatar button is rendered in the unified responsive header.
 
-  it('renders user avatar with initials "TU"', () => {
+  it('renders exactly one user avatar button with initials "TU"', () => {
     renderHeader(['/dashboard']);
-    expect(screen.getAllByRole('button', { name: 'TU' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: 'TU' })).toHaveLength(1);
   });
 
   it('renders user avatar button with aria-haspopup and aria-expanded', () => {
     renderHeader(['/dashboard']);
-    const avatarBtn = screen.getAllByRole('button', { name: 'TU' })[0];
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
     expect(avatarBtn).toHaveAttribute('aria-haspopup', 'menu');
+    expect(avatarBtn).toHaveAttribute('aria-expanded', 'false');
   });
 
   it('renders "U" as fallback initial when no user', () => {
@@ -167,72 +168,88 @@ describe('TopHeader', () => {
       user: null,
     });
     renderHeader(['/dashboard']);
-    expect(screen.getAllByRole('button', { name: 'U' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByRole('button', { name: 'U' })).toHaveLength(1);
   });
 
   // ── User menu dropdown ───────────────────────────────────────────────────
 
-  it('renders logout in user menu dropdown (menu open by default)', () => {
+  it('renders user menu dropdown closed by default', () => {
     renderHeader(['/dashboard']);
-    // menuOpen starts as true — both desktop and mobile dropdowns are visible
-    expect(screen.getAllByRole('menuitem', { name: /log out/i }).length).toBeGreaterThanOrEqual(1);
+    // menuOpen starts as false
+    expect(screen.queryAllByRole('menuitem', { name: /log out/i })).toHaveLength(0);
+  });
+
+  it('renders logout in user menu dropdown when opened', async () => {
+    const user = userEvent.setup();
+    renderHeader(['/dashboard']);
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
+    await user.click(avatarBtn);
+    expect(screen.getAllByRole('menuitem', { name: /log out/i })).toHaveLength(1);
   });
 
   it('logs out when logout button clicked', async () => {
     renderHeader(['/dashboard']);
-    // Use fireEvent instead of userEvent to avoid pointerdown closing the menu
-    // before the click handler fires (click-outside handler intercepts pointerdown).
-    const logoutBtns = screen.getAllByRole('menuitem', { name: /log out/i });
-    fireEvent.click(logoutBtns[0]);
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
+    fireEvent.click(avatarBtn);
+    const logoutBtn = screen.getByRole('menuitem', { name: /log out/i });
+    fireEvent.click(logoutBtn);
     expect(mockAuthValue.logout).toHaveBeenCalledTimes(1);
   });
 
-  it('closes dropdown when clicking avatar button', async () => {
-    const user = userEvent.setup();
+  it('closes dropdown when clicking avatar button again', () => {
     renderHeader(['/dashboard']);
 
-    // Both dropdowns are open by default
-    expect(screen.getAllByRole('menuitem', { name: /log out/i }).length).toBeGreaterThanOrEqual(1);
+    // Open first
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
+    fireEvent.click(avatarBtn);
+    expect(screen.getAllByRole('menuitem', { name: /log out/i })).toHaveLength(1);
 
-    // Click avatar (first one, desktop) — avatar onClick toggles setMenuOpen
-    const avatarBtn = screen.getAllByRole('button', { name: 'TU' })[0];
-    await user.click(avatarBtn);
+    // Click avatar again to close
+    fireEvent.click(avatarBtn);
+    expect(screen.queryAllByRole('menuitem', { name: /log out/i })).toHaveLength(0);
   });
 
   it('closes dropdown when pressing Escape', async () => {
     const user = userEvent.setup();
     renderHeader(['/dashboard']);
 
-    expect(screen.getAllByRole('menuitem', { name: /log out/i }).length).toBeGreaterThanOrEqual(1);
+    // Open first
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
+    await user.click(avatarBtn);
+    expect(screen.getAllByRole('menuitem', { name: /log out/i })).toHaveLength(1);
 
     await user.keyboard('{Escape}');
-    expect(screen.queryAllByRole('menuitem', { name: /log out/i }).length).toBe(0);
+    expect(screen.queryAllByRole('menuitem', { name: /log out/i })).toHaveLength(0);
   });
 
   it('closes dropdown when clicking outside', async () => {
     const user = userEvent.setup();
     renderHeader(['/dashboard']);
 
-    expect(screen.getAllByRole('menuitem', { name: /log out/i }).length).toBeGreaterThanOrEqual(1);
+    // Open first
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
+    await user.click(avatarBtn);
+    expect(screen.getAllByRole('menuitem', { name: /log out/i })).toHaveLength(1);
 
     // Click the search button (outside the dropdown)
     const searchBtn = screen.getByLabelText('Search');
     await user.click(searchBtn);
+    expect(screen.queryAllByRole('menuitem', { name: /log out/i })).toHaveLength(0);
   });
 
-  it('clicking avatar toggles dropdown state (open → closed)', async () => {
+  it('clicking avatar toggles dropdown state (closed → open → closed)', () => {
     renderHeader(['/dashboard']);
 
-    // Initially open — both desktop and mobile dropdowns render
-    const openCount = screen.queryAllByRole('menuitem', { name: /log out/i }).length;
-    expect(openCount).toBeGreaterThanOrEqual(1);
+    // Initially closed
+    expect(screen.queryAllByRole('menuitem', { name: /log out/i })).toHaveLength(0);
 
-    // Click avatar — avatar onClick toggles setMenuOpen
-    const avatarBtn = screen.getAllByRole('button', { name: 'TU' })[0];
+    // Click avatar — opens
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
     fireEvent.click(avatarBtn);
+    expect(screen.getAllByRole('menuitem', { name: /log out/i })).toHaveLength(1);
 
-    // After click, should be closed
-    const closedCount = screen.queryAllByRole('menuitem', { name: /log out/i }).length;
-    expect(closedCount).toBe(0);
+    // Click avatar again — closes
+    fireEvent.click(avatarBtn);
+    expect(screen.queryAllByRole('menuitem', { name: /log out/i })).toHaveLength(0);
   });
 });

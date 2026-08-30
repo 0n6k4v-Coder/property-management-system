@@ -587,21 +587,45 @@ test.describe('Auth Flow — Cross-cutting Concerns', () => {
     expect(typeof hasVT).toBe('boolean');
   });
 
-  test('AUTH-VT-02: Logout navigation does not error and returns to /login', async ({ page }) => {
+  test('AUTH-VT-02: Logout navigation does not error and returns to /login (Desktop)', async ({ page }) => {
     await login(page);
     await expect(page).toHaveURL(/\/dashboard/);
 
-    // Trigger logout via the app (MainLayout header logout control).
-    // The dropdown menu starts open by default (menuOpen=true) and the
-    // logout button has role="menuitem" with text "Log out".
-    // Use page.evaluate to directly click the logout button element,
-    // avoiding potential click-outside handler interference.
-    await page.evaluate(() => {
-      const logoutBtn = Array.from(document.querySelectorAll('button')).find(
-        (btn) => btn.textContent?.trim().toLowerCase().includes('log out')
-      );
-      if (logoutBtn) (logoutBtn as HTMLElement).click();
-    });
+    // Open user menu via visible avatar button (Playwright accessible locator)
+    const avatarButton = page.getByRole('button', { name: /^[A-Z?]{1,2}$/ });
+    await expect(avatarButton).toHaveCount(1);
+    await expect(avatarButton).toBeVisible();
+    await avatarButton.click();
+
+    // Click "Log out" menu item
+    const logoutMenuItem = page.getByRole('menuitem', { name: /log out/i });
+    await expect(logoutMenuItem).toHaveCount(1);
+    await expect(logoutMenuItem).toBeVisible();
+    await logoutMenuItem.click();
+
+    await expect(page).toHaveURL(/\/login/);
+
+    expect(states.consoleErrors.filter(e => /view.?transition/i.test(e))).toEqual([]);
+    expect(states.jsErrors.filter(e => /view.?transition/i.test(e))).toEqual([]);
+    expect(states.jsErrors).toEqual([]);
+  });
+
+  test('AUTH-VT-03: Logout navigation works in mobile viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await login(page);
+    await expect(page).toHaveURL(/\/dashboard/);
+
+    // Open user menu via visible avatar button on mobile header
+    const avatarButton = page.getByRole('button', { name: /^[A-Z?]{1,2}$/ });
+    await expect(avatarButton).toHaveCount(1);
+    await expect(avatarButton).toBeVisible();
+    await avatarButton.click();
+
+    // Click "Log out" menu item
+    const logoutMenuItem = page.getByRole('menuitem', { name: /log out/i });
+    await expect(logoutMenuItem).toHaveCount(1);
+    await expect(logoutMenuItem).toBeVisible();
+    await logoutMenuItem.click();
 
     await expect(page).toHaveURL(/\/login/);
 

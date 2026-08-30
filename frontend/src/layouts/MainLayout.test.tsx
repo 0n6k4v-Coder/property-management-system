@@ -3,7 +3,7 @@
 // Uses a lightweight mock for the heavy Sidebar component (OOM-safe per Task 7.1 lessons).
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { MainLayout } from './MainLayout';
 import { useAuth } from '@/shared/auth/AuthContext';
@@ -119,7 +119,7 @@ describe('MainLayout', () => {
 
   it('renders user avatar with initials', () => {
     renderLayout();
-    expect(screen.getAllByRole('button', { name: 'TU' }).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: 'TU' })).toBeInTheDocument();
   });
 
   it('renders search button', () => {
@@ -137,9 +137,11 @@ describe('MainLayout', () => {
     expect(screen.queryByRole('button', { name: /^\+ /i })).not.toBeInTheDocument();
   });
 
-  it('renders logout button in user menu dropdown', () => {
+  it('renders logout button in user menu dropdown when opened', async () => {
     renderLayout();
-    expect(screen.getAllByRole('menuitem', { name: /log out/i }).length).toBeGreaterThanOrEqual(1);
+    const avatarBtn = screen.getByRole('button', { name: 'TU' });
+    fireEvent.click(avatarBtn);
+    expect(screen.getByRole('menuitem', { name: /log out/i })).toBeInTheDocument();
   });
 
   it('calls onToggleSidebar when mobile toggle clicked', async () => {
