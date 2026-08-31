@@ -16,7 +16,7 @@
 //     filtering UI (GAP-019/deferred).
 
 import { test, expect } from '@playwright/test';
-import { login, navigateTo, fillField, clickButton, expectValidationError } from '../utils/test-helpers';
+import { login, navigateTo, fillField, clickButton, expectValidationError, generateDeterministicTenant } from '../utils/test-helpers';
 import { captureAllStates, type CapturedStates } from '../utils/state-capture';
 
 test.describe('Tenant Flow — Tenant List (/tenants)', () => {
@@ -45,7 +45,7 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
   // --------------------------------------------------------------------------
   // TENANT-02: Create tenant (Happy Path)
   // --------------------------------------------------------------------------
-  test('TENANT-02: Create tenant → modal opens, saves, shows toast success', async ({ page }) => {
+  test('TENANT-02: Create tenant → modal opens, saves, shows toast success', async ({ page }, testInfo) => {
     await login(page);
     await navigateTo(page, '/tenants', /Tenants/i);
 
@@ -57,11 +57,11 @@ test.describe('Tenant Flow — Tenant List (/tenants)', () => {
     await expect(propSelect).toBeVisible();
     await propSelect.selectOption({ index: 1 }, { timeout: 10000 });
 
-    const uniquePhone = '0821000001';
-    await page.getByLabel('Full Name').fill('สุรศักดิ์ ใจดี');
-    await page.getByLabel('ID Card (13 digits)').fill('1234567890121');
-    await page.getByLabel('Phone (10 digits)').fill(uniquePhone);
-    await page.getByLabel('Email (optional)').fill('surasak.test@example.com');
+    const deterministicTenant = generateDeterministicTenant(testInfo.testId || 'TENANT-02');
+    await page.getByLabel('Full Name').fill(deterministicTenant.fullName);
+    await page.getByLabel('ID Card (13 digits)').fill(deterministicTenant.idCard);
+    await page.getByLabel('Phone (10 digits)').fill(deterministicTenant.phone);
+    await page.getByLabel('Email (optional)').fill(deterministicTenant.email);
 
     await clickButton(page, /Create/i);
 

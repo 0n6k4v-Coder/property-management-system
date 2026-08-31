@@ -125,3 +125,37 @@ export async function expectValidationError(
 export function wrapInData<T>(data: T): { data: T } {
   return { data };
 }
+
+/**
+ * Generates a deterministic, test-specific, backend-valid Thai phone and ID card number.
+ * Uses a stable hash of the scenario/test identifier so the identity is stable across retries,
+ * unique per test scenario, and satisfies Thai ID checksum validation (verifyThaiIdChecksum).
+ */
+export function generateDeterministicTenant(testIdentifier: string): {
+  phone: string;
+  idCard: string;
+  fullName: string;
+  email: string;
+} {
+  let hash = 0;
+  for (let i = 0; i < testIdentifier.length; i++) {
+    hash = (hash * 31 + testIdentifier.charCodeAt(i)) >>> 0;
+  }
+  const suffixNum = hash % 10000000;
+  const suffix = String(suffixNum).padStart(7, '0');
+  const phone = `082${suffix}`;
+
+  // 12-digit base for Thai ID: 1220 + 7-digit suffix + 1 = 12 digits
+  const idBase = `1220${suffix}1`;
+  const digits = idBase.split('').map(Number);
+  const total = digits.reduce((sum, d, i) => sum + (13 - i) * d, 0);
+  const check = (11 - (total % 11)) % 10;
+  const idCard = `${idBase}${check}`;
+
+  return {
+    phone,
+    idCard,
+    fullName: `Deterministic Tenant ${suffix.slice(-4)}`,
+    email: `tenant.${suffix}@example.com`,
+  };
+}

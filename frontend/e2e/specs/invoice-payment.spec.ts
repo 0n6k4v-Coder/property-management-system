@@ -103,17 +103,22 @@ async function loginForApi(request: APIRequestContext): Promise<string> {
 
 /**
  * Creates an isolated, test-owned invoice by recording a meter reading and generating
- * an invoice on a deterministic unique future billing period.
+ * an invoice on a deterministic unique billing period for the given scenario.
+ * Does NOT rely on worker-local process state (such as mutable counters).
  */
-let invoiceCounter = 0;
-async function createTestPayableInvoice(request: APIRequestContext): Promise<{ id: string; number: string }> {
+async function createTestPayableInvoice(
+  request: APIRequestContext,
+  scenarioKey: string = 'payment-basic',
+): Promise<{ id: string; number: string }> {
   const token = await loginForApi(request);
   const authHeaders = { Authorization: `Bearer ${token}` };
 
-  // Use a predictable future month/year per call to avoid collisions with any test or retry
-  invoiceCounter += 1;
-  const month = (invoiceCounter % 12) + 1;
-  const year = 2030 + Math.floor(invoiceCounter / 12);
+  // Deterministically map scenarioKey to unique period (e.g. 2031-01, 2031-02)
+  const scenarioOffsets: Record<string, { month: number; year: number }> = {
+    'payment-basic': { month: 1, year: 2031 },
+    'payment-positive-validation': { month: 2, year: 2031 },
+  };
+  const { month, year } = scenarioOffsets[scenarioKey] ?? { month: 3, year: 2031 };
 
   // 1. Record meter reading for room 102 (which has an active contract in Sunset Tower)
   const meterRes = await request.post('/api/v1/billing/meter-readings', {
@@ -123,12 +128,12 @@ async function createTestPayableInvoice(request: APIRequestContext): Promise<{ i
       billing_month: month,
       billing_year: year,
       electric_previous: 0,
-      electric_current: 200 + invoiceCounter * 10,
+      electric_current: 250,
       water_previous: 0,
-      water_current: 100 + invoiceCounter * 5,
+      water_current: 120,
     },
   });
-  if (!meterRes.ok()) {
+  if (!meterRes.ok() && meterRes.status() !== 409) {
     const err = await meterRes.text();
     throw new Error(`Failed to record meter reading for test invoice: ${err}`);
   }
@@ -142,13 +147,27 @@ async function createTestPayableInvoice(request: APIRequestContext): Promise<{ i
       billing_year: year,
     },
   });
-  if (!genRes.ok()) {
-    const err = await genRes.text();
-    throw new Error(`Failed to generate test invoice: ${err}`);
+  if (genRes.ok()) {
+    const genBody = (await genRes.json()) as { data: { id: string; invoice_number: string } };
+    return { id: genBody.data.id, number: genBody.data.invoice_number };
   }
 
-  const genBody = (await genRes.json()) as { data: { id: string; invoice_number: string } };
-  return { id: genBody.data.id, number: genBody.data.invoice_number };
+  // If already generated (e.g. on test retry), locate this scenario's invoice deterministically
+  const listRes = await request.get(`/api/v1/billing/invoices?property_id=${SEEDED.propertySunsetId}&limit=50`, {
+    headers: authHeaders,
+  });
+  if (listRes.ok()) {
+    const listBody = (await listRes.json()) as {
+      data: Array<{ id: string; invoice_number: string; billing_month: number; billing_year: number }>;
+    };
+    const found = listBody.data.find((inv) => inv.billing_month === month && inv.billing_year === year);
+    if (found) {
+      return { id: found.id, number: found.invoice_number };
+    }
+  }
+
+  const err = await genRes.text();
+  throw new Error(`Failed to generate or recover test invoice: ${err}`);
 }
 
 test.describe('Invoice Payment Flow', () => {
@@ -280,7 +299,7 @@ test.describe('Invoice Payment Flow', () => {
   });
 
   test('should record a payment and update the remaining balance', async ({ page, request }) => {
-    const testInvoice = await createTestPayableInvoice(request);
+    const testInvoice = await createTestPayableInvoice(request, 'payment-basic');
 
     await login(page);
     await navigateTo(page, `/invoices/${testInvoice.id}`, testInvoice.number);
@@ -303,7 +322,7 @@ test.describe('Invoice Payment Flow', () => {
   });
 
   test('should validate that payment amount must be positive', async ({ page, request }) => {
-    const testInvoice = await createTestPayableInvoice(request);
+    const testInvoice = await createTestPayableInvoice(request, 'payment-positive-validation');
 
     await login(page);
     await navigateTo(page, `/invoices/${testInvoice.id}`, testInvoice.number);

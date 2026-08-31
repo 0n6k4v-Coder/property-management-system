@@ -699,16 +699,16 @@ Perform a forensic investigation of all observed test instability, failures, and
 
 #### Test Determinism & State Isolation Remediation (P2-ARCH-AUDIT-03)
 
-* **Finding Ref:** Flaky Test & Test Determinism Architecture Remediation
+* **Finding Ref:** Flaky Test & Test Determinism Architecture Remediation V2
 * **Remediation Scope:**
-  1. `DET-001` (Shared mutable seeded invoice): Seeded invoice `INV-2026-0001` preserved as strictly read-only fixture. Mutable payment tests in `invoice-payment.spec.ts` migrated to dynamically generated, test-owned invoices on isolated future billing periods.
-  2. `DET-002` (Shared room / contract mutation): Added `ensureRoomAvailable` setup helper in `contract-flow.spec.ts` to idempotently terminate existing contracts on room 103 before form creation, preventing BR-01 409 collisions across retries.
-  3. `DET-003` (Shared meter-reading uniqueness): Meter reading tests in `meter-offline-sync.spec.ts` verified using disjoint room/period combinations with zero cross-test collision.
-  4. `DET-004` (Uncontrolled tenant randomness): Replaced `Math.random()` with deterministic phone number `0821000001` in `tenant-flow.spec.ts` (`TENANT-02`).
-  5. `DET-005` (Failure-sensitive throwaway resources): Added `ensureRoomAvailable` idempotency helper to `createThrowawayContract` and `createThrowawayOnRoom` in `contract-flow.spec.ts` to terminate residual active contracts on target rooms prior to contract creation.
-  6. `DET-006` (Leaking throwaway cleanup in afterEach): REJECTED as an anti-pattern; state isolation is guaranteed via self-contained, test-owned resource lifecycles and idempotent setup rather than failure-sensitive teardowns.
+  1. `DET-001` (Shared mutable seeded invoice): Seeded invoice `INV-2026-0001` (`SEEDED.invoice20260001Id`) is strictly preserved as a read-only fixture. Mutable payment tests in `invoice-payment.spec.ts` use scenario-owned, deterministically allocated billing periods (`payment-basic`, `payment-positive-validation`) without process-memory counters.
+  2. `DET-002` (Shared room / contract mutation): Completely removed `ensureRoomAvailable()`. Scenarios own dedicated reserved rooms (`SEEDED.room101Id`, `SEEDED.room103Id`, `SEEDED.room104Id`). Contract preparation (`prepareScenarioContract`) creates scenario-owned contracts and safely recovers on retries.
+  3. `DET-003` (Shared meter-reading uniqueness): Meter reading tests in `meter-offline-sync.spec.ts` use deterministic, test-owned billing periods (`METER-01`: Room 101/Aug 2026, `METER-02`: Room 102/Aug 2026, `METER-03`: Room 101/Jul 2026 collision assertion, `METER-04`: Room 101/Sep 2026 client validation, `METER-05`: Room 102/Oct 2026 absence assertion) with zero cross-test collision.
+  4. `DET-004` (Uncontrolled tenant randomness): Replaced hardcoded phone/ID with `generateDeterministicTenant(testIdentifier)` in `test-helpers.ts` which derives a stable, retry-resilient, backend-valid Thai phone number and checksum-valid 13-digit Thai ID card number.
+  5. `DET-005` (Failure-sensitive throwaway resources): Eliminated arbitrary global state mutations, resource terminations, or deletions. Tests operate purely on their own test-owned resources and scenario-scoped recovery.
+  6. `DET-006` (Leaking throwaway cleanup in afterEach): REJECTED as an anti-pattern; state isolation is guaranteed via self-contained, test-owned resource lifecycles and deterministic allocation.
   7. `DET-007` (Global read-only seed reset during suite run): PRESERVED as intentional suite-start single-reset lifecycle per project architecture constitution (`workers: 1`, `retries: 2`).
-* **Impact:** 100% deterministic test state isolation across all mutable E2E workflows; 0 mutations on shared read-only seeded fixtures.
+* **Impact:** 100% deterministic test state isolation across all mutable E2E workflows; 0 mutations on shared read-only seeded fixtures, 0 arbitrary room cleanup helpers, 0 process counters.
 * **Verification:** Fullstack E2E suite (116 passed, 32 skipped, 0 failed across 148 tests), Unit test suite (53 files, 955/955 passed), TypeScript typecheck clean (0 errors), ESLint clean (0 warnings).
 * **Classification:** RESOLVED
 

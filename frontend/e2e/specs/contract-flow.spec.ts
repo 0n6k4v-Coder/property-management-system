@@ -65,28 +65,30 @@ async function loginForApi(request: APIRequestContext): Promise<string> {
   return body.data.access_token;
 }
 
-async function ensureRoomAvailable(request: APIRequestContext, roomId: string): Promise<void> {
+async function prepareScenarioContract(
+  request: APIRequestContext,
+  roomId: string,
+  scenarioDesc: string = 'throwaway',
+): Promise<string> {
   const token = await loginForApi(request);
-  const res = await request.get(`/api/v1/contracts/active?property_id=${SEEDED.propertySunsetId}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
+  // Check if an active contract already exists for this test scenario's reserved room (e.g. from prior failed attempt)
+  const activeRes = await request.get(`/api/v1/contracts/active?property_id=${SEEDED.propertySunsetId}`, {
+    headers: authHeaders,
   });
-  if (res.ok()) {
-    const body = (await res.json()) as { data: Array<{ id: string; room_id: string }> };
+  if (activeRes.ok()) {
+    const body = (await activeRes.json()) as { data: Array<{ id: string; room_id: string }> };
     const existing = body.data?.find((c) => c.room_id === roomId);
     if (existing) {
-      await request.patch(`/api/v1/contracts/${existing.id}/terminate`, {
-        headers: { Authorization: `Bearer ${token}` },
-        data: { reason: 'tenant_moved_out' },
-      });
+      // Reuse the existing test-owned contract on this scenario's reserved room
+      return existing.id;
     }
   }
-}
 
-async function createThrowawayContract(request: APIRequestContext, roomId: string = SEEDED.room101Id): Promise<string> {
-  await ensureRoomAvailable(request, roomId);
-  const token = await loginForApi(request);
+  // Create test-owned contract on this scenario's reserved room
   const res = await request.post('/api/v1/contracts/', {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: authHeaders,
     data: {
       room_id: roomId,
       tenant_id: SEEDED.tenantJohnDoeId,
@@ -95,10 +97,11 @@ async function createThrowawayContract(request: APIRequestContext, roomId: strin
       end_date: '2026-12-31',
       monthly_rent: 5000,
       deposit_amount: 10000,
+      special_conditions: `Scenario: ${scenarioDesc}`,
     },
   });
   const body = (await res.json()) as { data: { id: string } };
-  if (!res.ok()) throw new Error(`Failed to create throwaway contract: ${JSON.stringify(body)}`);
+  if (!res.ok()) throw new Error(`Failed to create scenario contract on room ${roomId}: ${JSON.stringify(body)}`);
   return body.data.id;
 }
 
@@ -139,7 +142,8 @@ test.describe('Contract Management Flow', () => {
   });
 
   test('should terminate a contract and show the termination record', async ({ page, request }) => {
-    const contractId = await createThrowawayContract(request);
+    // Uses reserved room 101 for the contract terminate test scenario
+    const contractId = await prepareScenarioContract(request, SEEDED.room101Id, 'terminate-scenario');
 
     await login(page);
     await navigateTo(page, `/contracts/${contractId}`, /contract/i);
@@ -172,10 +176,8 @@ test.describe('Contract Management Flow', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  // ── CONT-02: Create contract (real UI fill, room 103 — available, no BR-01 clash) ──
-  test('CONT-02 should create a contract via the form', async ({ page, request }) => {
-    await ensureRoomAvailable(request, SEEDED.room103Id);
-
+  // ── CONT-02: Create contract (real UI fill, room 103 — available, dedicated reserved room) ──
+  test('CONT-02 should create a contract via the form', async ({ page }) => {
     await login(page);
     await navigateTo(page, '/contracts/new', /new contract/i);
 
@@ -226,29 +228,9 @@ test.describe('Contract Management Flow', () => {
     expect(states.hydrationErrors).toEqual([]);
   });
 
-  // ── CONT-05: Renewal workflow (terminate throwaway on room 104, then renew) ──
-  async function createThrowawayOnRoom(request: APIRequestContext, roomId: string): Promise<string> {
-    await ensureRoomAvailable(request, roomId);
-    const token = await loginForApi(request);
-    const res = await request.post('/api/v1/contracts/', {
-      headers: { Authorization: `Bearer ${token}` },
-      data: {
-        room_id: roomId,
-        tenant_id: SEEDED.tenantJohnDoeId,
-        property_id: SEEDED.propertySunsetId,
-        start_date: '2026-01-01',
-        end_date: '2026-12-31',
-        monthly_rent: 5000,
-        deposit_amount: 10000,
-      },
-    });
-    const body = (await res.json()) as { data: { id: string } };
-    if (!res.ok()) throw new Error(`Failed to create throwaway contract: ${JSON.stringify(body)}`);
-    return body.data.id;
-  }
-
+  // ── CONT-05: Renewal workflow (uses reserved room 104) ──
   test('CONT-05 should renew a terminated contract with new terms', async ({ page, request }) => {
-    const contractId = await createThrowawayOnRoom(request, SEEDED.room104Id);
+    const contractId = await prepareScenarioContract(request, SEEDED.room104Id, 'renew-scenario');
 
     await login(page);
     await navigateTo(page, `/contracts/${contractId}`, /contract/i);
