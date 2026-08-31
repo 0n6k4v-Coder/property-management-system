@@ -64,7 +64,7 @@ CMD ["npx", "vite", "--host", "0.0.0.0", "--port", "5173"]
 # Stage 3: Build — compile production bundle
 FROM deps AS builder
 
-COPY tsconfig.json tsconfig.e2e.json vite.config.ts tailwind.config.js postcss.config.js index.html ./
+COPY tsconfig.json tsconfig.e2e.json vite.config.ts tailwind.config.js postcss.config.js index.html vite-env.d.ts ./
 COPY eslint.config.js ./
 COPY public/ public/
 COPY src/ src/
@@ -75,8 +75,7 @@ RUN npm run build
 # Stage 4: Production — nginx serving static files
 FROM nginx:1.27-alpine AS production
 
-# Security: non-root user
-RUN adduser -D -u 1001 -g 'nginx' nginx
+# Security: non-root user (nginx user uid 101 exists in nginx:alpine)
 
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html

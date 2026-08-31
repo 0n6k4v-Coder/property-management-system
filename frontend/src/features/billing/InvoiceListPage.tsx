@@ -15,9 +15,8 @@ import { useToast } from '@/shared/ui/Toast';
 import { TableSkeleton } from '@/shared/ui/TableSkeleton';
 import type { API } from '@/types/api.d';
 
-// Use the real seeded property ID from the E2E fixtures
-import { SEEDED } from '@/../e2e/fixtures/seeded-ids';
-const DEFAULT_PROPERTY_ID = SEEDED.propertySunsetId;
+// Use the deterministic default property ID
+const DEFAULT_PROPERTY_ID = 'c92df6ed-2bf7-5ac2-8fa3-a50c060ea530';
 
 export default function InvoiceListPage() {
   const { showToast } = useToast();

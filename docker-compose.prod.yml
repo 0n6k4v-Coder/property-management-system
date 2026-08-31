@@ -100,7 +100,7 @@ services:
       - POSTGRES_WORK_MEM=${DB_WORK_MEM:-8MB}
       - POSTGRES_MAINTENANCE_WORK_MEM=${DB_MAINTENANCE_WORK_MEM:-128MB}
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql
       - ./backend/scripts/init-prod-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-pms_prod}"]
@@ -281,6 +281,3 @@ networks:
   pms-prod-network:
     driver: bridge
     internal: false
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
