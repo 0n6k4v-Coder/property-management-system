@@ -15,7 +15,7 @@ Prove that the current repository state is ready to become the **v1.0.0 release 
 
 ## Phase Status
 
-**🟡 Current**
+**✅ Complete / Release Candidate Finalized**
 
 ---
 
@@ -887,7 +887,7 @@ Freeze and prepare the final v1.0.0 release candidate.
 
 ### P1-W08-T01 — Release Scope
 
-* **M01** Record final commit SHA: `a9b264416e4fc4948bafa5bff28066ea902df985`.
+* **M01** Record final commit SHA: `cd5dfb56f6a677b9a8851f3e3d29fce8dd001dff` (Implementation baseline: `a9b264416e4fc4948bafa5bff28066ea902df985`).
 * **M02** Record version: `1.0.0`.
 * **M03** Record included scope.
 * **M04** Record deferred scope.
@@ -918,7 +918,7 @@ Document:
 
 ### P1-W08-T03 — Final Verification
 
-* **M01** Verify release commit (`a9b264416e4fc4948bafa5bff28066ea902df985`).
+* **M01** Verify release commit (`cd5dfb56f6a677b9a8851f3e3d29fce8dd001dff`).
 * **M02** Verify clean working tree.
 * **M03** Run final smoke test.
 * **M04** Confirm all release evidence references the same commit.
@@ -949,10 +949,12 @@ Document:
 
 `P1-W08-T04-E01`
 - [`docs/reports/P1-W08-RELEASE-CANDIDATE-REPORT.md`](../reports/P1-W08-RELEASE-CANDIDATE-REPORT.md)
+- [`CHANGELOG.md`](../../CHANGELOG.md)
+- [`RELEASE_NOTES.md`](../../RELEASE_NOTES.md)
 
 ### Status
 
-**✅ P1-W08 COMPLETED (PASS) — RELEASE CANDIDATE FROZEN**
+**✅ P1-W08 COMPLETED (PASS) — RELEASE CANDIDATE FINALIZED**
 
 ---
 
