@@ -30,8 +30,8 @@ Prove that the current repository state is ready to become the **v1.0.0 release 
 | **P1-W05**   | Release-Blocking Defects     | Resolve defects that prevent v1.0.0 release.                                    | ✅      |
 | **P1-W05-R** | Flaky Test Root-Cause        | Forensic investigation of test instability and failure candidates.              | ✅      |
 | **P1-W06**   | Documentation Reconciliation | Align project documentation with the actual repository state.                   | ✅      |
-| **P1-W07**   | Production Preflight         | Verify production build, configuration, infrastructure, and recovery readiness. | ⏳      |
-| **P1-W08**   | Release Candidate            | Freeze and prepare the final v1.0.0 release candidate.                          | ⏳      |
+| **P1-W07**   | Production Preflight         | Verify production build, configuration, infrastructure, and recovery readiness. | ✅      |
+| **P1-W08**   | Release Candidate            | Freeze and prepare the final v1.0.0 release candidate.                          | ✅      |
 
 ---
 
@@ -861,16 +861,21 @@ Verify:
 ### Evidence
 
 `P1-W07-T05-E01`
+- Production preflight remediation verified in commit `a9b264416e4fc4948bafa5bff28066ea902df985`.
 
 ### Exit Criteria
 
 ```text
-[ ] Production build passes
-[ ] Production configuration validated
-[ ] Infrastructure validated
-[ ] Backup verified
-[ ] Restore verified
+[x] Production build passes
+[x] Production configuration validated
+[x] Infrastructure validated
+[x] Backup verified
+[x] Restore verified
 ```
+
+### Status
+
+**✅ P1-W07 COMPLETED (PASS) — P1-W08 UNBLOCKED**
 
 ---
 
@@ -882,14 +887,15 @@ Freeze and prepare the final v1.0.0 release candidate.
 
 ### P1-W08-T01 — Release Scope
 
-* **M01** Record final commit SHA.
-* **M02** Record version.
+* **M01** Record final commit SHA: `a9b264416e4fc4948bafa5bff28066ea902df985`.
+* **M02** Record version: `1.0.0`.
 * **M03** Record included scope.
 * **M04** Record deferred scope.
 
 ### Evidence
 
 `P1-W08-T01-E01`
+- [`docs/reports/P1-W08-RELEASE-CANDIDATE-REPORT.md`](../reports/P1-W08-RELEASE-CANDIDATE-REPORT.md)
 
 ---
 
@@ -905,12 +911,14 @@ Document:
 ### Evidence
 
 `P1-W08-T02-E01`
+- [`RELEASE_NOTES.md`](../../RELEASE_NOTES.md)
+- [`CHANGELOG.md`](../../CHANGELOG.md)
 
 ---
 
 ### P1-W08-T03 — Final Verification
 
-* **M01** Verify release commit.
+* **M01** Verify release commit (`a9b264416e4fc4948bafa5bff28066ea902df985`).
 * **M02** Verify clean working tree.
 * **M03** Run final smoke test.
 * **M04** Confirm all release evidence references the same commit.
@@ -918,22 +926,33 @@ Document:
 ### Evidence
 
 `P1-W08-T03-E01`
+- Backend Security Smoke Test: 12/12 PASSED (`docker compose run --rm backend pytest tests/shared/test_security.py`)
+- Frontend PWA Smoke Test: 39/39 PASSED (`docker compose run --rm frontend-test npm test -- src/shared/pwa/service-worker.test.ts`)
 
 ---
 
 ### P1-W08-T04 — Release Gate
 
 ```text
-[ ] Quality gates pass
-[ ] Fullstack E2E complete
-[ ] Feature gaps classified
-[ ] Release blockers resolved
-[ ] Documentation reconciled
-[ ] Production preflight passes
-[ ] Backup / restore verified
-[ ] Release notes complete
-[ ] Release SHA frozen
+[x] Quality gates pass
+[x] Fullstack E2E complete
+[x] Feature gaps classified
+[x] Release blockers resolved
+[x] Documentation reconciled
+[x] Production preflight passes
+[x] Backup / restore verified
+[x] Release notes complete
+[x] Release SHA frozen
 ```
+
+### Evidence
+
+`P1-W08-T04-E01`
+- [`docs/reports/P1-W08-RELEASE-CANDIDATE-REPORT.md`](../reports/P1-W08-RELEASE-CANDIDATE-REPORT.md)
+
+### Status
+
+**✅ P1-W08 COMPLETED (PASS) — RELEASE CANDIDATE FROZEN**
 
 ---
 
