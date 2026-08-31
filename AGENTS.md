@@ -1,9 +1,9 @@
 # AGENTS.md — Property Management System
 
-**คู่มือสำหรับ AI Agent ที่ทำงานในโปรเจกต์นี้ อ่านก่อนเริ่มทำงานทุกครั้ง**    
-**Last Updated:** 2026-07-07    
-**Version:** 3.2    
-**Status:** Backend v1.0.0 Complete — Frontend v1.0.0 Complete — **Phase 1: E2E Campaign (pms-e2e Profile)**
+**คู่มือสำหรับ AI Agent ที่ทำงานในโปรเจกต์นี้ อ่านก่อนเริ่มทำงานทุกครั้ง**
+**Last Updated:** 2026-08-31
+**Version:** 3.3
+**Status:** Phase 1: Release Readiness — P1-W06 Documentation Reconciliation
 
 ---
 
@@ -11,14 +11,14 @@
 
 | Component | Status | Details |
 |-----------|--------|---------|
-| **Backend** | ✅ v1.0.0 Ready | 9 modules, 139 tests, production Docker, Local CI preferred |
-| **Frontend** | ✅ v1.0.0 Ready | 9 feature modules, 855 tests, E2E suite, PWA, Lighthouse CI, A11y audit |
-| **Phase 4: Coverage Gap Closure** | ✅ Complete | Frontend unit tests 139 → 855, all modules ≥80% coverage, test template + patterns documented |
-| **Documentation** | ✅ 95% Complete | **Exists:** All docs + Phase 4 testing-patterns.md added |
+| **Backend** | ✅ Ready | 9 modules, 361/361 tests passed, 84.89% coverage (below 85% target), production Docker |
+| **Frontend** | ✅ Ready | 9 feature modules, 53 test files, 955/955 unit tests passed, PWA, Lighthouse CI, A11y audit |
+| **E2E Verification** | ✅ Verified | 148 scenarios: 116 passed, 32 skipped, 0 failed (100% pass rate of active tests) |
+| **Documentation** | 🟡 Reconciling | P1-W06 documentation reconciliation in progress |
 | **Infrastructure** | ✅ Ready | Local CI preferred, backup/restore scripts, prod compose, MinIO, Redis |
-| **Testing** | ✅ 100% Pass | 139/139 tests, coverage ≥85%, async_client pattern stable |
+| **Testing** | ✅ All Active Tests Pass | Backend 361/361 (84.89% cov), Frontend 955/955, E2E 116 passed / 32 skipped / 0 failed |
 
-> ✅ **สรุป:** Backend + Frontend พร้อมใช้งานจริง 100% — Next Step: v1.0.0 Release & Production Deployment
+> ✅ **สรุป:** Backend + Frontend ผ่านการตรวจสอบเชิงคุณภาพครบถ้วน — Next Step: P1-W06 Documentation Reconciliation
 
 ---
 
@@ -60,7 +60,7 @@ property-management-system/
 │   │   │   └── SPRINT_1.md ~ SPRINT_8.md          # ✅ All complete
 │   │   ├── CODE_STYLE.md         # ✅ Coding standards (1,260 lines)
 │   │   └── OPERATIONS.md         # ✅ Runbooks, backup/restore
-│   ├── tests/                     # ✅ 139 tests (unit + integration + load + contract)
+│   ├── tests/                     # ✅ 361 tests (unit + integration + load + contract)
 │   ├── alembic/                   # ✅ 7 migrations (001–007)
 │   ├── Dockerfile                 # ✅ Multi-stage, non-root, 254MB
 │   └── scripts/                   # ✅ init-prod-db.sql, create_tables.py
@@ -216,7 +216,7 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 ✅ Shared Kernel: database, security(Argon2id), audit, events, validators, storage
 ✅ Middleware: security, rbac, logging, auth, rate_limit, cors
 ✅ Workers: celery_app, tasks, schedulers (stubs)
-✅ Tests: 139/139 pass, coverage ≥85%, async_client pattern stable
+✅ Tests: 361/361 pass, coverage 84.89% (target 85%), async_client pattern stable
 ✅ Docker: multi-stage, non-root, 254MB, healthcheck, graceful shutdown
 ✅ CI/CD: Local CI preferred (unlimited-free), GitHub Actions config present but not primary
 ✅ Migration: 001–007 applied, upgrade/downgrade safe
@@ -228,21 +228,14 @@ make dev-down      # 🔴 ปิดสภาพแวดล้อมทันท
 ✅ Stack: React 19 + Vite 8 + **TypeScript 6.0+ Strict Mode, tsconfig.json, .tsx with JSX**
 ✅ Shared Kernel: fetchClient, AuthContext, PWA (SW + IDB queue + sync), UI components
 ✅ Routing: React Router v7 lazy-load + ProtectedRoute + GuestRoute
-✅ Testing: Vitest (unit), Playwright (E2E 3 flows), axe-core (A11y 0 violations)
+✅ Testing: Vitest (53 files, 955 unit tests pass), Playwright (E2E 116 passed, 32 skipped, 0 failed), axe-core (A11y 0 violations)
 ✅ PWA: Service Worker (CacheFirst/NetworkFirst), offline fallback, manifest
 ✅ Performance: Bundle ≤150KB gzip, Lighthouse CI ≥90, visualizer treemap
-✅ E2E: auth-flow, meter-offline-sync, invoice-payment (all mocked)
+✅ E2E: Fullstack E2E Suite (148 scenarios: 116 passed, 32 skipped, 0 failed)
 ✅ Docker: multi-stage Dockerfile, docker-compose dev/test profiles
 ✅ Documentation: README.md, SPRINT_1–6.md all complete
-✅ Unit Tests: 855/855 pass (vitest), coverage ≥80% all 10 feature modules + shared kernel
+✅ Unit Tests: 955/955 pass (vitest), coverage ≥80% all 10 feature modules + shared kernel
 ```
-
-### Phase 4: Coverage Gap Closure ✅ Complete (Tasks 0-8.2b)
-- Unit tests: 139 → 855 tests
-- Coverage: All 10 feature modules ≥80%, all shared modules ≥80%
-- New patterns documented: `frontend/docs/testing-patterns.md`
-- Test template: `src/test/templates/COMPONENT_TEMPLATE.test.tsx`
-- Gate 10 (Frontend Unit Tests): PASS
 
 ---
 
@@ -339,6 +332,6 @@ infra: add health check endpoint + middleware stubs
 > ♻️ **Resource Policy:** รัน `make dev-down` ทันทีเมื่อเสร็จงาน — ห้ามทิ้งคอนเทนเนอร์รันค้าง  
 > 🤖 **อ่านไฟล์นี้ + docs/02-design/SDD/_index.md + ARCHITECTURE.md + CODE_STYLE.md ก่อนเริ่มงานทุกครั้ง**
 
-✅ **Status:** Backend v1.0.0 Complete — Frontend v1.0.0 Complete (Sprint 1–6)  
-📅 **Last Updated:** 2026-07-06  
-🎯 **Next:** v1.0.0 Release & Production Deployment
+✅ **Status:** Phase 1: Release Readiness — P1-W06 Documentation Reconciliation
+📅 **Last Updated:** 2026-08-31
+🎯 **Next:** P1-W06 Documentation Reconciliation → P1-W07 Production Preflight

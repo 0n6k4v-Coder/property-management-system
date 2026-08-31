@@ -2,7 +2,7 @@
 
 > **Document:** Global Roadmap      
 > **Scope:** Active roadmap for the current project phase through the v1.0.0 release.       
-> **Detailed execution:** [`docs/ROADMAP/PHASE-DETAIL.md`](docs/ROADMAP/PHASE-DETAIL.md)
+> **Detailed execution:** [`docs/ROADMAP/PHASE-01-DETAIL.md`](docs/ROADMAP/PHASE-01-DETAIL.md)
 
 ---
 
@@ -41,7 +41,7 @@ Property Management System
 │
 ├── docs/
 │   ├── ROADMAP/
-│   │   └── PHASE-DETAIL.md
+│   │   └── PHASE-01-DETAIL.md
 │   │       └── Detailed Phase 1 execution plan
 │   │
 │   ├── DECISIONS/

@@ -4,7 +4,7 @@
 >
 > **For rules, workflow & global policies → [`AGENTS.md`](AGENTS.md) (READ FIRST)**
 >
-> **Last sync:** 2026-07-05
+> **Last sync:** 2026-08-31
 
 ---
 
@@ -14,6 +14,8 @@
 |------|---------|--------------|
 | [`AGENTS.md`](AGENTS.md) | **Global workflow, rules, project status** | **Always first** — every session |
 | [`INDEX.md`](INDEX.md) | This file — project map & commands | When lost or need quick nav |
+| [`ROADMAP.md`](ROADMAP.md) | High-level project roadmap and execution plan link | When tracking milestone progress |
+| [`docs/ROADMAP/PHASE-01-DETAIL.md`](docs/ROADMAP/PHASE-01-DETAIL.md) | Detailed Phase 1 Release Readiness execution plan & evidence | Authoritative release readiness status |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | System architecture, C4 diagrams, ADRs | When designing or debugging |
 | [`docs/DECISIONS/README.md`](docs/DECISIONS/README.md) | Architecture Decision Records (ADR) index | When checking past decisions |
 
@@ -25,7 +27,7 @@
 |------|---------|
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Contributing guidelines, branch strategy, PR process |
 | [`docs/README.md`](docs/README.md) | Documentation index and entry point |
-| [`docs/reports/`](docs/reports/) | Quality gate reports |
+| [`docs/reports/`](docs/reports/) | Quality gate reports & verification records |
 | [`docs/DECISIONS/`](docs/DECISIONS/) | Architecture Decision Records (ADRs) |
 
 ---
@@ -36,12 +38,14 @@
 property-management-system/
 ├── AGENTS.md                    # 📜 Global workflow & rules (READ FIRST)
 ├── INDEX.md                     # 🗺️ This file — project map & commands
+├── ROADMAP.md                   # 🗺️ Project roadmap
 ├── Makefile                     # 🐳 Docker shortcuts (make dev, make test, etc.)
 ├── docker-compose.dev.yml       # 🐳 Dev environment (backend, db, redis, minio)
 ├── docker-compose.prod.yml      # 🐳 Production stack
 ├── .github/workflows/ci.yml     # 🔄 CI/CD pipeline
 │
 ├── docs/                        # 📚 Strategic Documentation
+│   ├── ROADMAP/                 # Phase execution plans (PHASE-01-DETAIL.md)
 │   ├── ARCHITECTURE.md          # C4 diagrams, tech stack, ADRs
 │   ├── REQUIREMENTS.md          # FR/NFR/BR, Actors
 │   ├── DOMAIN_MODEL.md          # Entities, Aggregates
@@ -51,11 +55,15 @@ property-management-system/
 │   │
 │   ├── DECISIONS/               # 📋 Architecture Decision Records (ADR)
 │   │   ├── README.md            # Decision index & workflow
-│   │   ├── 000-discussion-hermes-multi-agent.md  # 🟢 Accepted
-│   │   ├── 001-adopt-hermes-single-e2e-profile.md # ✅ Accepted (Phase 1)
+│   │   ├── 000-discussion-hermes-multi-agent.md
+│   │   ├── 001-adopt-hermes-single-e2e-profile.md
+│   │   ├── 002-login-dark-mode-color-scheme.md
+│   │   ├── 003-login-physics-easing.md
+│   │   ├── 004-login-view-transitions.md
+│   │   ├── 005-adopt-orchestrator-evaluation-checklist.md
 │   │   └── templates/           # Discussion & Decision templates
 │   │
-│   └── AI_AGENT_WORKFLOW/       # 🤖 Hermes usage guides (to be created)
+│   └── reports/                 # Quality & verification reports
 │
 ├── backend/                     # 🐍 FastAPI Backend (Python 3.14+)
 │   ├── app/
@@ -65,13 +73,13 @@ property-management-system/
 │   ├── docs/                    # Backend-specific docs
 │   │   ├── 02-design/SDD/       # Modular SDD (11 files)
 │   │   └── sprints/             # Sprint 1-8 plans
-│   ├── tests/                   # 139 tests (unit + integration + load)
+│   ├── tests/                   # 361 tests (unit + integration + load + contract)
 │   ├── alembic/                 # 7 migrations
 │   └── Dockerfile               # Multi-stage, non-root
 │
-├── frontend/                    # ⚛️ React 19 + Vite 8 + PWA
+├── frontend/                    # ⚛️ React 19 + Vite 8 + PWA (TypeScript 6.0+ Strict)
 │   ├── src/                     # 9 feature modules + shared kernel
-│   ├── e2e/                     # Playwright E2E tests
+│   ├── e2e/                     # Playwright E2E tests (148 scenarios)
 │   └── Dockerfile               # Multi-stage
 │
 ├── scripts/                     # 🛠️ DevOps & Maintenance
@@ -133,80 +141,42 @@ make release          # Git tag → buildx → push → changelog
 | Task | Command / File |
 |------|----------------|
 | **Start here** | Read `AGENTS.md` → Read this `INDEX.md` |
+| **Current Roadmap** | Read `docs/ROADMAP/PHASE-01-DETAIL.md` |
 | **Understand architecture** | Read `docs/ARCHITECTURE.md` |
 | **Check decisions** | Browse `docs/DECISIONS/README.md` |
-| **Current Phase** | Phase 1: Single `pms-e2e` Profile (Decision 001) |
-| **Run E2E Campaign** | `hermes -p pms-e2e -w chat -q "Execute E2E Campaign..."` |
-| **Monitor Kanban** | `hermes kanban list` / `hermes kanban show` |
+| **Current Phase** | Phase 1: Release Readiness / P1-W06 Documentation Reconciliation |
 | **Stop everything** | `make dev-down` |
 
 ---
 
-## 📌 Current Status (2026-07-05)
+## 📌 Current Status (2026-08-31)
 
 | Component | Status |
 |-----------|--------|
-| **Backend** | ✅ v1.0.0 Ready (9 modules, 139 tests) |
-| **Frontend** | ✅ v1.0.0 Ready (React 19, PWA) |
+| **Current Phase** | Phase 1: Release Readiness — P1-W06 Documentation Reconciliation |
+| **Backend** | ✅ 361/361 tests passed, 84.89% coverage (target 85%) |
+| **Frontend** | ✅ 53 test files, 955/955 unit tests passed, React 19, PWA, A11y |
+| **E2E Suite** | ✅ 148 scenarios: 116 passed, 32 skipped, 0 failed |
 | **Infrastructure** | ✅ Docker, CI/CD, MinIO, Redis |
-| **Testing** | ✅ 139/139 pass, coverage ≥85% |
-| **Hermes Integration** | 🟢 **Phase 1 Approved** — `pms-e2e` Profile |
-| **Next** | Execute E2E Campaign → Phase 1 Gate Review |
+| **Next** | P1-W06 Documentation Reconciliation → P1-W07 Production Preflight |
 
 ---
 
-## 🎯 Current Phase: Phase 1 — Single `pms-e2e` Profile
+## 🎯 Current Phase: Phase 1 — Release Readiness
 
-| Decision | File | Status |
-|----------|------|--------|
-| **Phase 1: Single `pms-e2e` Profile** | [`docs/DECISIONS/001-adopt-hermes-single-e2e-profile.md`](docs/DECISIONS/001-adopt-hermes-single-e2e-profile.md) | ✅ **Accepted** |
-| **Discussion & Analysis** | [`docs/DECISIONS/000-discussion-hermes-multi-agent.md`](docs/DECISIONS/000-discussion-hermes-multi-agent.md) | 🟢 **Accepted** |
+See authoritative execution detail in [`docs/ROADMAP/PHASE-01-DETAIL.md`](docs/ROADMAP/PHASE-01-DETAIL.md).
 
-### Phase 1 Exit Criteria (Gate Review)
-- [ ] `pms-e2e` profile สร้างและรันได้
-- [ ] Kanban board `pms-sprint-e2e` ทำงาน (create/assign/complete tasks)
-- [ ] E2E Campaign รันครบ 3-5 features (Auth, Billing, Property minimum)
-- [ ] Master Bug Report ออกมาเป็น Markdown/JSON actionable
-- [ ] Kanban tasks update Pass/Fail + Evidence (screenshots, traces, logs) ได้
-- [ ] **Decision Gate:** Proceed to Phase 2 (Parallel/Orchestrator)? Yes/No/Modify
+### Architecture Decision Records (ADR Inventory)
 
----
-
-## 🚀 Quick Start: Phase 1 Implementation
-
-```bash
-# 1. สร้าง Profile
-hermes profile create pms-e2e --clone
-
-# 2. ตั้งค่า Tools
-hermes -p pms-e2e tools enable terminal,file,code_execution,web,skills,memory,session_search,cronjob,kanban,browser,delegation
-
-# 3. Init Kanban Board
-hermes kanban init --name pms-sprint-e2e
-hermes kanban lane add test-worker
-
-# 4. Populate Tasks (5 features)
-hermes kanban create "E2E-Auth: Login, Register, JWT refresh" --lane test-worker
-hermes kanban create "E2E-Billing: Invoice CRUD, Payment, Meter reading" --lane test-worker
-hermes kanban create "E2E-Property: Building, Floor, Room CRUD" --lane test-worker
-hermes kanban create "E2E-Contract: Lease, Renewal, Expiry" --lane test-worker
-hermes kanban create "E2E-Maintenance: Request, Assign, Complete" --lane test-worker
-
-# 5. Run Agent (tmux)
-tmux new-session -d -s pms-e2e 'hermes -p pms-e2e -w chat -q "Execute E2E Campaign: read Kanban board pms-sprint-e2e, execute all tasks in test-worker lane sequentially, run pytest + playwright + schemathesis for each feature, generate Master Bug Report, update Kanban with Pass/Fail + Evidence"'
-
-# 6. Monitor
-tmux attach -t pms-e2e
-```
+| ID | Title | Status | Link |
+|----|-------|--------|------|
+| 000 | Adopt Hermes Multi-Agent Profiles + Kanban Board | 🟢 Accepted | [`docs/DECISIONS/000-discussion-hermes-multi-agent.md`](docs/DECISIONS/000-discussion-hermes-multi-agent.md) |
+| 001 | Adopt Hermes Single E2E Profile (pms-e2e) for Phase 1 E2E Campaign | ✅ Accepted | [`docs/DECISIONS/001-adopt-hermes-single-e2e-profile.md`](docs/DECISIONS/001-adopt-hermes-single-e2e-profile.md) |
+| 002 | Login Page — Respect User Preferences (Dark Mode + color-scheme) | ✅ Accepted | [`docs/DECISIONS/002-login-dark-mode-color-scheme.md`](docs/DECISIONS/002-login-dark-mode-color-scheme.md) |
+| 003 | Login Page — Natural Interactions (Physics-based Easing) | ✅ Accepted | [`docs/DECISIONS/003-login-physics-easing.md`](docs/DECISIONS/003-login-physics-easing.md) |
+| 004 | Login Page — Guided Navigation (View Transitions) | ✅ Accepted | [`docs/DECISIONS/004-login-view-transitions.md`](docs/DECISIONS/004-login-view-transitions.md) |
+| 005 | Adopt Orchestrator Evaluation Checklist as Mandatory Standard | ✅ Accepted | [`docs/DECISIONS/005-adopt-orchestrator-evaluation-checklist.md`](docs/DECISIONS/005-adopt-orchestrator-evaluation-checklist.md) |
 
 ---
 
-## 🔗 Related Repositories / Links
-
-- **Hermes Agent Docs**: https://hermes-agent.nousresearch.com/docs/
-- **Hermes Skills Hub**: https://github.com/NousResearch/hermes-agent-skills
-- **Project GitHub**: (local only — no remote configured)
-
----
-
-> **Navigation:** For rules, workflow & global policies → [`AGENTS.md`](AGENTS.md) | For architecture decisions → [`docs/DECISIONS/README.md`](docs/DECISIONS/README.md) | For architecture diagrams → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+> **Navigation:** For rules, workflow & global policies → [`AGENTS.md`](AGENTS.md) | For roadmap & execution → [`docs/ROADMAP/PHASE-01-DETAIL.md`](docs/ROADMAP/PHASE-01-DETAIL.md) | For architecture decisions → [`docs/DECISIONS/README.md`](docs/DECISIONS/README.md) | For architecture diagrams → [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)

@@ -20,6 +20,7 @@ Welcome to the Property Management System documentation. This index helps you na
 
 | Document | Description |
 |----------|-------------|
+| [ROADMAP/PHASE-01-DETAIL.md](./ROADMAP/PHASE-01-DETAIL.md) | Phase 1 Release Readiness execution plan & authoritative state |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | C4 diagrams, ADRs, tech decisions |
 | [REQUIREMENTS.md](./REQUIREMENTS.md) | FR/NFR/BR, Actors |
 | [DOMAIN_MODEL.md](./DOMAIN_MODEL.md) | Entities, Aggregates, Domain Events |
@@ -53,8 +54,8 @@ Welcome to the Property Management System documentation. This index helps you na
 |----------|-------------|
 | [DECISIONS/](./DECISIONS/) | Architecture Decision Records (ADRs) |
 | [DECISIONS/README.md](./DECISIONS/README.md) | ADR index and process |
-| [reports/](./reports/) | Quality gate reports |
-| [reports/Quality-Gate-Report.md](./reports/Quality-Gate-Report.md) | Latest quality gate results |
+| [reports/](./reports/) | Quality gate reports & verification records |
+| [reports/Quality-Gate-Report.md](./reports/Quality-Gate-Report.md) | Historical quality gate checkpoint / baseline report (2026-08-08) |
 | [RETROSPECTIVES/](./RETROSPECTIVES/) | Session retrospectives |
 | [FEEDBACK/](./FEEDBACK/) | Audit reports and reviews |
 

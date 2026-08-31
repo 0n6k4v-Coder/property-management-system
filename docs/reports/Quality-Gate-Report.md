@@ -1,25 +1,17 @@
-# 🎯 Quality Gate Report
+# 🎯 Quality Gate Report — HISTORICAL VERIFICATION RECORD
 
-## ✅ UPDATED (2026-08-08) — DEPLOY READY
-
-All blocking issues have been resolved:
-- ✅ TenantListPage contamination — Fixed (gcTime: 0 in QueryClient)
-- ✅ E2E rate limiting — Fixed (ENVIRONMENT=test disables LoginRateLimiter)
-- ✅ Test integrity — Restored (.last-run.json reverted from falsified state)
-- ✅ All 16 quality gates now pass
-
-**Current Status: ✅ DEPLOY READY**
-
-### Commits that fixed these issues:
-- `e78a497` — fix(tests): resolve E2E rate limiting, TenantListPage contamination, restore integrity
-- `1396725` — fix(scripts): use asyncpg-compatible URL scheme and get_settings()
-- `0129328` — feat(scripts): add critical automation scripts
-- `6ea5352` — feat(scripts): add Phase 2 workflow optimization scripts
-- `6aa7005` — docs(scripts): add comprehensive scripts reference documentation
+> [!NOTE]
+> **HISTORICAL VERIFICATION RECORD — 2026-08-08**
+>
+> This report records the historical quality gate checkpoint from **2026-08-08**. Its findings, test metrics, and "NOT READY TO DEPLOY" conclusion apply strictly to that specific historical checkpoint.
+>
+> Subsequent work in **P1-W05** (Release-Blocking Defects) and **P1-W05-R** (Flaky Test Discovery & Determinism Remediation) superseded this checkpoint.
+>
+> The authoritative current release-readiness state and verified evidence are defined in [`docs/ROADMAP/PHASE-01-DETAIL.md`](../ROADMAP/PHASE-01-DETAIL.md) and subsequent reports.
 
 ---
 
-## 🎯 Quality Gate Report (Final)
+## 🎯 Quality Gate Report (Historical Checkpoint — 2026-08-08)
 
 ## Overall Status: ❌ NOT READY TO DEPLOY
 
